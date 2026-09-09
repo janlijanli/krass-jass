@@ -1,1 +1,63 @@
 # krass-jass
+
+Web app to play **Schieber Jass** (Swiss, 4 players, French deck): one human against three
+bot services. The substantial goal is training an algorithm that plays the game well.
+
+- **`PLAN.md`** — the full plan, rules research and rationale.
+- **`CLAUDE.md`** — standing constraints that apply to every session.
+- **`docs/rules-config.md`** — every disputed rule, as a flag with a written-down default.
+- **`docs/plan-review.md`** — review of the plan, and why M5 is gated on engine throughput.
+
+## Status
+
+**M1 (engine + tests) complete.** No web, no bots yet — that is M2.
+
+| | |
+|---|---|
+| M0 | ✅ Rule variants locked in `docs/rules-config.md` |
+| M1 | ✅ Bitboard state, legal moves, trick resolution, scoring, Weis/Stöck, property tests, benchmark harness |
+| M2 | ⬜ FastAPI + WebSocket + random bots in containers; mobile card-fan component |
+| M3 | ⬜ Rule-based bot + arena with double rounds |
+| M4 | ⬜ DMCTS: void tracking, determinization, UCT, exact endgame solver |
+| M5 | ⬜ Distillation — **gated on throughput**, see `docs/plan-review.md` §1 |
+| M6 | ⬜ Polish: replay UI, security pass, difficulty levels |
+
+## Layout
+
+```
+krass_jass/
+  cards.py    bitboard primitives — a hand is a 36-bit int, a suit is a 9-bit field
+  rules.py    RulesConfig: every rule variant as a flag. HOUSE and EVAL presets
+  tables.py   precomputed values, trick strengths, undertrump masks
+  legal.py    legal-move generation — the highest-risk function in the codebase
+  trick.py    trick winner and points
+  scoring.py  round scoring: tricks, last trick, match, multiplier
+  weis.py     Weis and Stöck
+  state.py    RoundState — the authoritative, validating object layer
+  rollout.py  the rollout kernel: THE SEAM, ints only, gets rewritten natively for M5
+tests/
+  reference.py  a naive implementation written from the rules text, importing nothing
+                from krass_jass — it exists to disagree with the engine
+bench/
+  benchmark.py  rounds/sec and rollouts/sec. Runs in CI; the number gates M5
+```
+
+## Develop
+
+```bash
+uv venv --python 3.12
+uv pip install -e '.[dev]'
+.venv/bin/python -m pytest
+.venv/bin/python bench/benchmark.py
+```
+
+## The three rules that make Jass different
+
+Implementations of other trick-taking games get these wrong. They are not bugs:
+
+1. **You may always trump, even when you can follow suit.** This is why the branching
+   factor is high.
+2. **Strict undertrumping.** Once someone has trumped a non-trump lead, a lower trump is
+   illegal — unless your hand is nothing but trumps.
+3. **The Puur is exempt from a trump lead.** If your only trump is the trump Jack, you need
+   not play it.

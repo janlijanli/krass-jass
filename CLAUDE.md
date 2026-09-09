@@ -12,10 +12,14 @@ every session.
 
 ## Current state
 
-Planning reviewed (`docs/plan-review.md`), no code yet. Next milestone is **M0**, whose
-deliverable is `docs/rules-config.md` — the review found two rules errors in `PLAN.md`
-(trump multipliers, Undenufe card values) that are exactly what M0 exists to catch, so
-it is not skippable. M1 (engine + tests) follows.
+**M0 and M1 are done.** Rule variants are locked in `docs/rules-config.md`; the engine,
+its property tests and the benchmark harness are in. Next milestone is **M2 (playable
+loop)** — FastAPI + WebSocket + random bots in containers, and the mobile card-fan
+component, which `PLAN.md` §5.1 says to prototype before the rest of the layout.
+
+Measured throughput, M2-era baseline: **39k rounds/sec, 72k mid-round rollouts/sec**
+(single core, M2, Python 3.12). That is 11s per move at the literature's tuned budget
+before any tree overhead — the number that gates M5. `bench/benchmark.py` reports it in CI.
 
 Decisions still open. `PLAN.md` §9 has the full list of six; these two block architecture:
 

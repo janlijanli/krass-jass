@@ -50,6 +50,13 @@ Separately, the ~28k-round corpus you can afford is **65× smaller** than the 1.
 produced the published 0.78 policy accuracy. `PLAN.md` flags that you lack the human corpus but
 never costs out the replacement.
 
+> **Update, M1 complete.** The real engine is *faster* than the probe — 39,000 rounds/sec and
+> 72,000 mid-round rollouts/sec, because trick resolution became a table lookup. That puts the tuned
+> budget at **11s per move before any MCTS tree overhead**, so 22–44s once search is wrapped around
+> it. The corpus figures above are expressed in seconds-per-move and are unchanged; the
+> teacher/student ratio at an affordable teacher is still ~3×. **The conclusion stands.**
+> `bench/benchmark.py` now reports this on every CI run.
+
 **Consequences, now written into both documents:**
 
 - Numba/Cython/Rust on the rollout loop is a **precondition for M5**, not a contingency. Both

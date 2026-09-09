@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv venv --python 3.12
+      - run: uv pip install -e '.[dev]'
+      - name: Tests
+        run: .venv/bin/python -m pytest
+
+      # Throughput is the project's real bottleneck and the gate on M5
+      # (docs/plan-review.md §1), so it is measured on every run and the number is kept.
+      - name: Benchmark
+        run: .venv/bin/python bench/benchmark.py --json | tee benchmark.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark
+          path: benchmark.json
