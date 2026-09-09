@@ -1,0 +1,18 @@
+[package]
+name = "krass-jass-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "krass_jass_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"] }
+rayon = "1.10"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

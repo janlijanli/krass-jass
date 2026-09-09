@@ -57,6 +57,14 @@ never costs out the replacement.
 > teacher/student ratio at an affordable teacher is still ~3×. **The conclusion stands.**
 > `bench/benchmark.py` now reports this on every CI run.
 
+> **Update 2, Rust core landed.** Built and measured on the same machine: **2.5M rollouts/sec**
+> (35x) and **1.48M DMCTS iterations/sec single-core** (42x), 6.19M across all cores. The tuned
+> 800k budget is now **0.13s per move**, down from 23s. A 1M-decision self-play corpus at that
+> budget is **~1.5 days** instead of 33. The RL loop the strength goal depends on is now reachable.
+>
+> Note the parallel scaling: 4.2x on 8 cores, not 8x — this M2 has 4 performance and 4 efficiency
+> cores. Budget for that when sizing training runs.
+
 **Consequences, now written into both documents:**
 
 - Numba/Cython/Rust on the rollout loop is a **precondition for M5**, not a contingency. Both

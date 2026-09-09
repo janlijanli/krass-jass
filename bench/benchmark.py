@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import random
 import sys
@@ -70,6 +71,40 @@ def bench_rollouts(n: int, tricks_played: int = 4, seed: int = 2) -> float:
     return n / (time.perf_counter() - t)
 
 
+def bench_rust(seed: int = 3) -> dict | None:
+    """The Rust core, if it is built. Same workload, so the numbers are comparable."""
+    try:
+        import krass_jass_core as core
+    except ImportError:
+        return None
+
+    rng = random.Random(seed)
+    hands = deal(rng)
+
+    n = 2_000_000
+    t = time.perf_counter()
+    core.play_out_many(hands, 0, int(Contract.HEARTS), 1, n)
+    rollouts = n / (time.perf_counter() - t)
+
+    def dmcts_rate(threads: int, dets: int, iters: int) -> float:
+        t0 = time.perf_counter()
+        core.dmcts(
+            seat=0, hand=hands[0], unseen=hands[1] | hands[2] | hands[3],
+            trick=[], trick_leader=0, contract=int(Contract.HEARTS),
+            determinizations=dets, iterations=iters, seed=1, threads=threads,
+        )
+        return (dets * iters) / (time.perf_counter() - t0)
+
+    single = dmcts_rate(1, 200, 800)
+    parallel = dmcts_rate(os.cpu_count() or 8, 1000, 800)
+    return {
+        "rust_rollouts_per_second": round(rollouts),
+        "rust_dmcts_iterations_per_second": round(single),
+        "rust_dmcts_iterations_per_second_all_cores": round(parallel),
+        "rust_seconds_per_move_at_tuned_budget": round(TUNED_BUDGET / parallel, 3),
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", action="store_true")
@@ -86,7 +121,11 @@ def main() -> int:
         "seconds_per_move_at_tuned_budget": round(TUNED_BUDGET / rollouts_per_second, 1),
         "python": platform.python_version(),
         "machine": platform.machine(),
+        "cores": os.cpu_count(),
     }
+    rust = bench_rust()
+    if rust:
+        result.update(rust)
 
     if args.json:
         print(json.dumps(result, indent=2))
@@ -100,6 +139,20 @@ def main() -> int:
         f"{result['seconds_per_move_at_tuned_budget']}s per move, single core."
     )
     print("A web move budget is ~1.5s. See docs/plan-review.md §1.")
+
+    if rust:
+        print()
+        print("Rust core")
+        print(f"  rollouts/sec                {result['rust_rollouts_per_second']:>14,}"
+              f"   ({result['rust_rollouts_per_second'] / rollouts_per_second:.0f}x python)")
+        print(f"  DMCTS iterations/sec (1)    {result['rust_dmcts_iterations_per_second']:>14,}")
+        print(f"  DMCTS iterations/sec ({result['cores']})    "
+              f"{result['rust_dmcts_iterations_per_second_all_cores']:>14,}")
+        print()
+        print(f"  Tuned {TUNED_BUDGET:,}-rollout budget: "
+              f"{result['rust_seconds_per_move_at_tuned_budget']}s per move on all cores.")
+    else:
+        print("Rust core not built — see rust/README.md")
     print(f"[python {result['python']} on {result['machine']}]")
     return 0
 

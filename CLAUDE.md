@@ -17,9 +17,10 @@ its property tests and the benchmark harness are in. Next milestone is **M2 (pla
 loop)** — FastAPI + WebSocket + random bots in containers, and the mobile card-fan
 component, which `PLAN.md` §5.1 says to prototype before the rest of the layout.
 
-Measured throughput, M2-era baseline: **39k rounds/sec, 72k mid-round rollouts/sec**
-(single core, M2, Python 3.12). That is 11s per move at the literature's tuned budget
-before any tree overhead — the number that gates M5. `bench/benchmark.py` reports it in CI.
+**The search is Rust** (`rust/`, exposed via `krass_jass.native`). Measured: 1.48M DMCTS
+iterations/sec single-core, 6.19M on all cores — 42x the Python search. The tuned 800k
+budget is 0.13s per move. Python remains the engine of record; only the search moved.
+`bench/benchmark.py` reports both in CI.
 
 Decisions still open. `PLAN.md` §9 has the full list of six; these two block architecture:
 
@@ -37,12 +38,15 @@ Do not design around an assumed answer to either. Ask.
 **Engine**
 - Python where possible. Bitboard representation — a hand is a 36-bit integer, suits
   are masks. Not an object-oriented card model; the throughput difference is 10–50×.
-- If profiling proves pure Python insufficient, escalate in this order: Numba/Cython
-  on the rollout loop only → Rust core via PyO3. Do not reach for either speculatively
-  for M1–M4 — but a native rollout loop is a **precondition for M5**, not a contingency
-  (`PLAN.md` §3.4 cost note). So: keep the rollout loop isolated behind a narrow seam and
-  free of Python objects from the first commit, so it can be swapped without touching
-  anything else.
+- **The search lives in Rust** (`rust/`), because the strength goal requires learned
+  self-play and Python put one training corpus at 33 days. Ported as a unit — kernel *and*
+  UCT tree: profiling showed the rollout is 73% of search time, so porting the kernel alone
+  would have capped the whole exercise at ~2.4x. Do not re-split them.
+- Any change to a rule in Python must land in `rust/` in the same commit, and vice versa.
+  `tests/test_rust_conformance.py` asserts three-way agreement with `tests/reference.py`
+  and will fail if they drift.
+- There is **no Python fallback for the search**, deliberately. A silent fallback is a 20x
+  slowdown disguised as a working system.
 - Legal-move generation is table-driven: 9 bits per suit → 512 entries, keyed on
   `(led_suit, trump, per-suit hand masks, trumped_yet)`. A lookup, not a branch tree.
 - Python 3.12 or newer. 3.9 is ~48% slower on this workload; it is free throughput.

@@ -10,7 +10,13 @@ bot services. The substantial goal is training an algorithm that plays the game 
 
 ## Status
 
-**M1 (engine + tests) complete.** No web, no bots yet — that is M2.
+**M1 (engine + tests) complete, and the Rust search core is in.** No web, no bots yet — that is M2.
+
+```
+                      Python          Rust        speedup
+rollouts/sec          71,000       2,500,000          35x
+DMCTS iterations/sec  35,000       1,482,000          42x   (6,187,000 on 8 cores)
+```
 
 | | |
 |---|---|
@@ -34,7 +40,10 @@ krass_jass/
   scoring.py  round scoring: tricks, last trick, match, multiplier
   weis.py     Weis and Stöck
   state.py    RoundState — the authoritative, validating object layer
-  rollout.py  the rollout kernel: THE SEAM, ints only, gets rewritten natively for M5
+  rollout.py  the rollout kernel (Python reference implementation)
+  native.py   boundary to the Rust search core
+rust/
+  the hot path: legal moves, rollout kernel, DMCTS tree. See rust/README.md
 tests/
   reference.py  a naive implementation written from the rules text, importing nothing
                 from krass_jass — it exists to disagree with the engine
