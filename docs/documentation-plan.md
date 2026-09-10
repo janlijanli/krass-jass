@@ -205,6 +205,68 @@ Getting this wrong turns the documentation feature into a cheat button.
 
 ---
 
+## 8b. Visualisations
+
+The statistics sections are the reason this page exists, and statistics prose without
+pictures does not land. Each figure below earns its place by showing something a sentence
+cannot.
+
+**Rules that apply to all of them:**
+
+- **Inline SVG, hand-written, animated with CSS or a short `requestAnimationFrame` loop.**
+  No chart framework. These are six bespoke figures, not a dashboard, and a charting
+  library would be more code than the figures. This matches the frontend approach in
+  `PLAN.md` §5.1 — vanilla, small, no framework fight.
+- **Motion must carry the argument, never decorate it.** If the figure reads the same when
+  paused, it should be static.
+- **Every animated figure has a static end state** and renders correctly under
+  `prefers-reduced-motion`, which is also what makes it screenshot-able.
+- **Play on scroll-into-view, with a replay control.** Never loop indefinitely — a looping
+  animation beside body text is unreadable.
+- **Theme-aware and colourblind-safe.** Never encode a claim in hue alone; pair colour with
+  position, shape or a label.
+
+### The six figures
+
+**1. Deal luck vs skill — the case for double rounds.** *Animated, and the most important
+one on the page.* Two histograms of per-deal point share. First the raw one: wide, ~8%
+standard deviation, with the true 2% skill difference marked — visibly drowned. Then animate
+each deal collapsing into its paired partner, and watch the distribution contract until the
+difference separates from zero. This single figure justifies the entire evaluation
+methodology and is far more convincing than the paragraph it replaces.
+
+**2. Statistical power curve.** Detectable effect size against number of deals, with our
+actual matchups plotted on it. Marks why n=60 could not resolve a 16× budget difference.
+Interactive: drag `n`, watch the resolvable effect move. Static fallback is the same curve
+with three labelled points.
+
+**3. Ladder forest plot.** Each matchup as a point with its 95% CI, a vertical line at 50%.
+Intervals crossing the line are visibly inconclusive — which is the honest way to present
+greedy-vs-random rather than a bar chart implying a result. No animation needed.
+
+**4. The search, animated.** The most compelling figure for a lay reader. One real position;
+determinizations deal the unseen cards over and over (cards flickering into different hands),
+each producing a vote, votes accumulating into a bar per candidate card, converging as the
+count rises. Shows sampling, aggregation and convergence in one object, and uses real trace
+data from an actual decision rather than a mock-up.
+
+**5. Void inference.** A 4×9 card grid per opponent. As the replay steps through tricks,
+cells grey out as they are ruled out. Include the Puur case explicitly — the trump suit
+greys out *except* the Jack — because that is the moment the viewer realises the inference
+is precise rather than approximate.
+
+**6. Throughput, Python vs Rust.** A simple bar pair, log scale, with the consequence
+spelled out underneath in wall-clock time rather than ops/sec: 33 days against 1.5 days for
+one training corpus. The units people feel.
+
+### Where the data comes from
+
+Figures 3, 4 and 5 render from real artifacts — the ladder JSON of §3, and recorded search
+traces and void inferences from a real round. Nothing is drawn from invented numbers. A
+figure built on mock data will eventually be mistaken for evidence, including by us.
+
+---
+
 ## 9. Resources to cite
 
 Already collected in `PLAN.md` §10; the docs should cite them inline rather than in a dump
