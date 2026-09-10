@@ -10,6 +10,7 @@ impressive, they are there so that when a change makes the top rung worse you fi
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -26,15 +27,15 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--deals", type=int, default=100)
     ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--threads", type=int, default=1)
+    ap.add_argument(
+        "--workers", type=int, default=0, help="processes across deals; 0 = all cores"
+    )
     args = ap.parse_args()
 
-    small = DmctsAgent(
-        determinizations=40, iterations=60, cfg=EVAL, threads=args.threads, label="dmcts(small)"
-    )
-    large = DmctsAgent(
-        determinizations=200, iterations=200, cfg=EVAL, threads=args.threads, label="dmcts(large)"
-    )
+    workers = args.workers or (os.cpu_count() or 1)
+
+    small = DmctsAgent(determinizations=40, iterations=60, cfg=EVAL, label="dmcts(small)")
+    large = DmctsAgent(determinizations=200, iterations=200, cfg=EVAL, label="dmcts(large)")
 
     cheat = CheatingAgent(iterations=4000, cfg=EVAL)
 
@@ -47,10 +48,13 @@ def main() -> int:
         (cheat, large),
     ]
 
-    print(f"{args.deals} double rounds each, Weis/Stöck/match off, paired t-test\n")
+    print(
+        f"{args.deals} double rounds each, {workers} workers, "
+        f"Weis/Stöck/match off, paired t-test\n"
+    )
     for a, b in pairs:
         t0 = time.perf_counter()
-        result = match(a, b, deals=args.deals, seed=args.seed)
+        result = match(a, b, deals=args.deals, seed=args.seed, workers=workers)
         print(f"{result}   [{time.perf_counter() - t0:.1f}s]")
     return 0
 

@@ -18,8 +18,10 @@ variance and would drown any real difference between two agents.
 from __future__ import annotations
 
 import math
+import os
 import random
 import statistics
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
 from krass_jass.agent import Agent
@@ -144,6 +146,31 @@ def paired_test(differences: list[float]) -> tuple[float, float]:
     return t, p
 
 
+def deal_spec(seed: int, index: int, contract: Contract | None):
+    """The whole setup for deal `index`, derived from `(seed, index)` alone.
+
+    Deliberately *not* drawn from one sequential stream: making each deal independent of
+    how many came before is what lets the match run across processes and still reproduce
+    exactly. Order-dependent seeding and parallelism cannot both be had.
+    """
+    rng = random.Random(f"deal:{seed}:{index}")
+    hands = deal_hands(rng)
+    c = contract if contract is not None else Contract(rng.randrange(6))
+    leader = rng.randrange(4)
+    game_seed = seed * 1_000_003 + index * 2
+    return hands, c, leader, game_seed
+
+
+def _run_chunk(args) -> list[float]:
+    a, b, cfg, seed, contract, indices = args
+    out = []
+    for i in indices:
+        hands, c, leader, game_seed = deal_spec(seed, i, contract)
+        a_share, _ = double_round(hands, c, leader, a, b, cfg, game_seed)
+        out.append(a_share)
+    return out
+
+
 def match(
     a: Agent,
     b: Agent,
@@ -151,21 +178,32 @@ def match(
     seed: int = 0,
     cfg: RulesConfig = EVAL,
     contract: Contract | None = None,
+    workers: int | None = None,
 ) -> MatchResult:
     """Run `deals` double rounds of A against B.
 
     `contract` fixes the trump for every deal; leaving it `None` picks one at random per
     deal. Trump *selection* is M3 and not built yet, so this is a placeholder that at least
     exercises all six contracts rather than silently benchmarking only one.
+
+    `workers` spreads the deals across processes. Deals are independent, so this scales
+    close to linearly, and results are identical to a serial run — each deal's setup and
+    seeds come from `(seed, index)`, not from a shared stream. Prefer this over giving the
+    agents threads: parallelising across deals keeps every core busy, while parallelising
+    inside one move leaves them idle between decisions.
     """
-    rng = random.Random(seed)
-    shares: list[float] = []
-    for i in range(deals):
-        hands = deal_hands(rng)
-        c = contract if contract is not None else Contract(rng.randrange(6))
-        leader = rng.randrange(4)
-        a_share, _ = double_round(hands, c, leader, a, b, cfg, game_seed=seed * 1_000_003 + i * 2)
-        shares.append(a_share)
+    if workers is None:
+        workers = 1
+    if workers <= 1:
+        shares = _run_chunk((a, b, cfg, seed, contract, range(deals)))
+    else:
+        workers = min(workers, deals)
+        chunks = [list(range(i, deals, workers)) for i in range(workers)]
+        payload = [(a, b, cfg, seed, contract, c) for c in chunks if c]
+        shares = []
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            for part in pool.map(_run_chunk, payload):
+                shares.extend(part)
 
     # Under the null hypothesis each side takes half the points, so the per-deal difference
     # from 0.5 is what the paired test looks at.

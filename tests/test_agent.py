@@ -125,3 +125,14 @@ def test_dmcts_beats_random_convincingly():
         seed=3,
     )
     assert result.a_share > 0.55, f"dmcts only took {result.a_share:.1%} against random"
+
+
+def test_parallel_matches_are_identical_to_serial():
+    """Parallelism must not change the answer. Every deal's setup and seeds come from
+    (seed, index), so process count only affects how long it takes."""
+    a = DmctsAgent(determinizations=4, iterations=8, cfg=EVAL)
+    b = GreedyAgent()
+    serial = match(a, b, deals=8, seed=5, workers=1)
+    parallel = match(a, b, deals=8, seed=5, workers=4)
+    assert serial.a_share == parallel.a_share
+    assert serial.std == parallel.std
