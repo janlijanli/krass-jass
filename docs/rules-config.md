@@ -164,6 +164,15 @@ not just an equal-scoring one — a run of nine and a run of five both score 100
 beats an opponent's run of six. **The team holding the single best Weis scores all of its
 Weis; the other team scores nothing.**
 
+**Announcement is automatic and staged.** Everyone calls the *value* of their best Weis;
+only the team holding the best one then shows its cards. That staging is an
+information-boundary rule, not presentation — revealing every seat's Weis cards would leak
+three hands at the top of every round.
+
+**Known simplification:** Stöck is announced at the top of the round rather than when the
+second of King/Queen is played. This gives away timing a real player would choose when to
+reveal. Acceptable for v1; fix when the Weis UI becomes manual.
+
 `stoeck_enabled` — **default `True`**, `False` in `EVAL`. King + Queen of trumps in one hand = 20
 points. It is not a Weis, cannot be beaten, and is announced when the second of the two is played.
 **There is no Stöck in Obenabe or Undenufe** — there is no trump suit to hold. The engine must not

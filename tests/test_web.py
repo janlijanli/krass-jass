@@ -83,3 +83,14 @@ def test_a_completed_trick_is_held_until_acknowledged():
     after = view(table, 0)
     assert after["trick_complete"] is False
     assert len(after["trick"]) < 4
+
+
+def test_hidden_attribute_is_forced_in_css():
+    """Regression. `[hidden] { display: none }` lives in the UA stylesheet at the same
+    specificity as a class rule, so `.scorecard-backdrop { display: grid }` — written later —
+    beat it, and the round scorecard sat over the table with `hidden` set. Any element whose
+    class sets `display` needs this rule to make `hidden` mean anything."""
+    from pathlib import Path
+
+    css = (Path(__file__).resolve().parents[1] / "web/static/table.css").read_text()
+    assert "[hidden] { display: none !important; }" in css

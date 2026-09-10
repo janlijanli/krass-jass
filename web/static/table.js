@@ -14,6 +14,12 @@ const el = {
   hand: document.getElementById("hand"),
   trick: document.getElementById("trick"),
   bidding: document.getElementById("bidding"),
+  weis: document.getElementById("weis"),
+  scorecard: document.getElementById("scorecard"),
+  scRows: document.getElementById("sc-rows"),
+  scTitle: document.getElementById("sc-title"),
+  scContract: document.getElementById("sc-contract"),
+  scContinue: document.getElementById("sc-continue"),
   shove: document.getElementById("shove"),
   status: document.getElementById("status"),
   banner: document.getElementById("banner"),
@@ -105,6 +111,83 @@ function renderTrick(view) {
   el.trick.classList.toggle("complete", !!view.trick_complete);
 }
 
+const WEIS_LABEL = { 20: "Dreiblatt", 50: "Vierblatt", 100: "Hundert", 150: "150", 200: "200" };
+
+function renderWeis(view) {
+  // What each seat announced, positioned on the same anticlockwise rotation as the trick.
+  // Losing announcements stay visible but struck through — seeing that your partner's 50
+  // was beaten is most of what makes Weis legible at the table.
+  el.weis.replaceChildren();
+  if (view.phase === "bidding") return;
+
+  for (const entry of view.weis || []) {
+    const bubble = document.createElement("div");
+    bubble.className = "weis-bubble " + (entry.winner ? "won" : "lost");
+    bubble.dataset.rel = String((entry.seat - view.seat + 4) % 4);
+    const label = WEIS_LABEL[entry.points] || "Weis";
+    bubble.innerHTML =
+      `<span>${label} ${entry.points}</span>` +
+      (entry.cards ? `<span class="cards">${entry.cards.join(" ")}</span>` : "");
+    el.weis.appendChild(bubble);
+  }
+  for (const seat of view.stoeck || []) {
+    const bubble = document.createElement("div");
+    bubble.className = "weis-bubble stoeck";
+    bubble.dataset.rel = String((seat - view.seat + 4) % 4);
+    bubble.textContent = "Stöck 20";
+    el.weis.appendChild(bubble);
+  }
+}
+
+function renderScorecard(view) {
+  const card = view.scorecard;
+  if (!card) { el.scorecard.hidden = true; return; }
+
+  const mine = view.seat % 2;
+  const pick = (pair) => [pair[mine], pair[1 - mine]];
+  const rows = [
+    ["Tricks", pick(card.trick_points)],
+    ["Last trick", pick(card.last_trick)],
+    ["Weis", pick(card.weis)],
+    ["Stöck", pick(card.stoeck)],
+    ["Match", pick(card.match)],
+  ];
+
+  el.scRows.replaceChildren();
+  for (const [label, [us, them]] of rows) {
+    // Keep empty lines visible but faded rather than hiding them — a row that disappears
+    // makes the arithmetic impossible to follow.
+    const tr = document.createElement("tr");
+    if (!us && !them) tr.className = "zero";
+    tr.innerHTML = `<td>${label}</td><td>${us || "—"}</td><td>${them || "—"}</td>`;
+    el.scRows.appendChild(tr);
+  }
+  if (card.multiplier > 1) {
+    const tr = document.createElement("tr");
+    tr.className = "subtotal";
+    tr.innerHTML = `<td>Multiplier</td><td colspan="2" style="text-align:right">×${card.multiplier}</td>`;
+    el.scRows.appendChild(tr);
+  }
+  const [ru, rt] = pick(card.round_total);
+  const [tu, tt] = pick(card.scores);
+  const round = document.createElement("tr");
+  round.className = "subtotal";
+  round.innerHTML = `<td>This round</td><td>${ru}</td><td>${rt}</td>`;
+  el.scRows.appendChild(round);
+  const total = document.createElement("tr");
+  total.className = "total";
+  total.innerHTML = `<td>Total</td><td>${tu}</td><td>${tt}</td>`;
+  el.scRows.appendChild(total);
+
+  el.scTitle.textContent =
+    view.phase === "game_over" ? "Final score" : `Round ${card.round + 1}`;
+  el.scContract.textContent = card.contract
+    ? card.contract[0] + card.contract.slice(1).toLowerCase()
+    : "";
+  el.scContinue.textContent = view.phase === "game_over" ? "New game" : "Next round";
+  el.scorecard.hidden = false;
+}
+
 function renderSeats(view) {
   document.querySelectorAll(".seat-marker").forEach((marker) => {
     const seat = (view.seat + Number(marker.dataset.seat)) % 4;
@@ -112,7 +195,13 @@ function renderSeats(view) {
   });
 }
 
+function seatName(view, seat) {
+  const rel = (seat - view.seat + 4) % 4;
+  return ["You", "Right", "Partner", "Left"][rel];
+}
+
 function statusText(view) {
+  if (view.phase === "round_over" || view.phase === "game_over") return "Round complete";
   if (view.trick_complete) {
     const mine = (view.trick_winner - view.seat + 4) % 4;
     const who = mine === 0 ? "You take it" : mine === 2 ? "Partner takes it" : "They take it";
@@ -121,15 +210,24 @@ function statusText(view) {
   if (view.phase === "game_over") return "Game over";
   if (view.phase === "round_over") return "Round over — tap to continue";
   if (view.to_act === view.seat) {
-    return view.phase === "bidding" ? "Your bid" : lifted ? "Tap again to play" : "Your turn";
+    if (view.phase === "bidding") {
+      return view.declarer === view.seat && view.can_shove
+        ? "Your bid — or push it to your partner"
+        : "Your partner pushed — you must choose";
+    }
+    return lifted ? "Tap again to play" : "Your turn";
   }
-  return "Thinking…";
+  if (view.to_act === null) return "";
+  const who = seatName(view, view.to_act);
+  return view.phase === "bidding" ? `${who} is bidding…` : `${who} is thinking…`;
 }
 
 function render(view) {
   renderHand(view);
   renderTrick(view);
   renderSeats(view);
+  renderWeis(view);
+  renderScorecard(view);
 
   const mine = view.seat % 2;
   el.scoreUs.textContent = view.scores[mine];
@@ -142,19 +240,9 @@ function render(view) {
   el.shove.hidden = !view.can_shove;
   el.status.textContent = statusText(view);
 
-  if (view.trick_complete) {
-    // Hold the banner back until the trick has been acknowledged, so the round result does
-    // not cover the cards the player is still looking at.
-    el.banner.hidden = true;
-  } else if (view.phase === "round_over" || view.phase === "game_over") {
-    el.banner.hidden = false;
-    el.banner.textContent =
-      view.phase === "game_over"
-        ? `Final ${view.scores[mine]} – ${view.scores[1 - mine]}`
-        : `Round over · ${view.scores[mine]} – ${view.scores[1 - mine]} · tap to continue`;
-  } else {
-    el.banner.hidden = true;
-  }
+  // The scorecard is the round-end surface now; the banner only covers the moment between
+  // the last card and the scorecard appearing.
+  el.banner.hidden = true;
 }
 
 // Tap the finished trick to clear it. Anywhere on the felt works, because a 190px target
@@ -162,7 +250,11 @@ function render(view) {
 document.querySelector(".felt").addEventListener("click", () => {
   if (el.trick.classList.contains("complete")) send({ type: "ack_trick" });
 });
-el.banner.addEventListener("click", () => send({ type: "next_round" }));
+el.scContinue.addEventListener("click", () => {
+  if (el.scContinue.textContent === "New game") { document.querySelector("form").submit(); return; }
+  el.scorecard.hidden = true;
+  send({ type: "next_round" });
+});
 document.querySelectorAll(".bid").forEach((button) =>
   button.addEventListener("click", () => send({ type: "bid", action: button.dataset.bid }))
 );

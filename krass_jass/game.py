@@ -21,7 +21,8 @@ from .rules import HOUSE, SHOVE, Contract, RulesConfig
 from .scoring import NUM_TEAMS, team_of
 from .state import IllegalMove, RoundState
 from .trick import NUM_SEATS
-from .weis import find_weis, score_stoeck, score_weis
+from .tables import STOECK_MASK
+from .weis import STOECK_POINTS, find_weis, score_stoeck, score_weis
 
 
 class Phase(str, Enum):
@@ -77,6 +78,8 @@ class Game:
         self.contract = None
         self.round = None
         self.phase = Phase.BIDDING
+        self.weis_summary = []
+        self.stoeck_seats = []
 
         self.log.emit(
             EventType.ROUND_STARTED,
@@ -186,37 +189,85 @@ class Game:
         self.phase = Phase.PLAYING
 
     def _declare_weis(self) -> None:
-        """Automatic announcement.
+        """Automatic announcement, in the two stages the real game uses.
 
-        `docs/webapp-plan.md` §6 flags this as a real choice: announcing reveals your
-        holding and an experienced player occasionally declines. Automatic is the default
-        because it is what a player wants almost always; making it manual is a UI change
-        here, not an engine change.
+        At the table everyone calls the *value* of their best Weis; only the team holding
+        the best one then shows the actual cards. That staging is not decoration — it is
+        what keeps a losing team's holding secret. Emitting cards for every seat would leak
+        three hands at the top of every round.
+
+        `docs/webapp-plan.md` §6 flags automatic-versus-manual as a real choice: announcing
+        reveals your holding and an experienced player occasionally declines. Automatic is
+        the default because it is what a player wants nearly always, and making it manual is
+        a UI change here rather than an engine one.
         """
-        if not (self.cfg.weis_enabled or self.cfg.stoeck_enabled):
-            return
         # `is not None`, not truthiness: Contract.DIAMONDS is 0 and therefore falsy, which
         # would silently turn every diamonds contract into a no-trump one here — no Stöck,
         # and the wrong tie-break for Weis.
         trump = self.contract.trump_suit if self.contract is not None else -1
-        points, winner = score_weis(self._dealt, trump, self.cfg, self.forehand)
-        stoeck = score_stoeck(self._dealt, trump, self.cfg)
 
-        if winner >= 0:
+        self.weis_summary = []
+        if self.cfg.weis_enabled:
+            points, winner = score_weis(self._dealt, trump, self.cfg, self.forehand)
+            per_seat = {
+                seat: find_weis(self._dealt[seat], self.cfg, trump) for seat in range(NUM_SEATS)
+            }
+
+            # Stage one: everyone calls a value. Public, and carries no cards.
             for seat in range(NUM_SEATS):
-                if team_of(seat) != team_of(winner):
-                    continue
-                for meld in find_weis(self._dealt[seat], self.cfg, trump):
+                total = sum(m.points for m in per_seat[seat])
+                if total:
                     self.log.emit(
-                        EventType.WEIS_DECLARED,
-                        {
-                            "seat": seat,
-                            "kind": meld.kind.value,
-                            "points": meld.points,
-                            "cards": [format_card(c) for c in card_list(meld.cards)],
-                        },
+                        EventType.WEIS_ANNOUNCED,
+                        {"seat": seat, "points": total, "melds": len(per_seat[seat])},
                     )
-        self._weis = points
+                    self.weis_summary.append(
+                        {"seat": seat, "points": total, "cards": None, "winner": False}
+                    )
+
+            # Stage two: only the winning team shows what it holds.
+            if winner >= 0:
+                for seat in range(NUM_SEATS):
+                    if team_of(seat) != team_of(winner):
+                        continue
+                    for meld in per_seat[seat]:
+                        self.log.emit(
+                            EventType.WEIS_DECLARED,
+                            {
+                                "seat": seat,
+                                "kind": meld.kind.value,
+                                "points": meld.points,
+                                "cards": [format_card(c) for c in card_list(meld.cards)],
+                            },
+                        )
+                self.log.emit(
+                    EventType.WEIS_RESOLVED,
+                    {"seat": winner, "team": team_of(winner), "points": list(points)},
+                )
+                # Only the winning team's cards go into the summary, for the same reason
+                # they are the only ones in the event log: the losers keep their hand.
+                for entry in self.weis_summary:
+                    if team_of(entry["seat"]) == team_of(winner):
+                        entry["winner"] = True
+                        entry["cards"] = [
+                            format_card(c)
+                            for meld in per_seat[entry["seat"]]
+                            for c in card_list(meld.cards)
+                        ]
+            self._weis = points
+        else:
+            self._weis = (0, 0)
+
+        stoeck = score_stoeck(self._dealt, trump, self.cfg)
+        if trump >= 0 and any(stoeck):
+            # Simplification: announced at the top of the round rather than when the second
+            # of King/Queen is played. Recorded in docs/rules-config.md, because it gives
+            # away timing a real player would choose when to reveal.
+            mask = STOECK_MASK[trump]
+            for seat in range(NUM_SEATS):
+                if self._dealt[seat] & mask == mask:
+                    self.log.emit(EventType.STOECK, {"seat": seat, "points": STOECK_POINTS})
+                    self.stoeck_seats.append(seat)
         self._stoeck = stoeck
 
     def play(self, seat: int, card: int) -> None:
@@ -250,6 +301,18 @@ class Game:
         for t in range(NUM_TEAMS):
             self.scores[t] += totals[t]
 
+        self.last_score = {
+            "round": self.round_index,
+            "contract": self.contract.name if self.contract is not None else None,
+            "multiplier": score.multiplier,
+            "trick_points": list(score.trick_points),
+            "last_trick": list(score.last_trick),
+            "match": list(score.match),
+            "weis": list(score.weis),
+            "stoeck": list(score.stoeck),
+            "round_total": list(totals),
+            "scores": list(self.scores),
+        }
         self.log.emit(
             EventType.ROUND_SCORED,
             {
@@ -284,3 +347,8 @@ class Game:
 
     _weis: tuple[int, int] = (0, 0)
     _stoeck: tuple[int, int] = (0, 0)
+    #: UI-ready projections, built where the facts already are rather than re-derived by
+    #: the web layer from the event log.
+    weis_summary: list = field(default_factory=list)
+    stoeck_seats: list = field(default_factory=list)
+    last_score: dict | None = None

@@ -189,3 +189,70 @@ def test_every_contract_reports_itself_in_the_view():
         game.bid(game.to_act, contract.name)
         table = Table(game=game, human_seat=0, bots={})
         assert view(table, 0)["contract"] == contract.name
+
+
+def test_a_losing_teams_weis_cards_are_never_revealed():
+    """Real Schieber announces in two stages: everyone calls a value, only the winning team
+    shows cards. That staging is what keeps three hands secret at the top of every round,
+    so it is an information-boundary rule, not a presentational one."""
+    from krass_jass.cards import parse_card, parse_hand as H
+    from krass_jass.events import EventType
+    from krass_jass.rules import HOUSE
+    from krass_jass.scoring import team_of
+
+    game = Game(cfg=HOUSE, seed=2)
+    game._dealt = [
+        H("DK DQ DA D9 D8 S6 S7 H6 H7"),
+        H("SA SK SQ SJ ST S9 S8 H8 H9"),   # a 7-run: announces, but loses
+        H("CA CK CQ CJ CT C9 C8 C7 C6"),   # a 9-run: wins
+        H("DJ DT D7 D6 HA HK HQ HJ HT"),
+    ]
+    game.forehand = 0
+    game.declarer = 0
+    game.bid(0, "DIAMONDS")
+
+    resolved = [e for e in game.log.all() if e.type is EventType.WEIS_RESOLVED]
+    assert len(resolved) == 1
+    winning_team = resolved[0].payload["team"]
+
+    announced = [e for e in game.log.all() if e.type is EventType.WEIS_ANNOUNCED]
+    assert len(announced) == 4, "every seat holding a Weis calls its value"
+    assert all("cards" not in e.payload for e in announced), "a call carries no cards"
+
+    for event in game.log.all():
+        if event.type is EventType.WEIS_DECLARED:
+            assert team_of(event.payload["seat"]) == winning_team, (
+                "a losing team's Weis cards were revealed"
+            )
+
+    for entry in game.weis_summary:
+        if team_of(entry["seat"]) != winning_team:
+            assert entry["cards"] is None
+
+
+def test_stoeck_is_announced():
+    from krass_jass.cards import parse_hand as H
+    from krass_jass.events import EventType
+    from krass_jass.rules import HOUSE
+
+    game = Game(cfg=HOUSE, seed=2)
+    game._dealt = [
+        H("DK DQ DA D9 D8 S6 S7 H6 H7"),
+        H("SA SK SQ SJ ST S9 S8 H8 H9"),
+        H("CA CK CQ CJ CT C9 C8 C7 C6"),
+        H("DJ DT D7 D6 HA HK HQ HJ HT"),
+    ]
+    game.forehand = 0
+    game.declarer = 0
+    game.bid(0, "DIAMONDS")
+    stoeck = [e for e in game.log.all() if e.type is EventType.STOECK]
+    assert [e.payload["seat"] for e in stoeck] == [0]
+    assert game.stoeck_seats == [0]
+
+
+def test_no_stoeck_event_in_a_no_trump_contract():
+    game = Game(seed=2)
+    game.bid(game.to_act, "OBENABE")
+    from krass_jass.events import EventType
+
+    assert not [e for e in game.log.all() if e.type is EventType.STOECK]

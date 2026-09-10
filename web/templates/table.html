@@ -25,6 +25,7 @@
 
     <div class="trick" id="trick"></div>
 
+    <div class="weis-layer" id="weis"></div>
     <div class="banner" id="banner" hidden></div>
   </section>
 
@@ -44,6 +45,17 @@
   <section class="handwrap">
     <div class="hand" id="hand"></div>
   </section>
+
+  <div class="scorecard-backdrop" id="scorecard" hidden>
+    <div class="scorecard">
+      <header><span id="sc-title">Round</span><span id="sc-contract" class="sc-contract"></span></header>
+      <table>
+        <thead><tr><th></th><th>Us</th><th>Them</th></tr></thead>
+        <tbody id="sc-rows"></tbody>
+      </table>
+      <button class="sc-continue" id="sc-continue">Continue</button>
+    </div>
+  </div>
 
   <footer class="statusbar">
     <span id="status">Connecting…</span>

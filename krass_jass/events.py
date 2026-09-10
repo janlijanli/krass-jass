@@ -23,7 +23,10 @@ class EventType(str, Enum):
     HAND_DEALT = "hand_dealt"          #: private — the only event carrying hidden cards
     BID = "bid"
     CONTRACT_SET = "contract_set"
-    WEIS_DECLARED = "weis_declared"
+    WEIS_ANNOUNCED = "weis_announced"  #: public value only — no cards
+    WEIS_DECLARED = "weis_declared"    #: winning team only, WITH cards
+    WEIS_RESOLVED = "weis_resolved"
+    STOECK = "stoeck"
     CARD_PLAYED = "card_played"
     TRICK_WON = "trick_won"
     ROUND_SCORED = "round_scored"
