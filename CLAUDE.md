@@ -105,6 +105,14 @@ Do not design around an assumed answer to either. Ask.
 - Self-play training records → Parquet. Games, decision traces and eval results →
   Postgres. Do not put millions of card decisions in Postgres rows.
 
+**Measured, and it changes things** (`docs/measurements.md`)
+- Search saturates near 800 iterations. Serve budget is not a constraint — ~2,400
+  iterations costs single-digit milliseconds and is indistinguishable from 800,000.
+- The gap to a bot that sees every hand is ~6.5% of points, and **search does not close
+  it**. That is the strategy-fusion ceiling, and it is the target for everything after M4.
+- Every number above was measured with contracts chosen at random, because trump selection
+  does not exist yet. That is the biggest confound in the project right now.
+
 **Search**
 - `krass_jass.agent.DmctsAgent` is the agent; the search itself is in `rust/`.
 - The endgame solver **replaces** the search once hands are small, it does not decorate it.
@@ -184,6 +192,10 @@ From the Fribourg/HSLU work on this exact variant (sources in `PLAN.md`):
   agents and ISMCTS. **Search first, learning second.**
 - Sweet spot for a 800k-rollout budget: ~1000 determinizations × 800 iterations.
   More than ~1000 determinizations stops helping. Exploration constant ≈ 1.5.
+  **This did not reproduce.** Our own sweep saturates near 800 iterations, and 333× more
+  compute is worth nothing measurable (`docs/measurements.md` §2). Most likely because we
+  have no trump selection yet and the arena picks contracts at random. Re-measure after M3
+  before trusting either figure.
 - ~25 random rollouts plateaus; 100 MCTS iterations beat 1000 random rollouts. Don't
   spend budget on flat Monte Carlo.
 - **Negative result:** sampling determinizations from a learned card-distribution model
