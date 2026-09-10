@@ -318,3 +318,51 @@ body {
 .weis-prompt strong { color: var(--gold); }
 .weis-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .bid.ghost { background: transparent; opacity: .8; }
+
+/* ---------- settings menu ---------- */
+
+.hamburger {
+  position: absolute; top: calc(env(safe-area-inset-top) + 9px); left: 10px; z-index: 15;
+  width: 34px; height: 30px; padding: 6px 5px;
+  display: grid; gap: 4px; align-content: center;
+  appearance: none; border: none; background: transparent; cursor: pointer;
+}
+.hamburger span { display: block; height: 2px; border-radius: 2px; background: var(--paper); opacity: .75; }
+
+.menu-backdrop {
+  position: fixed; inset: 0; z-index: 30;
+  display: grid; place-items: center; padding: 18px;
+  background: rgba(0, 0, 0, .6); backdrop-filter: blur(3px);
+  overflow-y: auto;
+}
+.menu {
+  width: 100%; max-width: 360px;
+  background: #12241d; border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px; padding: 16px 18px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.5);
+}
+.menu header { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.menu-note { font-size: 11px; opacity: .55; margin: 0 0 12px; line-height: 1.4; }
+.menu fieldset { border: none; padding: 0; margin: 0 0 16px; }
+.menu legend {
+  padding: 0; margin-bottom: 7px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .55; font-weight: 700;
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { position: relative; cursor: pointer; }
+.chip input { position: absolute; opacity: 0; pointer-events: none; }
+.chip span {
+  display: block; padding: 7px 13px; border-radius: 9px;
+  border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05);
+  font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.chip.small span { padding: 5px 9px; font-size: 12px; }
+.chip input:checked + span { background: rgba(216,180,90,.28); border-color: var(--gold); }
+.chip input:focus-visible + span { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.mult-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.mult-name { font-size: 13px; opacity: .8; }
+
+.menu-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.bid.primary { background: var(--gold); color: #1a1a1a; border-color: transparent; }

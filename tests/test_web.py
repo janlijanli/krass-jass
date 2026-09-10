@@ -262,3 +262,64 @@ def test_stoeck_shows_only_for_the_trick_it_was_announced_in():
     assert announced_at is not None, "Stöck was never announced"
     shown = {tricks for tricks, count in windows if count}
     assert shown == {announced_at}, f"shown during {shown}, announced in trick {announced_at}"
+
+
+def test_settings_are_clamped_to_the_offered_choices():
+    """These arrive from a form. A rules engine driven by unvalidated client input is a
+    rules engine with no rules."""
+    from krass_jass.rules import Contract
+    from web.app import build_config
+
+    cfg = build_config({"target": 2500, "weis": False, "mult_undenufe": 1})
+    assert cfg.target_score == 2500
+    assert cfg.weis_enabled is False
+    assert cfg.multiplier(Contract.UNDENUFE) == 1
+
+    # out of range, wrong type and missing all fall back to the documented defaults
+    assert build_config({"target": 7}).target_score == 1000
+    assert build_config({"target": "2500"}).target_score == 1000
+    assert build_config({"mult_hearts": 9}).multiplier(Contract.HEARTS) == 2
+    assert build_config({"mult_hearts": 0}).multiplier(Contract.HEARTS) == 2
+    assert build_config({}).target_score == 1000
+
+
+def test_every_contract_multiplier_is_settable_one_to_four():
+    from krass_jass.rules import Contract
+    from web.app import MULTIPLIER_RANGE, build_config
+
+    for contract in Contract:
+        for value in MULTIPLIER_RANGE:
+            cfg = build_config({f"mult_{contract.name.lower()}": value})
+            assert cfg.multiplier(contract) == value
+
+
+def test_weis_off_means_no_weis_phase_and_no_weis_points():
+    from krass_jass.agent import GreedyAgent
+    from krass_jass.game import Game, Phase
+    from web.app import build_config
+
+    cfg = build_config({"weis": False})
+    agent = GreedyAgent()
+    for seed in range(4):
+        game = Game(cfg=cfg, seed=seed)
+        # drive the bidding properly — forehand may shove, and a shove leaves the phase
+        # unchanged rather than starting the round
+        while game.phase is Phase.BIDDING:
+            seat = game.to_act
+            game.bid(seat, agent.select_trump(game.hand_of(seat), seat == game.forehand))
+        assert game.phase is not Phase.WEIS, "no prompt when Weis is switched off"
+        while game.phase is Phase.PLAYING:
+            seat = game.round.to_play
+            game.play(seat, agent.decide(game.observation(seat)))
+        assert game.last_score["weis"] == [0, 0]
+
+
+def test_stoeck_is_not_optional():
+    """Weis is a choice because announcing reveals a holding. Stöck is announced when the
+    second honour is played, which gives away nothing the card did not."""
+    import inspect
+
+    from krass_jass import game as game_module
+
+    source = inspect.getsource(game_module.Game.choose_weis)
+    assert "stoeck" not in source.lower(), "Stöck must not be routed through the Weis choice"

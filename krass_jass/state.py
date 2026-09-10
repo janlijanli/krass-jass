@@ -33,6 +33,9 @@ class RoundState:
 
     trick: list[int] = field(default_factory=list)       #: cards played this trick, in order
     tricks_played: list[tuple[int, tuple[int, ...]]] = field(default_factory=list)
+    #: (winning seat, card points) per trick, in the order they were taken. Needed for the
+    #: Stöck-Weis-Stich ruling, which counts tricks one at a time.
+    trick_results: list[tuple[int, int]] = field(default_factory=list)
     trick_points: list[int] = field(default_factory=lambda: [0, 0])
     tricks_won: list[int] = field(default_factory=lambda: [0, 0])
     last_trick_winner: int = -1
@@ -104,8 +107,10 @@ class RoundState:
         strength = self._strength[card_suit(self.trick[0])]
         winner = trick_winner(self.trick, self.leader, strength)
         team = team_of(winner)
-        self.trick_points[team] += sum(self._values[c] for c in self.trick)
+        points = sum(self._values[c] for c in self.trick)
+        self.trick_points[team] += points
         self.tricks_won[team] += 1
+        self.trick_results.append((winner, points))
         self.tricks_played.append((self.leader, tuple(self.trick)))
         self.last_trick_winner = winner
         self.leader = winner

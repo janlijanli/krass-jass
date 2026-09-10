@@ -24,7 +24,7 @@ import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -32,7 +32,7 @@ from fastapi.templating import Jinja2Templates
 from krass_jass.agent import Agent, DmctsAgent
 from krass_jass.cards import card_list, card_rank, card_suit, format_card, parse_card
 from krass_jass.game import Game, Phase
-from krass_jass.rules import HOUSE, Contract
+from krass_jass.rules import DEFAULT_MULTIPLIERS, HOUSE, Contract
 from krass_jass.state import IllegalMove
 from krass_jass.trick import NUM_SEATS
 from web import session as sessions
@@ -78,12 +78,42 @@ class Table:
 tables: dict[str, Table] = {}
 
 
-def new_table(human_seat: int = 0) -> Table:
+#: What the settings panel may set. Everything else stays as `docs/rules-config.md` has it.
+TARGET_SCORES = (1000, 2000, 2500)
+MULTIPLIER_RANGE = (1, 2, 3, 4)
+
+
+def build_config(settings: dict | None = None):
+    """Turn settings from the panel into a RulesConfig.
+
+    Values are clamped to the offered choices rather than trusted: this arrives from a form,
+    and a rules engine driven by unvalidated client input is a rules engine with no rules.
+    """
+    settings = settings or {}
+    target = settings.get("target")
+    target = target if target in TARGET_SCORES else 1000
+
+    multipliers = dict(DEFAULT_MULTIPLIERS)
+    for contract in Contract:
+        value = settings.get(f"mult_{contract.name.lower()}")
+        if value in MULTIPLIER_RANGE:
+            multipliers[contract] = value
+
+    return HOUSE.variant(
+        target_score=target,
+        weis_enabled=bool(settings.get("weis", True)),
+        # Manual Weis: declining is a real tactical choice, since announcing tells the table
+        # what you hold. Stöck is never optional — it is announced when the second honour is
+        # played, which gives nothing away that the card itself did not.
+        weis_manual=True,
+        multipliers=multipliers,
+    )
+
+
+def new_table(human_seat: int = 0, settings: dict | None = None) -> Table:
     game_id = secrets.token_urlsafe(9)
     game = Game(
-        # Manual Weis: declining is a real tactical choice, since announcing tells the table
-        # what you hold. Bots always announce — modelling the decline is out of scope.
-        cfg=HOUSE.variant(target_score=1000, weis_manual=True),
+        cfg=build_config(settings),
         seed=secrets.randbits(48),
         game_id=game_id,
     )
@@ -114,8 +144,22 @@ def create_app() -> FastAPI:
             table = new_table()
             data = {"game_id": table.game.game_id, "seat": table.human_seat}
 
+        cfg = table.game.cfg
         response = templates.TemplateResponse(
-            request, "table.html", {"seat": data["seat"], "game_id": data["game_id"]}
+            request,
+            "table.html",
+            {
+                "seat": data["seat"],
+                "game_id": data["game_id"],
+                "settings": {
+                    "target": cfg.target_score,
+                    "weis": cfg.weis_enabled,
+                    "multipliers": {c.name.lower(): cfg.multiplier(c) for c in Contract},
+                },
+                "targets": TARGET_SCORES,
+                "multiplier_range": MULTIPLIER_RANGE,
+                "contracts": [(c.name, c.name.lower()) for c in Contract],
+            },
         )
         response.set_cookie(
             sessions.COOKIE_NAME,
@@ -127,8 +171,29 @@ def create_app() -> FastAPI:
         return response
 
     @app.post("/new")
-    async def new_game(request: Request):
-        table = new_table()
+    async def new_game(
+        request: Request,
+        target: int = Form(1000),
+        weis: str = Form("on"),
+        mult_diamonds: int = Form(1),
+        mult_hearts: int = Form(2),
+        mult_spades: int = Form(1),
+        mult_clubs: int = Form(2),
+        mult_obenabe: int = Form(3),
+        mult_undenufe: int = Form(4),
+    ):
+        table = new_table(
+            settings={
+                "target": target,
+                "weis": weis not in ("off", "false", "0", ""),
+                "mult_diamonds": mult_diamonds,
+                "mult_hearts": mult_hearts,
+                "mult_spades": mult_spades,
+                "mult_clubs": mult_clubs,
+                "mult_obenabe": mult_obenabe,
+                "mult_undenufe": mult_undenufe,
+            }
+        )
         data = {"game_id": table.game.game_id, "seat": table.human_seat}
         response = HTMLResponse('<meta http-equiv="refresh" content="0; url=/">')
         response.set_cookie(

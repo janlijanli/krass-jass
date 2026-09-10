@@ -9,6 +9,69 @@
 <body data-seat="{{ seat }}">
 <main class="table">
 
+  <button class="hamburger" id="menu-open" aria-label="Settings" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+
+  <div class="menu-backdrop" id="menu" hidden>
+    <form class="menu" method="post" action="/new">
+      <header><span>Game settings</span></header>
+      <p class="menu-note">Changing these starts a new game.</p>
+
+      <fieldset>
+        <legend>Play to</legend>
+        <div class="chips">
+          {% for value in targets %}
+          <label class="chip">
+            <input type="radio" name="target" value="{{ value }}"
+                   {% if settings.target == value %}checked{% endif %}>
+            <span>{{ value }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Weis</legend>
+        <div class="chips">
+          <label class="chip">
+            <input type="radio" name="weis" value="on" {% if settings.weis %}checked{% endif %}>
+            <span>On</span>
+          </label>
+          <label class="chip">
+            <input type="radio" name="weis" value="off" {% if not settings.weis %}checked{% endif %}>
+            <span>Off</span>
+          </label>
+        </div>
+        <p class="menu-note">Stöck is always announced — it gives nothing away that the card
+          itself did not.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Multipliers</legend>
+        {% for name, key in contracts %}
+        <div class="mult-row">
+          <span class="mult-name">{{ name|capitalize }}</span>
+          <div class="chips">
+            {% for value in multiplier_range %}
+            <label class="chip small">
+              <input type="radio" name="mult_{{ key }}" value="{{ value }}"
+                     {% if settings.multipliers[key] == value %}checked{% endif %}>
+              <span>×{{ value }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </fieldset>
+
+      <div class="menu-actions">
+        <button type="button" class="bid ghost" id="menu-close">Cancel</button>
+        <button type="submit" class="bid primary">Start new game</button>
+      </div>
+    </form>
+  </div>
+
   <header class="scoreboard">
     <div class="score us"><span class="label">Us</span><span class="value" id="score-us">0</span></div>
     <div class="meta">
@@ -68,7 +131,7 @@
 
   <footer class="statusbar">
     <span id="status">Connecting…</span>
-    <form method="post" action="/new"><button class="newgame">New game</button></form>
+    <button class="newgame" id="settings-open">Settings</button>
   </footer>
 </main>
 <script type="module" src="/static/table.js"></script>

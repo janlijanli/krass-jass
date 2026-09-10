@@ -355,12 +355,67 @@ class Game:
             )
             self.stoeck_seats.append({"seat": seat, "points": STOECK_POINTS, "trick": trick_index})
 
+    def _claim_sequence(self, score) -> list[tuple[int, int]]:
+        """Points in the order they are claimed: **Stöck, Weis, Stich**.
+
+        This only matters when both teams would cross the target in the same round — then
+        whoever gets there first in this order wins, regardless of the final totals. Counting
+        the whole round at once produces the right totals and can name the wrong winner.
+
+        Tricks are counted one at a time in the order they were taken, with the last-trick
+        bonus on the ninth and the match bonus after it. The multiplier scales each claim as
+        it lands, exactly as it scales the round.
+        """
+        assert self.round is not None
+        multiplier = score.multiplier
+        parts: dict[str, list[tuple[int, int]]] = {"stoeck": [], "weis": [], "stich": []}
+
+        for team in range(NUM_TEAMS):
+            if score.stoeck[team]:
+                parts["stoeck"].append((team, score.stoeck[team] * multiplier))
+            if score.weis[team]:
+                parts["weis"].append((team, score.weis[team] * multiplier))
+
+        last = len(self.round.trick_results) - 1
+        for index, (winner, points) in enumerate(self.round.trick_results):
+            team = team_of(winner)
+            if index == last:
+                points += self.cfg.last_trick_bonus
+            if points:
+                parts["stich"].append((team, points * multiplier))
+        for team in range(NUM_TEAMS):
+            if score.match[team]:
+                parts["stich"].append((team, score.match[team] * multiplier))
+
+        sequence: list[tuple[int, int]] = []
+        for key in self.cfg.claim_order:
+            sequence.extend(parts.get(key, []))
+        return sequence
+
     def _score_round(self) -> None:
         assert self.round is not None
         score = self.round.score(weis=self._weis, stoeck=self._stoeck)
         totals = score.total
-        for t in range(NUM_TEAMS):
-            self.scores[t] += totals[t]
+
+        # Apply the round claim by claim, so that a simultaneous finish is decided by who
+        # reaches the target first rather than by who ends up with more.
+        target = self.cfg.target_score
+        sequence = self._claim_sequence(score)
+
+        claimed = [0, 0]
+        for team, points in sequence:
+            claimed[team] += points
+        if claimed != list(totals):
+            raise AssertionError(
+                f"claim sequence {claimed} does not reproduce the round total {totals} — "
+                "a claim was dropped or double-counted"
+            )
+
+        first_across = -1
+        for team, points in sequence:
+            self.scores[team] += points
+            if target is not None and first_across < 0 and self.scores[team] >= target:
+                first_across = team
 
         self.last_score = {
             "round": self.round_index,
@@ -389,12 +444,17 @@ class Game:
             },
         )
 
-        target = self.cfg.target_score
         if target is not None and max(self.scores) >= target:
-            winner = 0 if self.scores[0] > self.scores[1] else 1
             self.phase = Phase.GAME_OVER
             self.log.emit(
-                EventType.GAME_OVER, {"winner": winner, "scores": list(self.scores)}
+                EventType.GAME_OVER,
+                {
+                    "winner": first_across,
+                    "scores": list(self.scores),
+                    # Named so a close finish is explicable rather than surprising.
+                    "decided_by": "claim_order" if first_across >= 0 else "score",
+                    "claim_order": list(self.cfg.claim_order),
+                },
             )
         else:
             self.phase = Phase.ROUND_OVER
