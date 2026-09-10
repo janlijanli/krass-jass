@@ -1,0 +1,103 @@
+# The serving stack. Training and the arena are deliberately absent — different lifecycle,
+# different resource profile, and PLAN.md §5 says to keep them out of this file.
+#
+# The security shape, from PLAN.md §7:
+#   * only `web` publishes a port
+#   * bots sit on an internal-only network with no egress (T5) — a compromised bot has
+#     nowhere to send anything
+#   * bots hold no credentials and no volumes
+#   * every container is non-root with a read-only rootfs and no new privileges
+
+services:
+  web:
+    build:
+      context: .
+      target: runtime
+    command: ["python", "-m", "uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      KRASS_JASS_BOTS: "http://bot-1:8000,http://bot-2:8000,http://bot-3:8000"
+      # Sessions survive a restart only if this is set. No default on purpose.
+      KRASS_JASS_SECRET: "${KRASS_JASS_SECRET:?set KRASS_JASS_SECRET before starting}"
+    ports:
+      - "127.0.0.1:8099:8000"
+    networks: [frontside, bot1net, bot2net, bot3net]
+    depends_on: [bot-1, bot-2, bot-3]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # One image, three replicas, configured by environment. Not three codebases.
+  bot-1: &bot
+    build:
+      context: .
+      target: runtime
+    environment:
+      AGENT_KIND: dmcts
+      SEAT: "1"
+      TIME_BUDGET_MS: "1500"
+      # docs/measurements.md §3: indistinguishable from 800,000 iterations.
+      DETERMINIZATIONS: "40"
+      ITERATIONS: "60"
+      MODEL_VERSION: ""
+    networks: [bot1net]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    restart: unless-stopped
+    # MCTS is CPU-bound. Capping keeps one bot from starving the other two and the web
+    # service, and makes think-time predictable.
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 512M }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  bot-2:
+    <<: *bot
+    networks: [bot2net]
+    environment:
+      AGENT_KIND: dmcts
+      SEAT: "2"
+      TIME_BUDGET_MS: "1500"
+      DETERMINIZATIONS: "40"
+      ITERATIONS: "60"
+      MODEL_VERSION: ""
+
+  bot-3:
+    <<: *bot
+    networks: [bot3net]
+    environment:
+      AGENT_KIND: dmcts
+      SEAT: "3"
+      TIME_BUDGET_MS: "1500"
+      DETERMINIZATIONS: "40"
+      ITERATIONS: "60"
+      MODEL_VERSION: ""
+
+networks:
+  frontside:
+
+  # One internal network per bot, rather than one shared between them.
+  #
+  # `internal: true` is T5: no route out, so a compromised bot cannot exfiltrate anything
+  # even if it wanted to. Splitting them additionally means the bots cannot reach *each
+  # other* — which matters because "no data exchange between players" is a premise of the
+  # whole design, not just a transport detail. On a shared internal network they could talk;
+  # here the only thing any bot can reach is the engine that called it.
+  bot1net:
+    internal: true
+  bot2net:
+    internal: true
+  bot3net:
+    internal: true

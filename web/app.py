@@ -19,6 +19,7 @@ is a deployment change, not a redesign.
 from __future__ import annotations
 
 import asyncio
+import os
 import random
 import secrets
 from dataclasses import dataclass, field
@@ -36,6 +37,7 @@ from krass_jass.rules import DEFAULT_MULTIPLIERS, HOUSE, Contract
 from krass_jass.state import IllegalMove
 from krass_jass.trick import NUM_SEATS
 from web import session as sessions
+from web.botclient import RemoteAgent
 
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
@@ -110,6 +112,33 @@ def build_config(settings: dict | None = None):
     )
 
 
+#: Comma-separated bot service URLs. Unset means run the agents in-process, which is what
+#: development and the tests do — the compose stack sets it.
+BOT_URLS = [u.strip() for u in os.environ.get("KRASS_JASS_BOTS", "").split(",") if u.strip()]
+
+
+def build_bots(human_seat: int, cfg) -> dict[int, Agent]:
+    """Remote bots when configured, in-process otherwise.
+
+    Both sides implement the same `Agent` interface, so nothing downstream changes.
+    """
+    seats = [s for s in range(NUM_SEATS) if s != human_seat]
+    if BOT_URLS:
+        return {
+            seat: RemoteAgent(url=BOT_URLS[i % len(BOT_URLS)], seat=seat, label=f"bot-{seat}")
+            for i, seat in enumerate(seats)
+        }
+    return {
+        seat: DmctsAgent(
+            determinizations=BOT_DETERMINIZATIONS,
+            iterations=BOT_ITERATIONS,
+            cfg=cfg,
+            label=f"bot-{seat}",
+        )
+        for seat in seats
+    }
+
+
 def new_table(human_seat: int = 0, settings: dict | None = None) -> Table:
     game_id = secrets.token_urlsafe(9)
     game = Game(
@@ -117,16 +146,7 @@ def new_table(human_seat: int = 0, settings: dict | None = None) -> Table:
         seed=secrets.randbits(48),
         game_id=game_id,
     )
-    bots = {
-        seat: DmctsAgent(
-            determinizations=BOT_DETERMINIZATIONS,
-            iterations=BOT_ITERATIONS,
-            cfg=game.cfg,
-            label=f"bot-{seat}",
-        )
-        for seat in range(NUM_SEATS)
-        if seat != human_seat
-    }
+    bots = build_bots(human_seat, game.cfg)
     table = Table(game=game, human_seat=human_seat, bots=bots)
     tables[game_id] = table
     return table

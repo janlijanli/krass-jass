@@ -22,7 +22,7 @@ DMCTS iterations/sec  35,000       1,482,000          42x   (6,187,000 on 8 core
 |---|---|
 | M0 | ✅ Rule variants locked in `docs/rules-config.md` |
 | M1 | ✅ Bitboard state, legal moves, trick resolution, scoring, Weis/Stöck, property tests, benchmark harness |
-| M2 | 🔶 FastAPI + WebSocket + DMCTS bots playable; containers outstanding (M2c) |
+| M2 | ✅ FastAPI + WebSocket + card fan; bots in containers on isolated networks |
 | M3 | 🔶 Rule-based trump selection + arena done; tournament persistence outstanding |
 | M4 | ✅ DMCTS: void tracking, determinization, UCT, exact endgame solver, agents, arena |
 | M5 | ⬜ Distillation — **gated on throughput**, see `docs/plan-review.md` §1 |
@@ -56,6 +56,9 @@ web/
   session.py  signed guest-session cookie, stdlib HMAC
   static/     card fan (CSS + vanilla JS), mobile first
               cards.js — card faces generated as SVG, real pip layouts
+bot/
+  service.py  the bot service — a thin wrapper; the agent stays a library
+  models.py   Pydantic wire contract between engine and bots
 arena/
   arena.py    double rounds + paired t-test
   cheating.py the upper bound: MCTS that sees every hand. Eval only, never served
@@ -71,10 +74,17 @@ uv venv --python 3.12
 uv pip install -e '.[dev,web]'
 .venv/bin/python -m pytest
 .venv/bin/python bench/benchmark.py
-.venv/bin/python arena/ladder.py --deals 100
+.venv/bin/python bot/
+  service.py  the bot service — a thin wrapper; the agent stays a library
+  models.py   Pydantic wire contract between engine and bots
+arena/ladder.py --deals 100
 
-# play it
+# play it, in process
 .venv/bin/python -m uvicorn web.app:app --port 8099
+
+# or the real stack: web + three bot containers on isolated internal networks
+echo "KRASS_JASS_SECRET=$(openssl rand -hex 32)" > .env
+docker compose up -d --build      # http://localhost:8099
 ```
 
 ## The three rules that make Jass different

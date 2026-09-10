@@ -83,7 +83,9 @@ Do not design around an assumed answer to either. Ask.
   wrapper over it. Self-play and the arena import it and run it across a process pool;
   they never go through HTTP. The three containers serve one game to a human, not millions
   to a trainer.
-- Internal-only Docker network. No egress, no DB credentials, no writable volumes.
+- **One internal network per bot**, not one shared between them. No egress, no DB
+  credentials, no writable volumes. Bots must not be able to reach each other: "no data
+  exchange between players" is a premise of the design, not just a transport detail.
 - Model weights are baked into the image and the image tag carries `MODEL_VERSION`.
   Do not mount the model store into a bot.
 - Hard timeout with fallback to a random legal move. A hung bot must not stall a game.
