@@ -22,7 +22,7 @@ from .scoring import NUM_TEAMS, team_of
 from .state import IllegalMove, RoundState
 from .trick import NUM_SEATS
 from .tables import STOECK_MASK
-from .weis import STOECK_POINTS, find_weis, score_stoeck, score_weis
+from .weis import STOECK_POINTS, best_weis, find_weis, score_stoeck, score_weis
 
 
 class Phase(str, Enum):
@@ -242,7 +242,13 @@ class Game:
                         {"seat": seat, "points": total, "melds": len(per_seat[seat])},
                     )
                     self.weis_summary.append(
-                        {"seat": seat, "points": total, "cards": None, "winner": False}
+                        {
+                            "seat": seat,
+                            "points": total,
+                            "cards": None,
+                            "winner": False,
+                            "best": False,
+                        }
                     )
 
             # Stage two: only the winning team shows what it holds.
@@ -264,16 +270,16 @@ class Game:
                     EventType.WEIS_RESOLVED,
                     {"seat": winner, "team": team_of(winner), "points": list(points)},
                 )
-                # Only the winning team's cards go into the summary, for the same reason
-                # they are the only ones in the event log: the losers keep their hand.
+                # The winning *team* scores all of its Weis, but only the single best one
+                # is shown — it is what has to be proved. Everyone else's holding, partner
+                # included, stays private.
+                best_meld = best_weis(per_seat[winner], trump, self.cfg)
                 for entry in self.weis_summary:
                     if team_of(entry["seat"]) == team_of(winner):
                         entry["winner"] = True
-                        entry["cards"] = [
-                            format_card(c)
-                            for meld in per_seat[entry["seat"]]
-                            for c in card_list(meld.cards)
-                        ]
+                    if entry["seat"] == winner and best_meld is not None:
+                        entry["best"] = True
+                        entry["cards"] = [format_card(c) for c in card_list(best_meld.cards)]
             self._weis = points
         else:
             self._weis = (0, 0)

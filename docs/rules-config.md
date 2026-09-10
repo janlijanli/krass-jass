@@ -168,10 +168,15 @@ Weis; the other team scores nothing.**
 announce rather than announcing for them. A declined Weis leaves the contest entirely: not
 scored, not announced, and unable to win the comparison for its team.
 
-**Announcement is staged.** Everyone calls the *value* of their best Weis;
-only the team holding the best one then shows its cards. That staging is an
-information-boundary rule, not presentation — revealing every seat's Weis cards would leak
-three hands at the top of every round.
+**Announcement is staged, in three steps.** Each player calls the *value* of their best Weis
+when their turn comes round in the first trick — not all at once when the contract settles.
+Once every call is in, the **single best** Weis shows its cards to prove it. Everything then
+comes off the table.
+
+The winning *team* scores all of its Weis, but only that one Weis is ever shown: a partner's
+holding stays private. This is an information-boundary rule rather than presentation —
+revealing every seat's cards would give away three hands at the top of each round, and
+revealing a partner's gives away one for nothing.
 
 **Known simplification:** Stöck is announced at the top of the round rather than when the
 second of King/Queen is played. This gives away timing a real player would choose when to

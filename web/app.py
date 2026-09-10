@@ -171,6 +171,44 @@ def create_app() -> FastAPI:
     return app
 
 
+def in_weis_window(table: Table) -> bool:
+    """Weis is on the table during the first trick, and during the pause after it."""
+    game = table.game
+    if game.round is None:
+        return False
+    played = len(game.round.tricks_played)
+    return played == 0 or (played == 1 and table.awaiting_ack())
+
+
+def visible_weis(table: Table, seat: int) -> list[dict]:
+    """What may be seen right now.
+
+    Mirrors how it goes at the table. Each player calls the *value* of their Weis when their
+    turn comes round in the first trick — not all at once when the contract is settled. Once
+    everyone has called, the single best one is shown to prove it, and nobody else's cards
+    are ever exposed.
+    """
+    game = table.game
+    if not in_weis_window(table):
+        return []
+
+    if len(game.round.tricks_played) == 0:
+        # Mid-first-trick: only the seats that have already played have spoken, and they
+        # gave a number, not cards.
+        spoken = {
+            (game.round.leader + i) % NUM_SEATS for i in range(len(game.round.trick))
+        }
+        return [
+            {**entry, "cards": None} for entry in game.weis_summary if entry["seat"] in spoken
+        ]
+
+    # First trick complete: everyone has called, so the best Weis shows its cards.
+    return [
+        entry if entry.get("best") else {**entry, "cards": None}
+        for entry in game.weis_summary
+    ]
+
+
 def sorted_hand(hand: int) -> list[int]:
     """Grouped by suit, ascending in rank left to right — 6 lowest, ace highest.
 
@@ -238,10 +276,10 @@ def view(table: Table, seat: int) -> dict:
         # Weis is public information the moment it is announced, so it belongs in the view
         # rather than being reconstructed by the client from the event stream. The losing
         # team's `cards` are already None by the time they get here.
-        # Weis is shown during the first trick and then taken back off the table, the way
-        # the cards physically are.
-        "weis": game.weis_summary if game.round is not None and not game.round.tricks_played else [],
-        "stoeck": game.stoeck_seats if game.round is not None and not game.round.tricks_played else [],
+        # Announced in turn order through the first trick, then the best one is shown and
+        # the whole lot comes off the table. See `visible_weis`.
+        "weis": visible_weis(table, seat),
+        "stoeck": game.stoeck_seats if in_weis_window(table) else [],
         "weis_offer": game.weis_offers.get(seat) if game.phase is Phase.WEIS else None,
         "weis_pending": game.phase is Phase.WEIS,
         "scorecard": game.last_score if game.phase in (Phase.ROUND_OVER, Phase.GAME_OVER) else None,

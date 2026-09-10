@@ -144,3 +144,83 @@ def test_running_points_are_public_and_sum_to_the_cards_played():
     values = CARD_VALUES[game.contract]
     played = sum(values[c] for _leader, cards in game.round.tricks_played for c in cards)
     assert sum(frame["round_points"]) == played
+
+
+def _weis_table():
+    from krass_jass.cards import parse_hand as H
+    from krass_jass.game import Game
+    from krass_jass.rules import HOUSE
+    from web.app import Table
+
+    game = Game(cfg=HOUSE, seed=2)
+    game._dealt = [
+        H("DK DQ DA D9 D8 S6 S7 H6 H7"),   # 20, partner of the winner
+        H("SA SK SQ SJ ST S9 S8 H8 H9"),   # 100, beaten
+        H("CA CK CQ CJ CT C9 C8 C7 C6"),   # 100 over nine cards — the best
+        H("DJ DT D7 D6 HA HK HQ HJ HT"),   # 100, beaten
+    ]
+    game.forehand = 0
+    game.declarer = 0
+    game.bid(0, "DIAMONDS")
+    return game, Table(game=game, human_seat=0, bots={})
+
+
+def test_only_the_single_best_weis_is_ever_shown():
+    """The winning team scores all of its Weis but only the best one is proved. A partner's
+    holding stays private — showing it would give away a hand for no reason."""
+    game, table = _weis_table()
+    shown = [e for e in game.weis_summary if e["cards"]]
+    assert [e["seat"] for e in shown] == [2]
+    winners = [e["seat"] for e in game.weis_summary if e["winner"]]
+    assert sorted(winners) == [0, 2], "the whole team still scores"
+
+
+def test_weis_is_called_in_turn_order_through_the_first_trick():
+    """Each seat calls its value when its turn comes round, not all at once when the
+    contract settles — and a call is a number, never cards."""
+    from krass_jass.cards import card_list
+    from web.app import visible_weis
+
+    game, table = _weis_table()
+    assert visible_weis(table, 0) == [], "nothing is called before a card is played"
+
+    seen = []
+    for _ in range(4):
+        seat = game.round.to_play
+        game.play(seat, card_list(game.round.legal_moves(seat))[0])
+        visible = visible_weis(table, 0)
+        seen.append([e["seat"] for e in visible])
+        if len(game.round.tricks_played) == 0:
+            assert all(e["cards"] is None for e in visible), "a call carries no cards"
+
+    # each seat appears only once it has played
+    assert seen[0] == [0]
+    assert seen[-1] and 2 in seen[-1]
+
+
+def test_the_best_weis_reveals_its_cards_once_the_calls_are_in():
+    from krass_jass.cards import card_list
+    from web.app import visible_weis
+
+    game, table = _weis_table()
+    for _ in range(4):
+        seat = game.round.to_play
+        game.play(seat, card_list(game.round.legal_moves(seat))[0])
+
+    assert table.awaiting_ack()
+    visible = visible_weis(table, 0)
+    with_cards = [e for e in visible if e["cards"]]
+    assert [e["seat"] for e in with_cards] == [2]
+    assert len(visible) == 4, "everyone's call stays on the table for the comparison"
+
+
+def test_weis_leaves_the_table_after_the_first_trick():
+    from krass_jass.cards import card_list
+    from web.app import visible_weis
+
+    game, table = _weis_table()
+    for _ in range(4):
+        seat = game.round.to_play
+        game.play(seat, card_list(game.round.legal_moves(seat))[0])
+    table.acked_tricks = table.completed_tricks()
+    assert visible_weis(table, 0) == []

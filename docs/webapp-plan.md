@@ -221,8 +221,10 @@ holder is asked. Bots always announce, since a bot that cannot read the table ha
 for a bluff. A declined Weis leaves the contest entirely: it is not scored, not announced,
 and cannot win the comparison for its team.
 
-**Weis stays on the table for the first trick only**, then is taken back, the way the cards
-physically are.
+**Weis is staged the way it goes at the table.** Values are called in turn order through the
+first trick; once the calls are in, the single best Weis shows its cards; then the whole lot
+comes off. The pause after a completed trick — already there so a trick can be read — is what
+the reveal happens in.
 
 ### Original framing, kept for the reasoning
 

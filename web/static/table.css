@@ -233,9 +233,13 @@ body {
 .weis-bubble[data-rel="1"] { right: 4px; top: 14%; }
 .weis-bubble[data-rel="2"] { left: 50%; top: 32px; transform: translateX(-50%); max-width: 80%; }
 .weis-bubble[data-rel="3"] { left: 4px; top: 14%; }
-/* Losers announced a value but score nothing, and that is the whole point of the display. */
+/* Called but beaten: scores nothing, which is the whole point of showing it. */
 .weis-bubble.lost { opacity: .45; text-decoration: line-through; }
-.weis-bubble.won { background: rgba(216, 180, 90, .3); border-color: var(--gold); }
+/* A partner's Weis. It scores, but it is never shown — only the best one is proved. */
+.weis-bubble.counts { background: rgba(216, 180, 90, .16); border-color: rgba(216, 180, 90, .4); }
+/* The one that won and had to be shown. */
+.weis-bubble.best { background: rgba(216, 180, 90, .32); border-color: var(--gold); }
+.weis-bubble .value { font-variant-numeric: tabular-nums; }
 .weis-bubble .cards {
   font-weight: 500; opacity: .8; font-size: 10px;
   letter-spacing: .02em; line-height: 1.25;

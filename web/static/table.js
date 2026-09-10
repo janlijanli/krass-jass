@@ -122,15 +122,22 @@ function renderWeis(view) {
 
   for (const entry of view.weis || []) {
     const bubble = document.createElement("div");
-    bubble.className = "weis-bubble " + (entry.winner ? "won" : "lost");
+    // Three states, and the difference matters. `best` is the one Weis that had to be
+    // proved. `counts` is a partner's — it scores, but is never shown. `lost` scores
+    // nothing at all.
+    const state = entry.best ? "best" : entry.winner ? "counts" : "lost";
+    bubble.className = `weis-bubble ${state}`;
     bubble.dataset.rel = String((entry.seat - view.seat + 4) % 4);
-    const label = WEIS_LABEL[entry.points] || "Weis";
-    // Card codes are compact enough to read at a glance: "D A K Q" rather than "DA DK DQ".
+
+    // Card codes read fine compressed: "♣A ♣K ♣Q" rather than "CA CK CQ".
     const cards = entry.cards
       ? entry.cards.map((c) => `${SUIT_GLYPHS[c[0]]}${c[1] === "T" ? "10" : c[1]}`).join(" ")
       : "";
+    // Until the calls are all in, a player says a number and nothing else.
+    const label = cards ? `${WEIS_LABEL[entry.points] || "Weis"} ${entry.points}` : entry.points;
     bubble.innerHTML =
-      `<span>${label} ${entry.points}</span>` + (cards ? `<span class="cards">${cards}</span>` : "");
+      `<span class="value">${label}</span>` +
+      (cards ? `<span class="cards">${cards}</span>` : "");
     el.weis.appendChild(bubble);
   }
   for (const seat of view.stoeck || []) {
