@@ -13,10 +13,31 @@ Profiling also settled *what* to port. The rollout is 73% of search time, so por
 the kernel — the escalation path originally written into `PLAN.md` — would have capped the
 whole exercise at ~2.4x by Amdahl. **The tree had to come with it.**
 
+## What is here now
+
+The full rules, not just the hot path: legal moves, trick resolution, scoring, the
+Stöck-Weis-Stich claim ordering, Weis, Stöck, void inference, trump selection and round
+state — alongside the rollout kernel, the DMCTS tree and the exact endgame solver.
+
+That is more than the search needed. It is what a **client-side build** needs: the crate
+compiles to wasm32 at 1.39x native (`bench/wasm.md`), so the game can run with no server at
+all. Doing that with a JavaScript copy of the rules would mean two implementations and two
+places to be wrong; doing it from this crate means one.
+
 ## What stays in Python
 
-`RoundState`, the observation builder, scoring, Weis, the web layer, training and the arena.
-Those run 36 times a game. Only the search runs 800,000 times a move.
+The web layer, the game phase machine, the event log, the observation builder, training and
+the arena. Python remains the engine of record for the served game.
+
+## Keeping the two honest
+
+`tests/test_rules_port.py` checks every ported rule against its Python twin over randomised
+input — thousands of hands for Weis, whole rounds ply-by-ply for round state and voids.
+`tests/reference.py` is written from the rules text and imports neither, which is what stops
+the two implementations agreeing on the same misreading.
+
+Trump weights are `include_str!`d from `krass_jass/data/trump_weights.json`, the same file
+Python reads, because wasm has no filesystem. One source, both sides.
 
 ## Safety
 

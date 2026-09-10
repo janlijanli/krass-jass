@@ -15,13 +15,21 @@ use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 
 pub mod cards;
+pub mod config;
 pub mod determinize;
 pub mod endgame;
 pub mod legal;
 pub mod rng;
 pub mod rollout;
+pub mod round;
 pub mod search;
 pub mod tables;
+pub mod scoring;
+pub mod trump;
+#[cfg(feature = "python")]
+mod pybridge;
+pub mod voids;
+pub mod weis;
 
 #[cfg(feature = "wasm")]
 mod wasm_bench;
@@ -235,5 +243,6 @@ fn krass_jass_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(play_out_many, m)?)?;
     m.add_function(wrap_pyfunction!(dmcts, m)?)?;
     m.add_function(wrap_pyfunction!(solve_endgame, m)?)?;
+    pybridge::register(m)?;
     Ok(())
 }

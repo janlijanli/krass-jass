@@ -47,7 +47,9 @@ krass_jass/
   rollout.py  the rollout kernel (Python reference implementation)
   native.py   boundary to the Rust search core
 rust/
-  the hot path: legal moves, rollout kernel, DMCTS tree. See rust/README.md
+  the full rules again, plus the hot path: legal moves, trick resolution, scoring,
+  claim order, Weis, Stöck, voids, trump selection, round state, rollout, DMCTS,
+  exact endgame. Targets both PyO3 and wasm32. See rust/README.md
 tests/
   reference.py  a naive implementation written from the rules text, importing nothing
                 from krass_jass — it exists to disagree with the engine

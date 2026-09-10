@@ -49,9 +49,17 @@ Do not design around an assumed answer to either. Ask.
   self-play and Python put one training corpus at 33 days. Ported as a unit — kernel *and*
   UCT tree: profiling showed the rollout is 73% of search time, so porting the kernel alone
   would have capped the whole exercise at ~2.4x. Do not re-split them.
+- **The rules exist twice, and that is deliberate.** Python is the engine of record and
+  what the server runs; Rust is the same rules again so the game can run without a server
+  (wasm) and so the search does not cross a language boundary. Ported: legal moves, trick
+  resolution, scoring, claim order, Weis, Stöck, void inference, trump selection, round
+  state.
 - Any change to a rule in Python must land in `rust/` in the same commit, and vice versa.
-  `tests/test_rust_conformance.py` asserts three-way agreement with `tests/reference.py`
-  and will fail if they drift.
+  `tests/test_rust_conformance.py` and `tests/test_rules_port.py` assert agreement over
+  randomised input, and `tests/reference.py` — written from the rules text, importing
+  neither — is what stops the two agreeing on the same mistake.
+- Trump weights live in `krass_jass/data/trump_weights.json` and are `include_str!`d into
+  Rust. One file, both implementations. Edit the JSON, not either copy.
 - There is **no Python fallback for the search**, deliberately. A silent fallback is a 20x
   slowdown disguised as a working system.
 - Legal-move generation is table-driven: 9 bits per suit → 512 entries, keyed on

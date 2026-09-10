@@ -47,6 +47,19 @@ const fn build_puur() -> [u64; NUM_SUITS] {
 
 pub const PUUR_MASK: [u64; NUM_SUITS] = build_puur();
 
+const fn build_stoeck() -> [u64; NUM_SUITS] {
+    let mut out = [0u64; NUM_SUITS];
+    let mut s = 0;
+    while s < NUM_SUITS {
+        out[s] = (1u64 << (s * NUM_RANKS + RANK_K)) | (1u64 << (s * NUM_RANKS + RANK_Q));
+        s += 1;
+    }
+    out
+}
+
+/// King + Queen of a suit — Stöck, when that suit is trump.
+pub const STOECK_MASK: [u64; NUM_SUITS] = build_stoeck();
+
 #[inline(always)]
 pub fn card_suit(c: usize) -> usize {
     c / NUM_RANKS
