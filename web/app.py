@@ -180,6 +180,20 @@ def in_weis_window(table: Table) -> bool:
     return played == 0 or (played == 1 and table.awaiting_ack())
 
 
+def visible_stoeck(table: Table) -> list[dict]:
+    """Stöck announcements belonging to the trick currently on the table.
+
+    Unlike Weis, this can happen in any trick — it fires when the second of King/Queen of
+    trumps is played — so it gets its own window rather than riding on the first-trick one.
+    """
+    game = table.game
+    if game.round is None:
+        return []
+    played = len(game.round.tricks_played)
+    current = played - 1 if table.awaiting_ack() else played
+    return [entry for entry in game.stoeck_seats if entry["trick"] == current]
+
+
 def visible_weis(table: Table, seat: int) -> list[dict]:
     """What may be seen right now.
 
@@ -279,7 +293,7 @@ def view(table: Table, seat: int) -> dict:
         # Announced in turn order through the first trick, then the best one is shown and
         # the whole lot comes off the table. See `visible_weis`.
         "weis": visible_weis(table, seat),
-        "stoeck": game.stoeck_seats if in_weis_window(table) else [],
+        "stoeck": visible_stoeck(table),
         "weis_offer": game.weis_offers.get(seat) if game.phase is Phase.WEIS else None,
         "weis_pending": game.phase is Phase.WEIS,
         "scorecard": game.last_score if game.phase in (Phase.ROUND_OVER, Phase.GAME_OVER) else None,

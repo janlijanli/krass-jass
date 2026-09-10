@@ -119,6 +119,7 @@ function renderWeis(view) {
   // was beaten is most of what makes Weis legible at the table.
   el.weis.replaceChildren();
   if (view.phase === "bidding" || view.phase === "weis") return;
+  // Stöck can fire in any trick, so it is rendered whether or not Weis is still showing.
 
   for (const entry of view.weis || []) {
     const bubble = document.createElement("div");
@@ -140,11 +141,11 @@ function renderWeis(view) {
       (cards ? `<span class="cards">${cards}</span>` : "");
     el.weis.appendChild(bubble);
   }
-  for (const seat of view.stoeck || []) {
+  for (const entry of view.stoeck || []) {
     const bubble = document.createElement("div");
     bubble.className = "weis-bubble stoeck";
-    bubble.dataset.rel = String((seat - view.seat + 4) % 4);
-    bubble.textContent = "Stöck 20";
+    bubble.dataset.rel = String((entry.seat - view.seat + 4) % 4);
+    bubble.innerHTML = `<span class="value">Stöck ${entry.points}</span>`;
     el.weis.appendChild(bubble);
   }
 }

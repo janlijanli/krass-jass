@@ -178,9 +178,11 @@ holding stays private. This is an information-boundary rule rather than presenta
 revealing every seat's cards would give away three hands at the top of each round, and
 revealing a partner's gives away one for nothing.
 
-**Known simplification:** Stöck is announced at the top of the round rather than when the
-second of King/Queen is played. This gives away timing a real player would choose when to
-reveal. Acceptable for v1; fix when the Weis UI becomes manual.
+**Stöck is announced when the second of King/Queen of trumps is played**, as at the table —
+not at the top of the round. The timing carries information: holding both trump honours is
+worth knowing, and revealing it early is a choice a real player would rather make
+themselves. Every card is played over nine tricks, so a held Stöck is always eventually
+announced; the timing changes, not whether it scores.
 
 `stoeck_enabled` — **default `True`**, `False` in `EVAL`. King + Queen of trumps in one hand = 20
 points. It is not a Weis, cannot be beaten, and is announced when the second of the two is played.

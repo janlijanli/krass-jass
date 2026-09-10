@@ -224,3 +224,41 @@ def test_weis_leaves_the_table_after_the_first_trick():
         game.play(seat, card_list(game.round.legal_moves(seat))[0])
     table.acked_tricks = table.completed_tricks()
     assert visible_weis(table, 0) == []
+
+
+def test_stoeck_shows_only_for_the_trick_it_was_announced_in():
+    """Weis lives in the first trick; Stöck can fire in any of them, so it gets its own
+    display window rather than riding on the Weis one."""
+    from krass_jass.agent import GreedyAgent
+    from krass_jass.cards import parse_hand as H
+    from krass_jass.game import Game, Phase
+    from krass_jass.rules import HOUSE
+    from web.app import Table, visible_stoeck
+
+    game = Game(cfg=HOUSE, seed=2)
+    game._dealt = [
+        H("DK DQ DA D9 D8 S6 S7 H6 H7"),
+        H("SA SK SQ SJ ST S9 S8 H8 H9"),
+        H("CA CK CQ CJ CT C9 C8 C7 C6"),
+        H("DJ DT D7 D6 HA HK HQ HJ HT"),
+    ]
+    game.forehand = 0
+    game.declarer = 0
+    game.bid(0, "DIAMONDS")
+    table = Table(game=game, human_seat=0, bots={})
+
+    agent = GreedyAgent()
+    announced_at = None
+    windows = []
+    while game.phase is Phase.PLAYING:
+        seat = game.round.to_play
+        game.play(seat, agent.decide(game.observation(seat)))
+        table.acked_tricks = table.completed_tricks()
+        if game.stoeck_seats and announced_at is None:
+            announced_at = game.stoeck_seats[0]["trick"]
+        if announced_at is not None and game.round is not None:
+            windows.append((len(game.round.tricks_played), len(visible_stoeck(table))))
+
+    assert announced_at is not None, "Stöck was never announced"
+    shown = {tricks for tricks, count in windows if count}
+    assert shown == {announced_at}, f"shown during {shown}, announced in trick {announced_at}"

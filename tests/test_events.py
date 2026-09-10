@@ -230,9 +230,58 @@ def test_a_losing_teams_weis_cards_are_never_revealed():
             assert entry["cards"] is None
 
 
-def test_stoeck_is_announced():
-    from krass_jass.cards import parse_hand as H
+def test_stoeck_is_announced_when_the_second_honour_is_played():
+    """Not at the top of the round. The timing is information — holding both trump honours
+    is worth knowing, and a real player chooses when to reveal it."""
+    from krass_jass.cards import card_list, parse_card, parse_hand as H
     from krass_jass.events import EventType
+    from krass_jass.rules import HOUSE
+
+    game = Game(cfg=HOUSE, seed=2)
+    game._dealt = [
+        H("DK DQ DA D9 D8 S6 S7 H6 H7"),   # holds the diamond King and Queen
+        H("SA SK SQ SJ ST S9 S8 H8 H9"),
+        H("CA CK CQ CJ CT C9 C8 C7 C6"),
+        H("DJ DT D7 D6 HA HK HQ HJ HT"),
+    ]
+    game.forehand = 0
+    game.declarer = 0
+    game.bid(0, "DIAMONDS")
+
+    def stoeck_events():
+        return [e for e in game.log.all() if e.type is EventType.STOECK]
+
+    assert stoeck_events() == [], "nothing is announced before a card is played"
+
+    dk, dq = parse_card("DK"), parse_card("DQ")
+    seen_first = False
+    while game.phase is Phase.PLAYING:
+        seat = game.round.to_play
+        card = card_list(game.round.legal_moves(seat))[0]
+        was_honour = seat == 0 and card in (dk, dq)
+        held_before = game.round.hands[0]
+        game.play(seat, card)
+
+        if was_honour:
+            from krass_jass.tables import STOECK_MASK
+
+            remaining = held_before & ~(1 << card) & STOECK_MASK[0]
+            if remaining:
+                assert stoeck_events() == [], "the first honour announces nothing"
+                seen_first = True
+            else:
+                assert len(stoeck_events()) == 1, "the second honour announces"
+                break
+
+    assert seen_first, "the test never saw the first honour played"
+    assert len(stoeck_events()) == 1
+    assert stoeck_events()[0].payload["seat"] == 0
+    assert stoeck_events()[0].payload["points"] == 20
+
+
+def test_stoeck_still_scores_wherever_it_is_announced():
+    from krass_jass.agent import GreedyAgent
+    from krass_jass.cards import parse_hand as H
     from krass_jass.rules import HOUSE
 
     game = Game(cfg=HOUSE, seed=2)
@@ -245,9 +294,11 @@ def test_stoeck_is_announced():
     game.forehand = 0
     game.declarer = 0
     game.bid(0, "DIAMONDS")
-    stoeck = [e for e in game.log.all() if e.type is EventType.STOECK]
-    assert [e.payload["seat"] for e in stoeck] == [0]
-    assert game.stoeck_seats == [0]
+    agent = GreedyAgent()
+    while game.phase is Phase.PLAYING:
+        seat = game.round.to_play
+        game.play(seat, agent.decide(game.observation(seat)))
+    assert game.last_score["stoeck"] == [20, 0]
 
 
 def test_no_stoeck_event_in_a_no_trump_contract():

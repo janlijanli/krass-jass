@@ -83,6 +83,7 @@ class Game:
         self.stoeck_seats = []
         self.weis_choices = {}
         self.weis_offers = {}
+        self._stoeck_holders = set()
 
         self.log.emit(
             EventType.ROUND_STARTED,
@@ -284,16 +285,15 @@ class Game:
         else:
             self._weis = (0, 0)
 
+        # Stöck is *held* now but announced later — when the second of King/Queen is
+        # actually played (see `_check_stoeck`). Announcing it here would tell the table
+        # who holds the trump King and Queen before a card is down.
         stoeck = score_stoeck(self._dealt, trump, self.cfg)
-        if trump >= 0 and any(stoeck):
-            # Simplification: announced at the top of the round rather than when the second
-            # of King/Queen is played. Recorded in docs/rules-config.md, because it gives
-            # away timing a real player would choose when to reveal.
+        if trump >= 0:
             mask = STOECK_MASK[trump]
-            for seat in range(NUM_SEATS):
-                if self._dealt[seat] & mask == mask:
-                    self.log.emit(EventType.STOECK, {"seat": seat, "points": STOECK_POINTS})
-                    self.stoeck_seats.append(seat)
+            self._stoeck_holders = {
+                seat for seat in range(NUM_SEATS) if self._dealt[seat] & mask == mask
+            }
         self._stoeck = stoeck
 
     def choose_weis(self, seat: int, announce: bool) -> None:
@@ -317,6 +317,7 @@ class Game:
         tricks_before = len(self.round.tricks_played)
         self.round.play(card)   # raises IllegalMove on anything not legal
         self.log.emit(EventType.CARD_PLAYED, {"seat": seat, "card": format_card(card)})
+        self._check_stoeck(seat, tricks_before)
 
         if len(self.round.tricks_played) > tricks_before:
             leader, cards = self.round.tricks_played[-1]
@@ -330,6 +331,29 @@ class Game:
             )
         if self.round.done:
             self._score_round()
+
+    def _check_stoeck(self, seat: int, trick_index: int) -> None:
+        """Announce Stöck at the moment the second of King/Queen of trumps goes down.
+
+        That is when a player calls it at the table, and the timing is information: holding
+        both is worth knowing, and revealing it early is a choice a real player would rather
+        make themselves. Every card gets played over nine tricks, so a held Stöck is always
+        eventually announced — the change is *when*, not whether it scores.
+        """
+        if seat not in self._stoeck_holders or self.contract is None:
+            return
+        trump = self.contract.trump_suit
+        if trump < 0:
+            return
+        mask = STOECK_MASK[trump]
+        # Both halves gone from the hand means the second one has just been played.
+        if self.round is not None and self.round.hands[seat] & mask == 0:
+            self._stoeck_holders.discard(seat)
+            self.log.emit(
+                EventType.STOECK,
+                {"seat": seat, "points": STOECK_POINTS, "trick": trick_index},
+            )
+            self.stoeck_seats.append({"seat": seat, "points": STOECK_POINTS, "trick": trick_index})
 
     def _score_round(self) -> None:
         assert self.round is not None
@@ -391,5 +415,7 @@ class Game:
     last_score: dict | None = None
     #: seat -> True/False once decided, in manual mode
     weis_choices: dict = field(default_factory=dict)
+    #: seats holding K+Q of trumps that have not yet played the second of the two
+    _stoeck_holders: set = field(default_factory=set)
     #: seat -> points on offer, for the seats that actually hold something
     weis_offers: dict = field(default_factory=dict)
