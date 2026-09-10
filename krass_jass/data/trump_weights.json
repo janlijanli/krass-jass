@@ -1,0 +1,42 @@
+{
+  "_comment": "Rule-based trump selection. PLAN.md §1.4 puts this in a file rather than in code: it is tiny, hand-tunable and reviewable in git. §3.1 says a ranked rule-based selector comes within ~0.7 points of a learned one, so this is meant to be nearly all of the available gain, not a placeholder.",
+
+  "trump_rank_weights": {
+    "_comment": "Per card, for the suit being considered as trump. Follows trump power (J>9>A>K>Q>10>8>7>6) rather than card value: the Puur always wins a trick AND carries 20 points, while the 10 carries 10 points but loses to five other trumps.",
+    "J": 8.0, "9": 6.0, "A": 4.0, "K": 2.5, "Q": 2.0, "T": 1.5, "8": 0.8, "7": 0.8, "6": 0.8
+  },
+  "trump_length_bonus": {
+    "_comment": "Trump length is worth more than trump quality past a point — every spare trump is a ruff. Indexed by how many trumps are held.",
+    "0": 0.0, "1": 0.0, "2": 0.0, "3": 1.0, "4": 3.0, "5": 6.0, "6": 10.0, "7": 14.0, "8": 18.0, "9": 22.0
+  },
+  "side_suit_weights": {
+    "_comment": "Cards outside the trump suit, when this suit is trump. An ace usually wins its trick; a king mostly does not unless protected.",
+    "A": 1.6, "K": 0.5, "Q": 0.1, "J": 0.1, "T": 0.2, "9": 0.0, "8": 0.0, "7": 0.0, "6": 0.0
+  },
+  "side_void_bonus": {
+    "_comment": "A void or singleton in a side suit is a ruffing opportunity, but only if trumps back it up. Scaled by trump count in code.",
+    "void": 1.5, "singleton": 0.7
+  },
+
+  "obenabe_weights": {
+    "_comment": "High cards win. Aces dominate; the 8 is worth 8 points in a no-trump contract.",
+    "A": 3.0, "K": 1.5, "Q": 0.6, "J": 0.2, "T": 1.0, "9": 0.1, "8": 0.8, "7": 0.0, "6": 0.0
+  },
+  "undenufe_weights": {
+    "_comment": "Mirror image: the 6 is highest and worth 11 points, the ace is worthless.",
+    "6": 3.0, "7": 1.5, "8": 1.3, "9": 0.6, "T": 1.0, "J": 0.2, "Q": 0.1, "K": 0.0, "A": 0.0
+  },
+  "no_trump_top_run_bonus": {
+    "_comment": "In a no-trump contract, consecutive top cards in one suit cash immediately. Rewards A-K-Q or 6-7-8 held together.",
+    "per_card": 0.8
+  },
+
+  "baseline": {
+    "_comment": "Score of an unremarkable hand. Contracts are compared on (score - baseline) * multiplier, because the multiplier scales the stakes for BOTH teams -- it multiplies your edge, not your points. A mediocre hand at x4 is a bad idea, not a good one.",
+    "value": 13.0
+  },
+  "shove_threshold": {
+    "_comment": "Forehand shoves when the best available edge is below this. Shoving is valuable and PLAN.md §3.1 notes search-based selectors underperform largely because they never learn to do it.",
+    "value": 1.5
+  }
+}

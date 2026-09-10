@@ -18,8 +18,9 @@ from dataclasses import dataclass
 from . import native
 from .cards import card_list
 from .observation import Observation
-from .rules import HOUSE, RulesConfig
+from .rules import HOUSE, SHOVE, Contract, RulesConfig
 from .tables import CARD_VALUES
+from .trump import select_trump
 from .voids import infer_forbidden
 
 
@@ -27,9 +28,19 @@ class Agent:
     """Stateless. No memory between turns — the observation is the whole world."""
 
     name = "agent"
+    cfg: RulesConfig = HOUSE
 
     def decide(self, obs: Observation) -> int:
+        """Card play."""
         raise NotImplementedError
+
+    def select_trump(self, hand: int, is_forehand: bool) -> Contract | str:
+        """Bidding. Defaults to the rule-based selector for every agent.
+
+        Trump choice and card play are separate problems (`PLAN.md` §3.2) and are kept
+        separable here so either can be swapped and A/B'd without touching the other.
+        """
+        return select_trump(hand, is_forehand, self.cfg)
 
 
 class RandomAgent(Agent):
@@ -41,6 +52,20 @@ class RandomAgent(Agent):
         cards = card_list(obs.legal_moves)
         rng = random.Random(obs.decision_seed)
         return cards[rng.randrange(len(cards))]
+
+    def select_trump(self, hand: int, is_forehand: bool) -> Contract | str:
+        rng = random.Random(hand)
+        return Contract(rng.randrange(6))
+
+
+class RandomTrumpMixin:
+    """Rule-based card play, random bidding. Exists only to isolate what trump selection is
+    worth — `PLAN.md` §3.1 puts it at ~16 points of win rate, which is a claim worth
+    checking rather than inheriting."""
+
+    def select_trump(self, hand: int, is_forehand: bool) -> Contract | str:
+        rng = random.Random(hand ^ 0x5DEECE66D)
+        return Contract(rng.randrange(6))
 
 
 class GreedyAgent(Agent):

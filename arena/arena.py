@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from krass_jass.agent import Agent
 from krass_jass.cards import card_list
 from krass_jass.observation import build_observation, derive_decision_seed
-from krass_jass.rules import EVAL, Contract, RulesConfig
+from krass_jass.rules import EVAL, SHOVE, Contract, RulesConfig
 from krass_jass.state import RoundState
 
 POINTS_PER_ROUND = 157
@@ -39,9 +39,33 @@ def deal_hands(rng: random.Random) -> list[int]:
     return [sum(1 << c for c in deck[i * 9 : (i + 1) * 9]) for i in range(4)]
 
 
+def choose_contract(
+    hands: list[int],
+    forehand: int,
+    seats: dict[int, Agent],
+    cfg: RulesConfig,
+) -> tuple[Contract, int]:
+    """Run the bidding. Returns the contract and the declaring seat.
+
+    Forehand picks or shoves; a partner who is shoved to must choose, so the bidding always
+    terminates. `allow_zurueckschieben` (shoving back) is off by default and the selector
+    never returns SHOVE off-forehand, but the guard stays in — a future learned selector
+    could, and an infinite bid loop is a nasty way to find out.
+    """
+    action = seats[forehand].select_trump(hands[forehand], is_forehand=True)
+    declarer = forehand
+    if action is SHOVE or action == SHOVE:
+        partner = (forehand + 2) % 4
+        action = seats[partner].select_trump(hands[partner], is_forehand=False)
+        declarer = partner
+        if action is SHOVE or action == SHOVE:
+            raise ValueError("a shoved-to partner must choose a contract")
+    return Contract(action), declarer
+
+
 def play_round(
     hands: list[int],
-    contract: Contract,
+    contract: Contract | None,
     leader: int,
     seats: dict[int, Agent],
     cfg: RulesConfig,
@@ -54,6 +78,10 @@ def play_round(
     bit-for-bit — including the search — which is what turns a surprising move into a test
     case rather than an anecdote.
     """
+    declarer = leader
+    if contract is None:
+        contract, declarer = choose_contract(hands, leader, seats, cfg)
+
     state = RoundState(contract=contract, hands=list(hands), cfg=cfg, leader=leader)
     trick_no = 0
     while not state.done:
@@ -66,6 +94,7 @@ def play_round(
         obs = build_observation(
             state,
             seat,
+            declarer_seat=declarer,
             decision_seed=derive_decision_seed(game_seed, game_id, seat, 0, trick_no),
         )
         card = agent.decide(obs)
@@ -78,7 +107,7 @@ def play_round(
 
 def double_round(
     hands: list[int],
-    contract: Contract,
+    contract: Contract | None,
     leader: int,
     a: Agent,
     b: Agent,
@@ -93,6 +122,10 @@ def double_round(
     a source of variance the pairing exists to cancel. Giving the second half a different
     seed leaks noise straight back in, and `test_double_round_swaps_the_agents` catches it:
     an agent playing itself must score exactly half, with no variance at all.
+
+    With `contract=None` each half bids independently, because a different agent sits in
+    forehand — trump selection is part of the skill being compared, not a fixed condition.
+    Pass an explicit contract to hold bidding constant and isolate card play.
     """
     first = play_round(hands, contract, leader, {0: a, 2: a, 1: b, 3: b}, cfg, game_seed)
     second = play_round(hands, contract, leader, {0: b, 2: b, 1: a, 3: a}, cfg, game_seed)
@@ -155,7 +188,7 @@ def deal_spec(seed: int, index: int, contract: Contract | None):
     """
     rng = random.Random(f"deal:{seed}:{index}")
     hands = deal_hands(rng)
-    c = contract if contract is not None else Contract(rng.randrange(6))
+    c = contract
     leader = rng.randrange(4)
     game_seed = seed * 1_000_003 + index * 2
     return hands, c, leader, game_seed
@@ -182,9 +215,8 @@ def match(
 ) -> MatchResult:
     """Run `deals` double rounds of A against B.
 
-    `contract` fixes the trump for every deal; leaving it `None` picks one at random per
-    deal. Trump *selection* is M3 and not built yet, so this is a placeholder that at least
-    exercises all six contracts rather than silently benchmarking only one.
+    `contract` fixes the trump for every deal; leaving it `None` means the agents bid for
+    it, which is the realistic setting and the default.
 
     `workers` spreads the deals across processes. Deals are independent, so this scales
     close to linearly, and results are identical to a serial run — each deal's setup and

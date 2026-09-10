@@ -23,7 +23,7 @@ DMCTS iterations/sec  35,000       1,482,000          42x   (6,187,000 on 8 core
 | M0 | ✅ Rule variants locked in `docs/rules-config.md` |
 | M1 | ✅ Bitboard state, legal moves, trick resolution, scoring, Weis/Stöck, property tests, benchmark harness |
 | M2 | ⬜ FastAPI + WebSocket + random bots in containers; mobile card-fan component |
-| M3 | ⬜ Rule-based bot + arena with double rounds |
+| M3 | 🔶 Rule-based trump selection + arena done; tournament persistence outstanding |
 | M4 | ✅ DMCTS: void tracking, determinization, UCT, exact endgame solver, agents, arena |
 | M5 | ⬜ Distillation — **gated on throughput**, see `docs/plan-review.md` §1 |
 | M6 | ⬜ Polish: replay UI, security pass, difficulty levels |
@@ -43,6 +43,7 @@ krass_jass/
   voids.py    exact inference: what the play history proves about other hands
   observation.py  THE information boundary — the security-critical function
   agent.py    random / greedy / dmcts. Observation in, move out, forget
+  trump.py    rule-based bidding; weights in data/trump_weights.json
   rollout.py  the rollout kernel (Python reference implementation)
   native.py   boundary to the Rust search core
 rust/
