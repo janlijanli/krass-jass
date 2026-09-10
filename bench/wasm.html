@@ -1,0 +1,32 @@
+<!doctype html><meta charset=utf-8><title>krass-jass wasm bench</title>
+<style>body{font:14px ui-monospace,monospace;padding:20px;background:#111;color:#eee}
+td{padding:3px 14px 3px 0}b{color:#d8b45a}</style>
+<h3>krass-jass core — WebAssembly</h3>
+<div id=out>running…</div>
+<script type="module">
+const res = await WebAssembly.instantiateStreaming(fetch('krass_jass_core.wasm'), {});
+const w = res.instance.exports;
+const rows = [];
+const time = (label, fn, unitsPerCall) => {
+  fn(); // warm
+  const reps = [];
+  for (let r = 0; r < 5; r++) {
+    const t = performance.now();
+    const n = fn();
+    reps.push((performance.now() - t));
+  }
+  reps.sort((a,b)=>a-b);
+  const ms = reps[2];               // median of five
+  rows.push([label, unitsPerCall / (ms/1000)]);
+};
+time('rollouts/sec',        () => w.bench_rollouts(200000, 7), 200000);
+time('dmcts iterations/sec',() => w.bench_dmcts(200, 200, 11), 200*200);
+// serve budget: the measured saturation point, 40 x 60
+const t0 = performance.now(); for (let i=0;i<20;i++) w.bench_dmcts(40, 60, i+1);
+const perMove = (performance.now()-t0)/20;
+document.getElementById('out').innerHTML =
+  '<table>' + rows.map(([k,v]) => `<tr><td>${k}</td><td><b>${Math.round(v).toLocaleString()}</b></td></tr>`).join('')
+  + `<tr><td>ms per move @ 40×60 = 2,400</td><td><b>${perMove.toFixed(2)} ms</b></td></tr>`
+  + `<tr><td>wasm bytes</td><td><b>${(res.module ? 0 : 0)}</b></td></tr></table>`;
+window.__bench = Object.fromEntries(rows.concat([['ms_per_move', perMove]]));
+</script>

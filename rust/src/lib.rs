@@ -9,22 +9,31 @@
 //! agree over whole random rounds against `tests/reference.py`, which was written from the
 //! rules text and imports neither.
 
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
+#[cfg(feature = "python")]
 use pyo3::exceptions::PyValueError;
 
-mod cards;
-mod determinize;
-mod endgame;
-mod legal;
-mod rng;
-mod rollout;
-mod search;
-mod tables;
+pub mod cards;
+pub mod determinize;
+pub mod endgame;
+pub mod legal;
+pub mod rng;
+pub mod rollout;
+pub mod search;
+pub mod tables;
 
+#[cfg(feature = "wasm")]
+mod wasm_bench;
+
+#[cfg(feature = "python")]
 use cards::NUM_SEATS;
+#[cfg(feature = "python")]
 use rng::Rng;
+#[cfg(feature = "python")]
 use rollout::Kernel;
 
+#[cfg(feature = "python")]
 fn make_kernel(
     contract: usize,
     strict_undertrump: bool,
@@ -44,6 +53,7 @@ fn make_kernel(
     ))
 }
 
+#[cfg(feature = "python")]
 /// Mask of legal cards. Twin of `krass_jass.legal.legal_moves`.
 #[pyfunction]
 #[pyo3(signature = (hand, trump, led, best_trump_strength, strict_undertrump=true, puur_exempt=true))]
@@ -65,6 +75,7 @@ fn legal_moves(
     )
 }
 
+#[cfg(feature = "python")]
 /// Random playout to the end of the round. Twin of `krass_jass.rollout.play_out`.
 #[pyfunction]
 #[pyo3(signature = (hands, leader, contract, seed, strict_undertrump=true, puur_exempt=true, last_trick_bonus=5, match_bonus=100))]
@@ -95,6 +106,7 @@ fn play_out(
     Ok(rollout::play_out(&mut h, leader & 3, &k, &mut rng))
 }
 
+#[cfg(feature = "python")]
 /// Benchmark helper: `n` playouts from one deal, returning only the count. Keeps the
 /// Python-side loop out of the measurement.
 #[pyfunction]
@@ -122,6 +134,7 @@ fn play_out_many(
     Ok(acc)
 }
 
+#[cfg(feature = "python")]
 /// Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
 /// per legal move, best first — the shape the decision trace in `PLAN.md` §6 expects.
 #[pyfunction]
@@ -188,6 +201,7 @@ fn dmcts(
         .collect())
 }
 
+#[cfg(feature = "python")]
 /// Exact double-dummy solve. Returns `(team_0_points, nodes_visited)`.
 ///
 /// Perfect information: every seat plays optimally knowing all four hands. Inside a
@@ -213,6 +227,7 @@ fn solve_endgame(
     Ok(endgame::solve_exact(&mut h, &trick, leader & 3, &k))
 }
 
+#[cfg(feature = "python")]
 #[pymodule]
 fn krass_jass_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(legal_moves, m)?)?;

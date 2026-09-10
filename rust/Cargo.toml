@@ -8,8 +8,15 @@ name = "krass_jass_core"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "0.22", features = ["extension-module"] }
-rayon = "1.10"
+# Optional so the same crate can target wasm32, where neither exists. `default = ["python"]`
+# keeps `maturin build` working unchanged.
+pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
+rayon = { version = "1.10", optional = true }
+
+[features]
+default = ["python"]
+python = ["dep:pyo3", "dep:rayon"]
+wasm = []
 
 [profile.release]
 opt-level = 3

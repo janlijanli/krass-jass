@@ -8,6 +8,7 @@
 //! Tuning defaults follow `PLAN.md` §3.1: ~1000 determinizations x 800 iterations, and an
 //! exploration constant around 1.5 (much higher than perfect-information MCTS wants).
 
+#[cfg(feature = "python")]
 use rayon::prelude::*;
 
 use crate::cards::*;
@@ -409,6 +410,10 @@ pub fn dmcts(
 
     // Determinizations are independent, which is what makes this scale linearly. Each gets
     // its own seed stream, so results do not depend on how the work was scheduled.
+    // Parallel determinizations need rayon, which does not exist on wasm32 — and browsers
+    // only get threads with SharedArrayBuffer plus COOP/COEP headers, which static hosts
+    // like GitHub Pages cannot set. Single-threaded is the wasm path.
+    #[cfg(feature = "python")]
     let per_det: Vec<(Vec<(usize, u64, f64)>, usize)> = if threads > 1 {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
@@ -416,6 +421,11 @@ pub fn dmcts(
             .expect("thread pool");
         pool.install(|| (0..determinizations).into_par_iter().map(run_one).collect())
     } else {
+        (0..determinizations).map(run_one).collect()
+    };
+    #[cfg(not(feature = "python"))]
+    let per_det: Vec<(Vec<(usize, u64, f64)>, usize)> = {
+        let _ = threads;
         (0..determinizations).map(run_one).collect()
     };
 
