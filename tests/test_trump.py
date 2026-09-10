@@ -98,3 +98,30 @@ def test_bidding_terminates_and_produces_a_legal_contract():
         contract, declarer = choose_contract(hands, 0, {i: a for i in range(4)}, EVAL)
         assert isinstance(contract, Contract)
         assert declarer in (0, 2), "only forehand or its partner can declare"
+
+
+def test_trump_policy_is_a_field_so_agents_survive_pickling():
+    """The arena runs deals across processes, so an agent configured for an experiment has
+    to pickle. Expressing the policy as a subclass defined at the call site does not."""
+    import pickle
+
+    a = DmctsAgent(determinizations=4, iterations=8, cfg=EVAL, trump_policy="random")
+    b = pickle.loads(pickle.dumps(a))
+    assert b.trump_policy == "random"
+    hand = H("HJ H9 HA HK H8 H7 SA D6 C6")
+    assert b.select_trump(hand, True) == a.select_trump(hand, True)
+
+
+def test_random_trump_policy_actually_differs_from_the_rules():
+    """If these agreed, the isolation experiment would silently measure nothing."""
+    rules = DmctsAgent(cfg=EVAL, trump_policy="rules")
+    rand = DmctsAgent(cfg=EVAL, trump_policy="random")
+    rng = random.Random(7)
+    disagreements = 0
+    for _ in range(200):
+        deck = list(range(36))
+        rng.shuffle(deck)
+        hand = sum(1 << c for c in deck[:9])
+        if rules.select_trump(hand, False) != rand.select_trump(hand, False):
+            disagreements += 1
+    assert disagreements > 100

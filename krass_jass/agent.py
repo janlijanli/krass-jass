@@ -29,6 +29,9 @@ class Agent:
 
     name = "agent"
     cfg: RulesConfig = HOUSE
+    #: "rules" or "random". A field rather than a subclass so agents stay picklable and
+    #: can cross a process pool — the arena runs deals in parallel.
+    trump_policy: str = "rules"
 
     def decide(self, obs: Observation) -> int:
         """Card play."""
@@ -37,9 +40,12 @@ class Agent:
     def select_trump(self, hand: int, is_forehand: bool) -> Contract | str:
         """Bidding. Defaults to the rule-based selector for every agent.
 
-        Trump choice and card play are separate problems (`PLAN.md` §3.2) and are kept
-        separable here so either can be swapped and A/B'd without touching the other.
+        Trump choice and card play are separate problems (`PLAN.md` §3.2) and stay
+        separable here so either can be swapped and A/B'd without touching the other —
+        which is exactly how trump selection gets measured in isolation.
         """
+        if self.trump_policy == "random":
+            return Contract(random.Random(hand ^ 0x5DEECE66D).randrange(6))
         return select_trump(hand, is_forehand, self.cfg)
 
 
@@ -53,19 +59,7 @@ class RandomAgent(Agent):
         rng = random.Random(obs.decision_seed)
         return cards[rng.randrange(len(cards))]
 
-    def select_trump(self, hand: int, is_forehand: bool) -> Contract | str:
-        rng = random.Random(hand)
-        return Contract(rng.randrange(6))
-
-
-class RandomTrumpMixin:
-    """Rule-based card play, random bidding. Exists only to isolate what trump selection is
-    worth — `PLAN.md` §3.1 puts it at ~16 points of win rate, which is a claim worth
-    checking rather than inheriting."""
-
-    def select_trump(self, hand: int, is_forehand: bool) -> Contract | str:
-        rng = random.Random(hand ^ 0x5DEECE66D)
-        return Contract(rng.randrange(6))
+    trump_policy: str = "random"
 
 
 class GreedyAgent(Agent):
@@ -95,6 +89,7 @@ class DmctsAgent(Agent):
     endgame_cards: int = 5
     threads: int = 1
     cfg: RulesConfig = HOUSE
+    trump_policy: str = "rules"
     label: str | None = None
 
     @property

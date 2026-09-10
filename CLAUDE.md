@@ -106,12 +106,15 @@ Do not design around an assumed answer to either. Ask.
   Postgres. Do not put millions of card decisions in Postgres rows.
 
 **Measured, and it changes things** (`docs/measurements.md`)
-- Search saturates near 800 iterations. Serve budget is not a constraint — ~2,400
+- Search saturates near 2,400 iterations. Serve budget is not a constraint — 2,400
   iterations costs single-digit milliseconds and is indistinguishable from 800,000.
-- The gap to a bot that sees every hand is ~6.5% of points, and **search does not close
-  it**. That is the strategy-fusion ceiling, and it is the target for everything after M4.
-- Every number above was measured with contracts chosen at random, because trump selection
-  does not exist yet. That is the biggest confound in the project right now.
+- The gap to a bot that sees every hand is ~6% of points, and **search does not close it**.
+  That is the strategy-fusion ceiling and the target for everything after M4.
+- Greedy is statistically indistinguishable from random even with trump held constant.
+  Keep it as a floor, never cite it as a meaningful rung.
+- **M5 as written needs rethinking.** It distils a high-budget teacher for serving speed;
+  speed is not the problem and the teacher is not stronger. The version worth building gets
+  *past* DMCTS rather than compressing it.
 
 **Search**
 - `krass_jass.agent.DmctsAgent` is the agent; the search itself is in `rust/`.
@@ -192,10 +195,11 @@ From the Fribourg/HSLU work on this exact variant (sources in `PLAN.md`):
   agents and ISMCTS. **Search first, learning second.**
 - Sweet spot for a 800k-rollout budget: ~1000 determinizations × 800 iterations.
   More than ~1000 determinizations stops helping. Exploration constant ≈ 1.5.
-  **This did not reproduce.** Our own sweep saturates near 800 iterations, and 333× more
-  compute is worth nothing measurable (`docs/measurements.md` §2). Most likely because we
-  have no trump selection yet and the arena picks contracts at random. Re-measure after M3
-  before trusting either figure.
+  **This did not reproduce.** Our sweep saturates near 2,400 iterations; 333× more compute
+  is worth nothing measurable. Three candidate explanations were tested and two are gone —
+  it is not the endgame solver and it is not the missing trump selector
+  (`docs/measurements.md` §3). Their figure may be budget *allocation* guidance rather than
+  a required total. Do not delete their number; do not treat ours as universal.
 - ~25 random rollouts plateaus; 100 MCTS iterations beat 1000 random rollouts. Don't
   spend budget on flat Monte Carlo.
 - **Negative result:** sampling determinizations from a learned card-distribution model
@@ -203,6 +207,7 @@ From the Fribourg/HSLU work on this exact variant (sources in `PLAN.md`):
 - **Negative result:** rule-based rollouts did *not* beat random rollouts in DMCTS.
 - Trump selection is worth ~16 points of win rate over random, and a simple ranked
   rule-based selector captures nearly all of it. Build that before any network.
+  **Reproduced:** our selector measures a 17-point spread (`docs/measurements.md` §2).
 - MCTS-based trump selection underperforms because it rarely learns to shove.
 
 Both negative results are warnings against being clever before being fast.
