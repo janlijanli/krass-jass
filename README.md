@@ -22,7 +22,7 @@ DMCTS iterations/sec  35,000       1,482,000          42x   (6,187,000 on 8 core
 |---|---|
 | M0 | ✅ Rule variants locked in `docs/rules-config.md` |
 | M1 | ✅ Bitboard state, legal moves, trick resolution, scoring, Weis/Stöck, property tests, benchmark harness |
-| M2 | ⬜ FastAPI + WebSocket + random bots in containers; mobile card-fan component |
+| M2 | 🔶 FastAPI + WebSocket + DMCTS bots playable; containers outstanding (M2c) |
 | M3 | 🔶 Rule-based trump selection + arena done; tournament persistence outstanding |
 | M4 | ✅ DMCTS: void tracking, determinization, UCT, exact endgame solver, agents, arena |
 | M5 | ⬜ Distillation — **gated on throughput**, see `docs/plan-review.md` §1 |
@@ -51,6 +51,10 @@ rust/
 tests/
   reference.py  a naive implementation written from the rules text, importing nothing
                 from krass_jass — it exists to disagree with the engine
+web/
+  app.py      FastAPI, WebSocket, bot turn loop with deliberate pacing
+  session.py  signed guest-session cookie, stdlib HMAC
+  static/     card fan (CSS + vanilla JS), mobile first
 arena/
   arena.py    double rounds + paired t-test
   cheating.py the upper bound: MCTS that sees every hand. Eval only, never served
@@ -63,9 +67,13 @@ bench/
 
 ```bash
 uv venv --python 3.12
-uv pip install -e '.[dev]'
+uv pip install -e '.[dev,web]'
 .venv/bin/python -m pytest
 .venv/bin/python bench/benchmark.py
+.venv/bin/python arena/ladder.py --deals 100
+
+# play it
+.venv/bin/python -m uvicorn web.app:app --port 8099
 ```
 
 ## The three rules that make Jass different

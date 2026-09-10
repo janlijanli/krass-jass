@@ -15,7 +15,13 @@ from .cards import CLUBS, DIAMONDS, HEARTS, SPADES
 
 
 class Contract(IntEnum):
-    """The six playable contracts. The four suit contracts share the suit indices from
+    """The six playable contracts.
+
+    **Never test a contract for truthiness.** ``Contract.DIAMONDS`` is 0, so
+    ``if contract:`` is False for a perfectly valid diamonds contract. Use
+    ``if contract is not None``. This has already caused one scoring bug where every
+    diamonds round was treated as no-trump — no Stöck, wrong Weis tie-break.
+ The four suit contracts share the suit indices from
     :mod:`krass_jass.cards`, so ``Contract.HEARTS == HEARTS`` and the trump suit of a suit
     contract is just ``int(contract)``."""
 

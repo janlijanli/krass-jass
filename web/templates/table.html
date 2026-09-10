@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>krass-jass</title>
+<link rel="stylesheet" href="/static/table.css">
+</head>
+<body data-seat="{{ seat }}">
+<main class="table">
+
+  <header class="scoreboard">
+    <div class="score us"><span class="label">Us</span><span class="value" id="score-us">0</span></div>
+    <div class="meta">
+      <div id="contract" class="contract">—</div>
+      <div id="round" class="round"></div>
+    </div>
+    <div class="score them"><span class="label">Them</span><span class="value" id="score-them">0</span></div>
+  </header>
+
+  <section class="felt">
+    <div class="seat-marker north" data-seat="2"><span>Partner</span><i class="turn"></i></div>
+    <div class="seat-marker west"  data-seat="1"><span>West</span><i class="turn"></i></div>
+    <div class="seat-marker east"  data-seat="3"><span>East</span><i class="turn"></i></div>
+
+    <div class="trick" id="trick"></div>
+
+    <div class="banner" id="banner" hidden></div>
+  </section>
+
+  <section class="bidding" id="bidding" hidden>
+    <p class="prompt">Choose trump</p>
+    <div class="bids">
+      <button data-bid="DIAMONDS" class="bid suit-d"><span class="pip">♦</span><em>×1</em></button>
+      <button data-bid="SPADES"   class="bid suit-s"><span class="pip">♠</span><em>×1</em></button>
+      <button data-bid="HEARTS"   class="bid suit-h"><span class="pip">♥</span><em>×2</em></button>
+      <button data-bid="CLUBS"    class="bid suit-c"><span class="pip">♣</span><em>×2</em></button>
+      <button data-bid="OBENABE"  class="bid word">Obenabe<em>×3</em></button>
+      <button data-bid="UNDENUFE" class="bid word">Undenufe<em>×4</em></button>
+      <button data-bid="SHOVE"    class="bid shove" id="shove">Schieben</button>
+    </div>
+  </section>
+
+  <section class="handwrap">
+    <div class="hand" id="hand"></div>
+  </section>
+
+  <footer class="statusbar">
+    <span id="status">Connecting…</span>
+    <form method="post" action="/new"><button class="newgame">New game</button></form>
+  </footer>
+</main>
+<script src="/static/table.js"></script>
+</body>
+</html>
