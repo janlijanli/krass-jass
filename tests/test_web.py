@@ -42,3 +42,44 @@ def test_secret_is_not_hardcoded():
 
     source = inspect.getsource(sessions)
     assert "token_hex" in source, "the fallback secret must be generated, not literal"
+
+
+def test_hand_is_sorted_ascending_left_to_right():
+    """The engine's rank index runs ace-first, which is backwards for a player looking at
+    their own cards."""
+    from krass_jass.cards import parse_hand
+    from web.app import sorted_hand
+    from krass_jass.cards import format_card
+
+    hand = parse_hand("CK C8 SQ S6 HK DK C9 CJ")
+    codes = [format_card(c) for c in sorted_hand(hand)]
+    assert codes == ["DK", "HK", "S6", "SQ", "C8", "C9", "CJ", "CK"]
+
+
+def test_a_completed_trick_is_held_until_acknowledged():
+    """Four cards appearing and vanishing faster than they can be read is unplayable, and
+    the bots must not race ahead while the player is still looking."""
+    from krass_jass.cards import card_list
+    from krass_jass.game import Game
+    from krass_jass.rules import HOUSE
+    from web.app import Table, view
+
+    game = Game(cfg=HOUSE, seed=6)
+    game.bid(game.to_act, "HEARTS")
+    table = Table(game=game, human_seat=0, bots={})
+
+    for _ in range(4):
+        seat = game.round.to_play
+        game.play(seat, card_list(game.round.legal_moves(seat))[0])
+
+    frame = view(table, 0)
+    assert table.awaiting_ack()
+    assert frame["trick_complete"] is True
+    assert len(frame["trick"]) == 4, "the finished trick must still be on the table"
+    assert frame["trick_winner"] is not None
+    assert frame["legal"] == [], "no play is offered while the trick is held"
+
+    table.acked_tricks = table.completed_tricks()
+    after = view(table, 0)
+    assert after["trick_complete"] is False
+    assert len(after["trick"]) < 4

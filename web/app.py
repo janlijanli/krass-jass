@@ -30,7 +30,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from krass_jass.agent import Agent, DmctsAgent
-from krass_jass.cards import parse_card
+from krass_jass.cards import card_list, card_rank, card_suit, format_card, parse_card
 from krass_jass.game import Game, Phase
 from krass_jass.rules import HOUSE
 from krass_jass.state import IllegalMove
@@ -60,9 +60,19 @@ class Table:
     human_seat: int = 0
     bots: dict[int, Agent] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    #: Tricks the player has acknowledged. A completed trick stays on the table until they
+    #: tap, and the bots must not race ahead in the meantime — otherwise the board jumps
+    #: forward the moment they do.
+    acked_tricks: int = 0
 
     def is_bot(self, seat: int) -> bool:
         return seat != self.human_seat
+
+    def completed_tricks(self) -> int:
+        return len(self.game.round.tricks_played) if self.game.round else 0
+
+    def awaiting_ack(self) -> bool:
+        return self.completed_tricks() > self.acked_tricks
 
 
 tables: dict[str, Table] = {}
@@ -155,19 +165,40 @@ def create_app() -> FastAPI:
     return app
 
 
+def sorted_hand(hand: int) -> list[int]:
+    """Grouped by suit, ascending in rank left to right — 6 lowest, ace highest.
+
+    The internal rank index runs the other way (0 = ace), which is right for the engine and
+    backwards for a player looking at their cards.
+    """
+    return sorted(card_list(hand), key=lambda c: (card_suit(c), -card_rank(c)))
+
+
 def view(table: Table, seat: int) -> dict:
     """Derived state the client would otherwise have to recompute — including legal moves,
     so the UI never decides legality itself, it only displays what the engine decided."""
     game = table.game
-    from krass_jass.cards import card_list, format_card
-
     hand = game.hand_of(seat)
     legal = 0
-    if game.phase is Phase.PLAYING and game.round is not None and game.round.to_play == seat:
+    if (
+        game.phase is Phase.PLAYING
+        and game.round is not None
+        and game.round.to_play == seat
+        and not table.awaiting_ack()
+    ):
         legal = game.round.legal_moves(seat)
 
+    # While a finished trick is unacknowledged, keep showing *that* rather than the empty
+    # new one. The client stays dumb: it renders whatever is in `trick`.
     trick = []
-    if game.round is not None:
+    winner = None
+    complete = table.awaiting_ack()
+    if game.round is not None and complete:
+        leader, cards = game.round.tricks_played[-1]
+        for i, card in enumerate(cards):
+            trick.append({"seat": (leader + i) % NUM_SEATS, "card": format_card(card)})
+        winner = game.round.last_trick_winner
+    elif game.round is not None:
         for i, card in enumerate(game.round.trick):
             trick.append({"seat": (game.round.leader + i) % NUM_SEATS, "card": format_card(card)})
 
@@ -176,11 +207,14 @@ def view(table: Table, seat: int) -> dict:
         "phase": game.phase.value,
         "seat": seat,
         "to_act": game.to_act,
-        "hand": [format_card(c) for c in card_list(hand)],
+        "hand": [format_card(c) for c in sorted_hand(hand)],
         "legal": [format_card(c) for c in card_list(legal)],
         "trick": trick,
+        "trick_complete": complete,
+        "trick_winner": winner,
         # `is not None`: Contract.DIAMONDS == 0 is falsy
         "contract": game.contract.name if game.contract is not None else None,
+        "multiplier": game.cfg.multiplier(game.contract) if game.contract is not None else None,
         "declarer": game.declarer,
         "scores": list(game.scores),
         "round": game.round_index,
@@ -198,8 +232,11 @@ async def handle(table: Table, seat: int, message: dict, socket: WebSocket) -> N
             game.bid(seat, message.get("action", ""))
         elif kind == "play":
             game.play(seat, parse_card(str(message.get("card", ""))))
+        elif kind == "ack_trick":
+            table.acked_tricks = table.completed_tricks()
         elif kind == "next_round":
             if game.phase is Phase.ROUND_OVER:
+                table.acked_tricks = 0
                 game.next_round()
         else:
             await socket.send_json({"type": "error", "message": f"unknown intent {kind!r}"})
@@ -213,6 +250,8 @@ async def drive(table: Table, seat: int, socket: WebSocket, flush) -> None:
     game = table.game
     async with table.lock:
         while game.phase in (Phase.BIDDING, Phase.PLAYING):
+            if table.awaiting_ack():
+                return  # the player is still looking at the last trick
             actor = game.to_act
             if actor is None or actor == seat:
                 return

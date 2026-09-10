@@ -40,6 +40,26 @@ function send(message) {
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
 }
 
+const CONTRACT_PIPS = { DIAMONDS: "♦", HEARTS: "♥", SPADES: "♠", CLUBS: "♣" };
+
+function renderContract(contract, multiplier) {
+  // Always visible while a contract is live — you cannot judge a card without knowing
+  // whether you are in trumps, Obenabe or Undenufe.
+  if (!contract) {
+    el.contract.className = "contract none";
+    el.contract.textContent = "—";
+    return;
+  }
+  el.contract.className = "contract";
+  const pip = CONTRACT_PIPS[contract];
+  const name = contract[0] + contract.slice(1).toLowerCase();
+  const red = contract === "HEARTS" || contract === "DIAMONDS";
+  el.contract.innerHTML =
+    (pip ? `<span class="pip${red ? " red" : ""}">${pip}</span>` : "") +
+    `<span>${pip ? name : contract[0] + contract.slice(1).toLowerCase()}</span>` +
+    (multiplier ? `<span class="mult">×${multiplier}</span>` : "");
+}
+
 function renderHand(view) {
   const legal = new Set(view.legal);
   const myTurn = view.to_act === view.seat && view.phase === "playing";
@@ -72,12 +92,17 @@ function renderHand(view) {
 
 function renderTrick(view) {
   el.trick.replaceChildren();
+  // Swiss Jass runs anticlockwise, so rel 1 (next to play) sits to your right. The CSS
+  // owns the mapping; here we only say who played what.
   for (const { seat, card } of view.trick) {
     const node = cardNode(card);
-    // Position relative to the viewer, so your own card always lands nearest you.
     node.dataset.rel = String((seat - view.seat + 4) % 4);
+    if (view.trick_complete && seat === view.trick_winner) node.classList.add("winner");
     el.trick.appendChild(node);
   }
+  // A finished trick stays on the table until it is tapped — otherwise four cards appear
+  // and vanish faster than they can be read.
+  el.trick.classList.toggle("complete", !!view.trick_complete);
 }
 
 function renderSeats(view) {
@@ -88,6 +113,11 @@ function renderSeats(view) {
 }
 
 function statusText(view) {
+  if (view.trick_complete) {
+    const mine = (view.trick_winner - view.seat + 4) % 4;
+    const who = mine === 0 ? "You take it" : mine === 2 ? "Partner takes it" : "They take it";
+    return `${who} — tap the trick`;
+  }
   if (view.phase === "game_over") return "Game over";
   if (view.phase === "round_over") return "Round over — tap to continue";
   if (view.to_act === view.seat) {
@@ -104,9 +134,7 @@ function render(view) {
   const mine = view.seat % 2;
   el.scoreUs.textContent = view.scores[mine];
   el.scoreThem.textContent = view.scores[1 - mine];
-  el.contract.textContent = view.contract
-    ? view.contract[0] + view.contract.slice(1).toLowerCase()
-    : "—";
+  renderContract(view.contract, view.multiplier);
   el.round.textContent = `Round ${view.round + 1}`;
 
   const bidding = view.phase === "bidding" && view.to_act === view.seat;
@@ -114,7 +142,11 @@ function render(view) {
   el.shove.hidden = !view.can_shove;
   el.status.textContent = statusText(view);
 
-  if (view.phase === "round_over" || view.phase === "game_over") {
+  if (view.trick_complete) {
+    // Hold the banner back until the trick has been acknowledged, so the round result does
+    // not cover the cards the player is still looking at.
+    el.banner.hidden = true;
+  } else if (view.phase === "round_over" || view.phase === "game_over") {
     el.banner.hidden = false;
     el.banner.textContent =
       view.phase === "game_over"
@@ -125,6 +157,11 @@ function render(view) {
   }
 }
 
+// Tap the finished trick to clear it. Anywhere on the felt works, because a 190px target
+// on a phone is not generous.
+document.querySelector(".felt").addEventListener("click", () => {
+  if (el.trick.classList.contains("complete")) send({ type: "ack_trick" });
+});
 el.banner.addEventListener("click", () => send({ type: "next_round" }));
 document.querySelectorAll(".bid").forEach((button) =>
   button.addEventListener("click", () => send({ type: "bid", action: button.dataset.bid }))
