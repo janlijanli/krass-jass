@@ -94,3 +94,53 @@ def test_hidden_attribute_is_forced_in_css():
 
     css = (Path(__file__).resolve().parents[1] / "web/static/table.css").read_text()
     assert "[hidden] { display: none !important; }" in css
+
+
+def test_scorecard_components_reconcile_with_the_round_total():
+    """157 is the whole round: 152 in the cards plus 5 for the last trick. Weis, Stöck and
+    the match bonus add on top, and the multiplier scales all of it."""
+    from krass_jass.agent import GreedyAgent
+    from krass_jass.game import Game, Phase
+    from krass_jass.rules import HOUSE, Contract
+
+    agent = GreedyAgent()
+    for contract in Contract:
+        game = Game(cfg=HOUSE, seed=17)
+        game.bid(game.to_act, contract.name)
+        while game.phase is Phase.PLAYING:
+            seat = game.round.to_play
+            game.play(seat, agent.decide(game.observation(seat)))
+
+        card = game.last_score
+        assert sum(card["trick_points"]) + sum(card["last_trick"]) == 157, contract.name
+
+        raw = sum(
+            sum(card[key])
+            for key in ("trick_points", "last_trick", "weis", "stoeck", "match")
+        )
+        assert raw * card["multiplier"] == sum(card["round_total"]), contract.name
+
+
+def test_running_points_are_public_and_sum_to_the_cards_played():
+    """Every played card is face up, so counting points taken is something any player at
+    the table does — it leaks nothing."""
+    from krass_jass.cards import card_list
+    from krass_jass.game import Game
+    from krass_jass.rules import HOUSE
+    from krass_jass.tables import CARD_VALUES
+    from web.app import Table, view
+
+    game = Game(cfg=HOUSE, seed=8)
+    game.bid(game.to_act, "SPADES")
+    table = Table(game=game, human_seat=0, bots={})
+
+    for _ in range(8):
+        seat = game.round.to_play
+        game.play(seat, card_list(game.round.legal_moves(seat))[0])
+    table.acked_tricks = table.completed_tricks()
+
+    frame = view(table, 0)
+    assert frame["points_in_play"] == 157
+    values = CARD_VALUES[game.contract]
+    played = sum(values[c] for _leader, cards in game.round.tricks_played for c in cards)
+    assert sum(frame["round_points"]) == played

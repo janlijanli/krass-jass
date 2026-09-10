@@ -71,6 +71,10 @@ body {
 .contract .mult { font-size: 11px; font-weight: 600; opacity: .7; }
 .contract.none { background: transparent; border-color: transparent; opacity: .5; font-weight: 500; }
 .round { font-size: 11px; opacity: .6; }
+.taken {
+  font-size: 11px; opacity: .55; margin-top: 1px;
+  font-variant-numeric: tabular-nums;
+}
 
 /* ---------- felt ---------- */
 
@@ -264,6 +268,7 @@ body {
 .scorecard tr.total td { font-weight: 700; font-size: 16px; border-bottom: none; padding-top: 9px; }
 .scorecard tr.total td:nth-child(2) { color: var(--gold); }
 .scorecard tr.zero td { opacity: .35; }
+.scorecard tr.note td { font-size: 11px; opacity: .5; border-bottom: none; padding: 2px 0 6px; }
 .sc-continue {
   width: 100%; margin-top: 12px;
   appearance: none; border: none; border-radius: 10px;

@@ -27,6 +27,7 @@ const el = {
   round: document.getElementById("round"),
   scoreUs: document.getElementById("score-us"),
   scoreThem: document.getElementById("score-them"),
+  taken: document.getElementById("taken"),
 };
 
 let lifted = null;
@@ -153,31 +154,37 @@ function renderScorecard(view) {
     ["Match", pick(card.match)],
   ];
 
+  const add = (label, us, them, cls) => {
+    const tr = document.createElement("tr");
+    if (cls) tr.className = cls;
+    tr.innerHTML = `<td>${label}</td><td>${us}</td><td>${them}</td>`;
+    el.scRows.appendChild(tr);
+  };
+
   el.scRows.replaceChildren();
   for (const [label, [us, them]] of rows) {
     // Keep empty lines visible but faded rather than hiding them — a row that disappears
     // makes the arithmetic impossible to follow.
-    const tr = document.createElement("tr");
-    if (!us && !them) tr.className = "zero";
-    tr.innerHTML = `<td>${label}</td><td>${us || "—"}</td><td>${them || "—"}</td>`;
-    el.scRows.appendChild(tr);
+    add(label, us || "—", them || "—", !us && !them ? "zero" : "");
   }
-  if (card.multiplier > 1) {
-    const tr = document.createElement("tr");
-    tr.className = "subtotal";
-    tr.innerHTML = `<td>Multiplier</td><td colspan="2" style="text-align:right">×${card.multiplier}</td>`;
-    el.scRows.appendChild(tr);
-  }
+
+  // Tricks + last trick is always 157 between the two teams. Say so, because it is the
+  // number that tells a player whether they had a good round.
+  const cardPoints = card.trick_points[0] + card.trick_points[1] + card.last_trick[0] + card.last_trick[1];
+  add(`of ${cardPoints} card points`, "", "", "note");
+
   const [ru, rt] = pick(card.round_total);
   const [tu, tt] = pick(card.scores);
-  const round = document.createElement("tr");
-  round.className = "subtotal";
-  round.innerHTML = `<td>This round</td><td>${ru}</td><td>${rt}</td>`;
-  el.scRows.appendChild(round);
-  const total = document.createElement("tr");
-  total.className = "total";
-  total.innerHTML = `<td>Total</td><td>${tu}</td><td>${tt}</td>`;
-  el.scRows.appendChild(total);
+
+  if (card.multiplier > 1) {
+    // Show the raw subtotal and the multiplication explicitly. Without it the rows sum to
+    // one number and "This round" shows another, which reads as an error.
+    const raw = rows.reduce((acc, [, pair]) => [acc[0] + pair[0], acc[1] + pair[1]], [0, 0]);
+    add("Subtotal", raw[0], raw[1], "subtotal");
+    add(`× ${card.multiplier} (${card.contract[0] + card.contract.slice(1).toLowerCase()})`, "", "", "note");
+  }
+  add("This round", ru, rt, "subtotal");
+  add("Total", tu, tt, "total");
 
   el.scTitle.textContent =
     view.phase === "game_over" ? "Final score" : `Round ${card.round + 1}`;
@@ -234,6 +241,14 @@ function render(view) {
   el.scoreThem.textContent = view.scores[1 - mine];
   renderContract(view.contract, view.multiplier);
   el.round.textContent = `Round ${view.round + 1}`;
+
+  // Running card points. 157 is the whole round — tricks plus the five for the last one.
+  const playing = view.phase === "playing";
+  el.taken.hidden = !playing;
+  if (playing) {
+    const taken = view.round_points || [0, 0];
+    el.taken.textContent = `${taken[mine]} – ${taken[1 - mine]} of ${view.points_in_play}`;
+  }
 
   const bidding = view.phase === "bidding" && view.to_act === view.seat;
   el.bidding.hidden = !bidding;

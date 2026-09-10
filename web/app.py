@@ -220,6 +220,10 @@ def view(table: Table, seat: int) -> dict:
         "round": game.round_index,
         "can_shove": game.phase is Phase.BIDDING and seat == game.forehand and not game.shoved,
         "tricks_won": list(game.round.tricks_won) if game.round else [0, 0],
+        # Card points taken so far. Public — every played card is face up, so anyone at the
+        # table can count them, and a Jass player does.
+        "round_points": list(game.round.trick_points) if game.round else [0, 0],
+        "points_in_play": 157,
         # Weis is public information the moment it is announced, so it belongs in the view
         # rather than being reconstructed by the client from the event stream. The losing
         # team's `cards` are already None by the time they get here.
