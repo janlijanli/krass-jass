@@ -162,3 +162,10 @@ const fn build_suit_order() -> [[[usize; NUM_RANKS]; NUM_SUITS]; NUM_CONTRACTS] 
 }
 
 pub const SUIT_ORDER: [[[usize; NUM_RANKS]; NUM_SUITS]; NUM_CONTRACTS] = build_suit_order();
+
+pub const CONTRACT_NAMES: [&str; NUM_CONTRACTS] =
+    ["DIAMONDS", "HEARTS", "SPADES", "CLUBS", "OBENABE", "UNDENUFE"];
+
+pub fn contract_name(contract: usize) -> &'static str {
+    CONTRACT_NAMES[contract]
+}

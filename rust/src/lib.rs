@@ -16,6 +16,9 @@ use pyo3::exceptions::PyValueError;
 
 pub mod cards;
 pub mod config;
+pub mod deal;
+pub mod events;
+pub mod game;
 pub mod determinize;
 pub mod endgame;
 pub mod legal;

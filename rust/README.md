@@ -24,15 +24,26 @@ compiles to wasm32 at 1.39x native (`bench/wasm.md`), so the game can run with n
 all. Doing that with a JavaScript copy of the rules would mean two implementations and two
 places to be wrong; doing it from this crate means one.
 
+The phase machine and event log are here too, so the crate can run a whole game start to
+finish: deal, bidding, Weis, nine tricks, scoring, next round, game over.
+
+**The deal algorithm is specified rather than borrowed** (`deal.rs` / `krass_jass/deal.py`).
+CPython's Mersenne Twister seeded from a string cannot be reproduced in Rust, so "any game
+replays bit-for-bit" would otherwise have been true only inside one language. Both sides run
+SplitMix64 → Fisher-Yates → Lemire, and a test asserts 900 seed/round pairs deal identically.
+
 ## What stays in Python
 
-The web layer, the game phase machine, the event log, the observation builder, training and
-the arena. Python remains the engine of record for the served game.
+The web layer, the observation builder, training and the arena. Python remains the engine of
+record for the served game.
 
 ## Keeping the two honest
 
 `tests/test_rules_port.py` checks every ported rule against its Python twin over randomised
 input — thousands of hands for Weis, whole rounds ply-by-ply for round state and voids.
+`tests/test_game_port.py` drives both engines through the *same* decisions and diffs the
+entire event stream, which catches an event emitted in the wrong order, with the wrong
+payload, or addressed to the wrong seat — none of which would change a score.
 `tests/reference.py` is written from the rules text and imports neither, which is what stops
 the two implementations agreeing on the same misreading.
 

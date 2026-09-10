@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from .cards import card_list, format_card
+from .deal import deal as deal_hands
 from .events import EventLog, EventType
 from .observation import build_observation, derive_decision_seed
 from .rules import HOUSE, SHOVE, Contract, RulesConfig
@@ -64,13 +65,14 @@ class Game:
     def start_round(self) -> None:
         """Deal and open the bidding.
 
-        The deal RNG is derived from the game seed and the round index, so a game replays
-        bit-for-bit — including which cards each seat got.
+        The deal is derived from the game seed and the round index by an algorithm specified
+        in `krass_jass/deal.py` and mirrored in Rust, so a game replays bit-for-bit — in
+        either implementation, including which cards each seat got.
         """
-        rng = random.Random(f"deal:{self.seed}:{self.round_index}")
-        deck = list(range(36))
-        rng.shuffle(deck)
-        hands = [sum(1 << c for c in deck[i * 9 : (i + 1) * 9]) for i in range(NUM_SEATS)]
+        # The shared deal, not `random` — the same seed has to produce the same cards in
+        # every implementation, or bit-for-bit replay is only true inside one language.
+        # See `krass_jass/deal.py` and its Rust mirror.
+        hands = deal_hands(self.seed, self.round_index)
 
         self._dealt = list(hands)
         self.forehand = (self.dealer + 1) % NUM_SEATS

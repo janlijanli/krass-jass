@@ -69,6 +69,44 @@ pub extern "C" fn bench_dmcts(determinizations: u32, iterations: u32, seed: u32)
     out.first().map(|c| c.card as u32).unwrap_or(u32::MAX)
 }
 
+/// Play a whole game through the phase machine. Exists so the linker keeps the engine, and
+/// so the wasm bundle size reflects what a browser build would actually carry.
+#[no_mangle]
+pub extern "C" fn bench_game(seed: u32) -> u32 {
+    use crate::config::Rules;
+    use crate::game::{Game, Phase};
+    use crate::trump::select_trump;
+
+    let rules = Rules { target_score: 1000, ..Rules::default() };
+    let mut game = Game::new(rules, seed as u64 | 1);
+    let mut rng = Rng::new(seed as u64 | 1);
+
+    for _ in 0..20000 {
+        match game.phase {
+            Phase::GameOver => break,
+            Phase::RoundOver => {
+                let _ = game.next_round();
+            }
+            Phase::Bidding => {
+                let seat = game.to_act().unwrap();
+                let action = select_trump(game.hand_of(seat), seat == game.forehand, &rules);
+                let _ = game.bid(seat, action);
+            }
+            Phase::Weis => {
+                let seat = game.to_act().unwrap();
+                let _ = game.choose_weis(seat, true);
+            }
+            Phase::Playing => {
+                let seat = game.to_act().unwrap();
+                let legal = game.round.as_ref().unwrap().legal_moves(seat);
+                let card = crate::rollout::pick_random(legal, &mut rng);
+                let _ = game.play(seat, card);
+            }
+        }
+    }
+    (game.scores[0] + game.scores[1]) as u32
+}
+
 /// Exact endgame solve on a `cards_each`-card position. Returns nodes visited.
 #[no_mangle]
 pub extern "C" fn bench_endgame(cards_each: u32, seed: u32) -> u32 {

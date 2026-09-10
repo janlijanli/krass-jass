@@ -69,3 +69,23 @@ pub fn card_suit(c: usize) -> usize {
 pub fn card_rank(c: usize) -> usize {
     c % NUM_RANKS
 }
+
+pub const SUIT_CHARS: [char; NUM_SUITS] = ['D', 'H', 'S', 'C'];
+pub const RANK_CHARS: [&str; NUM_RANKS] = ["A", "K", "Q", "J", "T", "9", "8", "7", "6"];
+
+/// `"DJ"`. Ten is `T`, matching `krass_jass/cards.py`.
+pub fn format_card(c: usize) -> String {
+    format!("{}{}", SUIT_CHARS[card_suit(c)], RANK_CHARS[card_rank(c)])
+}
+
+/// Card indices in a mask, ascending.
+pub fn card_list(mask: u64) -> Vec<usize> {
+    let mut out = Vec::new();
+    let mut m = mask;
+    while m != 0 {
+        let low = m & m.wrapping_neg();
+        out.push(low.trailing_zeros() as usize);
+        m ^= low;
+    }
+    out
+}

@@ -283,7 +283,128 @@ fn rs_replay_round(
     ))
 }
 
+#[pyfunction]
+fn rs_deal(seed: u64, round: u32) -> Vec<u64> {
+    crate::deal::deal(seed, round).to_vec()
+}
+
+/// A Rust `Game`, driven from Python so the two phase machines can be run through the same
+/// decisions and their event streams compared.
+#[pyclass(name = "RsGame")]
+pub struct PyGame {
+    inner: crate::game::Game,
+}
+
+#[pymethods]
+impl PyGame {
+    #[new]
+    #[pyo3(signature = (seed, target_score=1000, weis_enabled=true, weis_manual=false, stoeck_enabled=true, multipliers=None))]
+    fn new(
+        seed: u64,
+        target_score: i32,
+        weis_enabled: bool,
+        weis_manual: bool,
+        stoeck_enabled: bool,
+        multipliers: Option<Vec<i32>>,
+    ) -> Self {
+        let mut rules = Rules {
+            target_score,
+            weis_enabled,
+            weis_manual,
+            stoeck_enabled,
+            ..Rules::default()
+        };
+        if let Some(m) = multipliers {
+            for (i, v) in m.iter().take(6).enumerate() {
+                rules.multipliers[i] = *v;
+            }
+        }
+        PyGame { inner: crate::game::Game::new(rules, seed) }
+    }
+
+    #[getter]
+    fn phase(&self) -> String {
+        self.inner.phase.as_str().to_string()
+    }
+    #[getter]
+    fn to_act(&self) -> Option<usize> {
+        self.inner.to_act()
+    }
+    #[getter]
+    fn scores(&self) -> (i32, i32) {
+        (self.inner.scores[0], self.inner.scores[1])
+    }
+    #[getter]
+    fn forehand(&self) -> usize {
+        self.inner.forehand
+    }
+    #[getter]
+    fn round_index(&self) -> u32 {
+        self.inner.round_index
+    }
+    #[getter]
+    fn weis_offers(&self) -> Vec<i32> {
+        self.inner.weis_offers.to_vec()
+    }
+
+    fn hand_of(&self, seat: usize) -> u64 {
+        self.inner.hand_of(seat)
+    }
+
+    fn legal_moves(&self, seat: usize) -> u64 {
+        self.inner.round.as_ref().map_or(0, |r| r.legal_moves(seat))
+    }
+
+    /// `action` is a contract index, or -1 to shove.
+    fn bid(&mut self, seat: usize, action: i64) -> PyResult<()> {
+        use pyo3::exceptions::PyValueError;
+        let a = if action < 0 { crate::trump::SHOVE } else { action as usize };
+        self.inner.bid(seat, a).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    fn choose_weis(&mut self, seat: usize, announce: bool) -> PyResult<()> {
+        use pyo3::exceptions::PyValueError;
+        self.inner
+            .choose_weis(seat, announce)
+            .map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    fn play(&mut self, seat: usize, card: usize) -> PyResult<()> {
+        use pyo3::exceptions::PyValueError;
+        self.inner.play(seat, card).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    fn next_round(&mut self) -> PyResult<()> {
+        use pyo3::exceptions::PyValueError;
+        self.inner.next_round().map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    /// Every event as JSON, in order.
+    fn events(&self) -> Vec<String> {
+        self.inner.log.all().iter().map(|e| e.to_json()).collect()
+    }
+
+    /// Events this seat may see, from `after` exclusive.
+    fn events_for(&self, seat: usize, after: usize) -> Vec<String> {
+        self.inner.log.for_seat(seat, after).into_iter().map(|e| e.to_json()).collect()
+    }
+
+    fn weis_summary(&self) -> Vec<(usize, i32, Option<Vec<usize>>, bool, bool)> {
+        self.inner
+            .weis_summary
+            .iter()
+            .map(|e| (e.seat, e.points, e.cards.clone(), e.winner, e.best))
+            .collect()
+    }
+
+    fn stoeck_announced(&self) -> Vec<(usize, i32, usize)> {
+        self.inner.stoeck_announced.clone()
+    }
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyGame>()?;
+    m.add_function(wrap_pyfunction!(rs_deal, m)?)?;
     m.add_function(wrap_pyfunction!(rs_replay_round, m)?)?;
     m.add_function(wrap_pyfunction!(rules_dict, m)?)?;
     m.add_function(wrap_pyfunction!(rs_find_weis, m)?)?;

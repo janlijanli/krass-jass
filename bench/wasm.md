@@ -30,7 +30,11 @@ Search budget 40 × 60 = 2,400 iterations, the measured saturation point
 
 **wasm is 1.39× native.** Spread across reps was 2.00–2.11 ms — tight.
 
-**Bundle: 64 KB raw, 23.5 KB gzipped.** Small enough that download time is irrelevant.
+**Bundle: 150 KB raw, 62 KB gzipped** — the *complete* engine: rules, Weis, scoring, the
+phase machine, the event log, DMCTS and the exact endgame solver. (The search alone was 64 KB
+/ 23.5 KB; the earlier figure only looked small because nothing reachable from the exports
+called the rest, so it was dead-code-eliminated.) Still small enough that download time is
+irrelevant.
 
 ## Reading it
 

@@ -53,7 +53,11 @@ Do not design around an assumed answer to either. Ask.
   what the server runs; Rust is the same rules again so the game can run without a server
   (wasm) and so the search does not cross a language boundary. Ported: legal moves, trick
   resolution, scoring, claim order, Weis, Stöck, void inference, trump selection, round
-  state.
+  state, **the phase machine and the event log** — the crate can run a whole game.
+- **The deal algorithm is specified, not borrowed** (`krass_jass/deal.py` and its Rust
+  mirror). Python's `random` cannot be reproduced in Rust, so a shared SplitMix64 →
+  Fisher-Yates → Lemire deal is what makes "replays bit-for-bit" true across languages.
+  Do not swap either side back to a language RNG.
 - Any change to a rule in Python must land in `rust/` in the same commit, and vice versa.
   `tests/test_rust_conformance.py` and `tests/test_rules_port.py` assert agreement over
   randomised input, and `tests/reference.py` — written from the rules text, importing
