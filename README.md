@@ -55,6 +55,7 @@ web/
   app.py      FastAPI, WebSocket, bot turn loop with deliberate pacing
   session.py  signed guest-session cookie, stdlib HMAC
   static/     card fan (CSS + vanilla JS), mobile first
+              cards.js — card faces generated as SVG, real pip layouts
 arena/
   arena.py    double rounds + paired t-test
   cheating.py the upper bound: MCTS that sees every hand. Eval only, never served

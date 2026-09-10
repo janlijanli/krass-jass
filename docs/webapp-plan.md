@@ -208,7 +208,23 @@ Prototype it standalone against fixture data before the WebSocket exists.
 
 ---
 
-## 9. The decision that has to be made now
+## 9. Decided
+
+**Multi-human: keep the door open.** Decided 2026-09-10. Not built, but nothing may assume
+a single human. The session layer stays seat-agnostic, and the event log already treats
+additional humans as additional filtered streams rather than a new architecture. The cost of
+keeping the door open is near zero; the cost of assuming single-human and reversing is not.
+
+**Weis announcement: manual.** Decided 2026-09-10, `weis_manual=True` in the web app.
+Declining is a real tactical choice — announcing tells the table what you hold — so the
+holder is asked. Bots always announce, since a bot that cannot read the table has no basis
+for a bluff. A declined Weis leaves the contest entirely: it is not scored, not announced,
+and cannot win the comparison for its team.
+
+**Weis stays on the table for the first trick only**, then is taken back, the way the cards
+physically are.
+
+### Original framing, kept for the reasoning
 
 **Will there ever be more than one human?** `PLAN.md` §1.7 flags it and says decide before
 M2, and this is M2.

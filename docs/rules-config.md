@@ -164,7 +164,11 @@ not just an equal-scoring one — a run of nine and a run of five both score 100
 beats an opponent's run of six. **The team holding the single best Weis scores all of its
 Weis; the other team scores nothing.**
 
-**Announcement is automatic and staged.** Everyone calls the *value* of their best Weis;
+`weis_manual` — **default `False`**; the web app sets it `True`. Ask the holder whether to
+announce rather than announcing for them. A declined Weis leaves the contest entirely: not
+scored, not announced, and unable to win the comparison for its team.
+
+**Announcement is staged.** Everyone calls the *value* of their best Weis;
 only the team holding the best one then shows its cards. That staging is an
 information-boundary rule, not presentation — revealing every seat's Weis cards would leak
 three hands at the top of every round.

@@ -81,6 +81,10 @@ class RulesConfig:
     #: Disputed: does a four of a kind beat a sequence worth the same 100 points? Sources
     #: differ; default follows the common "any four of a kind beats a sequence" reading.
     weis_four_beats_sequence: bool = True
+    #: Ask the holder whether to announce, instead of announcing for them. Declining is a
+    #: real tactical choice — announcing tells the table what you hold — so it is offered
+    #: rather than assumed.
+    weis_manual: bool = False
     stoeck_enabled: bool = True
 
     # -- game length

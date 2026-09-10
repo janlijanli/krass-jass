@@ -30,6 +30,14 @@
     <div class="banner" id="banner" hidden></div>
   </section>
 
+  <section class="weis-prompt" id="weis-prompt" hidden>
+    <p class="prompt">You hold <strong id="weis-points"></strong></p>
+    <div class="weis-actions">
+      <button class="bid" id="weis-yes">Announce</button>
+      <button class="bid ghost" id="weis-no">Keep it quiet</button>
+    </div>
+  </section>
+
   <section class="bidding" id="bidding" hidden>
     <p class="prompt">Choose trump</p>
     <div class="bids">
@@ -63,6 +71,6 @@
     <form method="post" action="/new"><button class="newgame">New game</button></form>
   </footer>
 </main>
-<script src="/static/table.js"></script>
+<script type="module" src="/static/table.js"></script>
 </body>
 </html>

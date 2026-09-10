@@ -5,9 +5,7 @@
  * or what a trick is worth — it asks, and it renders the answer (docs/webapp-plan.md §1).
  */
 
-const SUITS = { D: { pip: "♦", red: true }, H: { pip: "♥", red: true },
-                S: { pip: "♠", red: false }, C: { pip: "♣", red: false } };
-const RANKS = { A: "A", K: "K", Q: "Q", J: "J", T: "10", 9: "9", 8: "8", 7: "7", 6: "6" };
+import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js";
 
 const mySeat = Number(document.body.dataset.seat);
 const el = {
@@ -15,6 +13,8 @@ const el = {
   trick: document.getElementById("trick"),
   bidding: document.getElementById("bidding"),
   weis: document.getElementById("weis"),
+  weisPrompt: document.getElementById("weis-prompt"),
+  weisPoints: document.getElementById("weis-points"),
   scorecard: document.getElementById("scorecard"),
   scRows: document.getElementById("sc-rows"),
   scTitle: document.getElementById("sc-title"),
@@ -34,12 +34,10 @@ let lifted = null;
 let socket = null;
 
 function cardNode(code) {
-  const suit = SUITS[code[0]];
   const node = document.createElement("div");
-  node.className = "card" + (suit.red ? " red" : "");
+  node.className = "card" + (SUIT_IS_RED[code[0]] ? " red" : "");
   node.dataset.card = code;
-  node.innerHTML =
-    `<span class="inner"><span class="rank">${RANKS[code[1]]}</span><span class="pip">${suit.pip}</span></span>`;
+  node.innerHTML = cardFace(code);
   return node;
 }
 
@@ -74,6 +72,7 @@ function renderHand(view) {
 
   view.hand.forEach((code, i) => {
     const node = cardNode(code);
+    if (code === view.puur) node.classList.add("puur");
     // Fan: rotate about a point below the card so the arc reads as held cards.
     const spread = Math.min(4, 26 / Math.max(view.hand.length, 1));
     node.style.transform = `rotate(${(i - (view.hand.length - 1) / 2) * spread}deg)`;
@@ -119,16 +118,19 @@ function renderWeis(view) {
   // Losing announcements stay visible but struck through — seeing that your partner's 50
   // was beaten is most of what makes Weis legible at the table.
   el.weis.replaceChildren();
-  if (view.phase === "bidding") return;
+  if (view.phase === "bidding" || view.phase === "weis") return;
 
   for (const entry of view.weis || []) {
     const bubble = document.createElement("div");
     bubble.className = "weis-bubble " + (entry.winner ? "won" : "lost");
     bubble.dataset.rel = String((entry.seat - view.seat + 4) % 4);
     const label = WEIS_LABEL[entry.points] || "Weis";
+    // Card codes are compact enough to read at a glance: "D A K Q" rather than "DA DK DQ".
+    const cards = entry.cards
+      ? entry.cards.map((c) => `${SUIT_GLYPHS[c[0]]}${c[1] === "T" ? "10" : c[1]}`).join(" ")
+      : "";
     bubble.innerHTML =
-      `<span>${label} ${entry.points}</span>` +
-      (entry.cards ? `<span class="cards">${entry.cards.join(" ")}</span>` : "");
+      `<span>${label} ${entry.points}</span>` + (cards ? `<span class="cards">${cards}</span>` : "");
     el.weis.appendChild(bubble);
   }
   for (const seat of view.stoeck || []) {
@@ -209,6 +211,11 @@ function seatName(view, seat) {
 
 function statusText(view) {
   if (view.phase === "round_over" || view.phase === "game_over") return "Round complete";
+  if (view.phase === "weis") {
+    return view.to_act === view.seat && view.weis_offer
+      ? "Announce your Weis?"
+      : "Weis…";
+  }
   if (view.trick_complete) {
     const mine = (view.trick_winner - view.seat + 4) % 4;
     const who = mine === 0 ? "You take it" : mine === 2 ? "Partner takes it" : "They take it";
@@ -252,6 +259,10 @@ function render(view) {
 
   const bidding = view.phase === "bidding" && view.to_act === view.seat;
   el.bidding.hidden = !bidding;
+
+  const askingWeis = view.phase === "weis" && view.to_act === view.seat && view.weis_offer;
+  el.weisPrompt.hidden = !askingWeis;
+  if (askingWeis) el.weisPoints.textContent = `${view.weis_offer} in Weis`;
   el.shove.hidden = !view.can_shove;
   el.status.textContent = statusText(view);
 
@@ -270,8 +281,14 @@ el.scContinue.addEventListener("click", () => {
   el.scorecard.hidden = true;
   send({ type: "next_round" });
 });
-document.querySelectorAll(".bid").forEach((button) =>
+document.querySelectorAll(".bid[data-bid]").forEach((button) =>
   button.addEventListener("click", () => send({ type: "bid", action: button.dataset.bid }))
+);
+document.getElementById("weis-yes").addEventListener("click", () =>
+  send({ type: "weis", announce: true })
+);
+document.getElementById("weis-no").addEventListener("click", () =>
+  send({ type: "weis", announce: false })
 );
 
 function connect() {

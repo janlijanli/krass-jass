@@ -32,7 +32,7 @@ from fastapi.templating import Jinja2Templates
 from krass_jass.agent import Agent, DmctsAgent
 from krass_jass.cards import card_list, card_rank, card_suit, format_card, parse_card
 from krass_jass.game import Game, Phase
-from krass_jass.rules import HOUSE
+from krass_jass.rules import HOUSE, Contract
 from krass_jass.state import IllegalMove
 from krass_jass.trick import NUM_SEATS
 from web import session as sessions
@@ -80,7 +80,13 @@ tables: dict[str, Table] = {}
 
 def new_table(human_seat: int = 0) -> Table:
     game_id = secrets.token_urlsafe(9)
-    game = Game(cfg=HOUSE.variant(target_score=1000), seed=secrets.randbits(48), game_id=game_id)
+    game = Game(
+        # Manual Weis: declining is a real tactical choice, since announcing tells the table
+        # what you hold. Bots always announce — modelling the decline is out of scope.
+        cfg=HOUSE.variant(target_score=1000, weis_manual=True),
+        seed=secrets.randbits(48),
+        game_id=game_id,
+    )
     bots = {
         seat: DmctsAgent(
             determinizations=BOT_DETERMINIZATIONS,
@@ -219,6 +225,11 @@ def view(table: Table, seat: int) -> dict:
         "scores": list(game.scores),
         "round": game.round_index,
         "can_shove": game.phase is Phase.BIDDING and seat == game.forehand and not game.shoved,
+        # The trump Jack decides most tricks it appears in; the engine names it so the client
+        # does not have to work out what trump means.
+        "puur": format_card(game.contract.trump_suit * 9 + 3)
+        if game.contract is not None and game.contract.is_trump
+        else None,
         "tricks_won": list(game.round.tricks_won) if game.round else [0, 0],
         # Card points taken so far. Public — every played card is face up, so anyone at the
         # table can count them, and a Jass player does.
@@ -227,8 +238,12 @@ def view(table: Table, seat: int) -> dict:
         # Weis is public information the moment it is announced, so it belongs in the view
         # rather than being reconstructed by the client from the event stream. The losing
         # team's `cards` are already None by the time they get here.
-        "weis": game.weis_summary,
-        "stoeck": game.stoeck_seats,
+        # Weis is shown during the first trick and then taken back off the table, the way
+        # the cards physically are.
+        "weis": game.weis_summary if game.round is not None and not game.round.tricks_played else [],
+        "stoeck": game.stoeck_seats if game.round is not None and not game.round.tricks_played else [],
+        "weis_offer": game.weis_offers.get(seat) if game.phase is Phase.WEIS else None,
+        "weis_pending": game.phase is Phase.WEIS,
         "scorecard": game.last_score if game.phase in (Phase.ROUND_OVER, Phase.GAME_OVER) else None,
     }
 
@@ -242,6 +257,8 @@ async def handle(table: Table, seat: int, message: dict, socket: WebSocket) -> N
             game.bid(seat, message.get("action", ""))
         elif kind == "play":
             game.play(seat, parse_card(str(message.get("card", ""))))
+        elif kind == "weis":
+            game.choose_weis(seat, bool(message.get("announce")))
         elif kind == "ack_trick":
             table.acked_tricks = table.completed_tricks()
         elif kind == "next_round":
@@ -259,7 +276,7 @@ async def drive(table: Table, seat: int, socket: WebSocket, flush) -> None:
     """Let the bots act until it is the human's turn again."""
     game = table.game
     async with table.lock:
-        while game.phase in (Phase.BIDDING, Phase.PLAYING):
+        while game.phase in (Phase.BIDDING, Phase.WEIS, Phase.PLAYING):
             if table.awaiting_ack():
                 return  # the player is still looking at the last trick
             actor = game.to_act
@@ -274,6 +291,13 @@ async def think(table: Table, actor: int) -> None:
     game = table.game
     bot = table.bots[actor]
     loop = asyncio.get_running_loop()
+
+    if game.phase is Phase.WEIS:
+        # Bots always announce. Declining is a bluff, and a bot that cannot read the table
+        # has no basis for one.
+        await asyncio.sleep(random.uniform(0.2, 0.45))
+        game.choose_weis(actor, True)
+        return
 
     if game.phase is Phase.BIDDING:
         hand = game.hand_of(actor)

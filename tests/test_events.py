@@ -256,3 +256,65 @@ def test_no_stoeck_event_in_a_no_trump_contract():
     from krass_jass.events import EventType
 
     assert not [e for e in game.log.all() if e.type is EventType.STOECK]
+
+
+def test_manual_weis_lets_a_holder_decline():
+    """Announcing tells the table what you hold, so declining is a real choice. A declined
+    Weis is not merely hidden — it leaves the contest, so it cannot win for its team."""
+    from krass_jass.cards import parse_hand as H
+    from krass_jass.rules import HOUSE
+
+    cfg = HOUSE.variant(weis_manual=True)
+    game = Game(cfg=cfg, seed=2)
+    game._dealt = [
+        H("DK DQ DA D9 D8 S6 S7 H6 H7"),   # 20
+        H("SA SK SQ SJ ST S9 S8 H8 H9"),   # 100
+        H("CA CK CQ CJ CT C9 C8 C7 C6"),   # 100, the best — and it will decline
+        H("DJ DT D7 D6 HA HK HQ HJ HT"),   # 100
+    ]
+    game.forehand = 0
+    game.declarer = 0
+    game.bid(0, "DIAMONDS")
+
+    assert game.phase is Phase.WEIS
+    assert set(game.weis_offers) == {0, 1, 2, 3}
+
+    game.choose_weis(0, True)
+    game.choose_weis(1, True)
+    game.choose_weis(2, False)
+    game.choose_weis(3, True)
+
+    assert game.phase is Phase.PLAYING
+    # seat 2 declining hands the Weis to the other team entirely
+    assert game._weis == (0, 200)
+    assert 2 not in [entry["seat"] for entry in game.weis_summary]
+
+
+def test_declining_is_not_announced_at_all():
+    from krass_jass.cards import parse_hand as H
+    from krass_jass.events import EventType
+    from krass_jass.rules import HOUSE
+
+    cfg = HOUSE.variant(weis_manual=True)
+    game = Game(cfg=cfg, seed=2)
+    game._dealt = [
+        H("DK DQ DA D9 D8 S6 S7 H6 H7"),
+        H("SA SK SQ SJ ST S9 S8 H8 H9"),
+        H("CA CK CQ CJ CT C9 C8 C7 C6"),
+        H("DJ DT D7 D6 HA HK HQ HJ HT"),
+    ]
+    game.forehand = 0
+    game.declarer = 0
+    game.bid(0, "DIAMONDS")
+    for seat in (0, 1, 3):
+        game.choose_weis(seat, False)
+    game.choose_weis(2, True)
+
+    announced = [e.payload["seat"] for e in game.log.all() if e.type is EventType.WEIS_ANNOUNCED]
+    assert announced == [2], "a declined Weis must not be announced"
+
+
+def test_automatic_weis_still_skips_the_prompt():
+    game = Game(seed=2)
+    game.bid(game.to_act, "HEARTS")
+    assert game.phase is Phase.PLAYING

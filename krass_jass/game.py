@@ -27,6 +27,7 @@ from .weis import STOECK_POINTS, find_weis, score_stoeck, score_weis
 
 class Phase(str, Enum):
     BIDDING = "bidding"
+    WEIS = "weis"
     PLAYING = "playing"
     ROUND_OVER = "round_over"
     GAME_OVER = "game_over"
@@ -80,6 +81,8 @@ class Game:
         self.phase = Phase.BIDDING
         self.weis_summary = []
         self.stoeck_seats = []
+        self.weis_choices = {}
+        self.weis_offers = {}
 
         self.log.emit(
             EventType.ROUND_STARTED,
@@ -96,6 +99,9 @@ class Game:
 
     @property
     def to_act(self) -> int | None:
+        if self.phase is Phase.WEIS:
+            pending = [s for s in sorted(self.weis_offers) if s not in self.weis_choices]
+            return pending[0] if pending else None
         if self.phase is Phase.BIDDING:
             return self.declarer
         if self.phase is Phase.PLAYING and self.round is not None:
@@ -185,6 +191,16 @@ class Game:
                 "leader": self.forehand,
             },
         )
+        if self.cfg.weis_enabled and self.cfg.weis_manual:
+            trump = self.contract.trump_suit if self.contract is not None else -1
+            self.weis_offers = {
+                seat: sum(m.points for m in find_weis(self._dealt[seat], self.cfg, trump))
+                for seat in range(NUM_SEATS)
+            }
+            self.weis_offers = {s: p for s, p in self.weis_offers.items() if p}
+            if self.weis_offers:
+                self.phase = Phase.WEIS
+                return
         self._declare_weis()
         self.phase = Phase.PLAYING
 
@@ -208,9 +224,13 @@ class Game:
 
         self.weis_summary = []
         if self.cfg.weis_enabled:
-            points, winner = score_weis(self._dealt, trump, self.cfg, self.forehand)
+            # A declined Weis is not merely hidden — it is not in the contest at all, so it
+            # cannot win the comparison for its team either.
+            declined = {s for s, keep in self.weis_choices.items() if not keep}
+            hands = [0 if seat in declined else h for seat, h in enumerate(self._dealt)]
+            points, winner = score_weis(hands, trump, self.cfg, self.forehand)
             per_seat = {
-                seat: find_weis(self._dealt[seat], self.cfg, trump) for seat in range(NUM_SEATS)
+                seat: find_weis(hands[seat], self.cfg, trump) for seat in range(NUM_SEATS)
             }
 
             # Stage one: everyone calls a value. Public, and carries no cards.
@@ -269,6 +289,17 @@ class Game:
                     self.log.emit(EventType.STOECK, {"seat": seat, "points": STOECK_POINTS})
                     self.stoeck_seats.append(seat)
         self._stoeck = stoeck
+
+    def choose_weis(self, seat: int, announce: bool) -> None:
+        """Answer the announce-or-decline question for one seat (manual mode only)."""
+        if self.phase is not Phase.WEIS:
+            raise IllegalMove("not choosing Weis")
+        if seat not in self.weis_offers:
+            raise IllegalMove(f"seat {seat} has no Weis to announce")
+        self.weis_choices[seat] = bool(announce)
+        if set(self.weis_choices) >= set(self.weis_offers):
+            self._declare_weis()
+            self.phase = Phase.PLAYING
 
     def play(self, seat: int, card: int) -> None:
         """Play one card. The engine re-validates — a client's move is never trusted."""
@@ -352,3 +383,7 @@ class Game:
     weis_summary: list = field(default_factory=list)
     stoeck_seats: list = field(default_factory=list)
     last_score: dict | None = None
+    #: seat -> True/False once decided, in manual mode
+    weis_choices: dict = field(default_factory=dict)
+    #: seat -> points on offer, for the seats that actually hold something
+    weis_offers: dict = field(default_factory=dict)
