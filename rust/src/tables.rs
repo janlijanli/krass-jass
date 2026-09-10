@@ -108,3 +108,57 @@ const fn build_strength() -> [[[i32; NUM_CARDS]; NUM_SUITS]; NUM_CONTRACTS] {
 }
 
 pub const STRENGTH: [[[i32; NUM_CARDS]; NUM_SUITS]; NUM_CONTRACTS] = build_strength();
+
+/// `SUIT_ORDER[contract][suit]` — the nine card indices of that suit, strongest first.
+///
+/// Used by the endgame solver's equivalence reduction, which needs the ranking *within* a
+/// suit independent of what was led.
+const fn build_suit_order() -> [[[usize; NUM_RANKS]; NUM_SUITS]; NUM_CONTRACTS] {
+    let mut out = [[[0usize; NUM_RANKS]; NUM_SUITS]; NUM_CONTRACTS];
+    let mut k = 0;
+    while k < NUM_CONTRACTS {
+        let trump = trump_of(k);
+        let mut suit = 0;
+        while suit < NUM_SUITS {
+            // insertion sort by strength, descending
+            let mut n = 0;
+            while n < NUM_RANKS {
+                let mut best_r = usize::MAX;
+                let mut best_s = -1i32;
+                let mut r = 0;
+                while r < NUM_RANKS {
+                    // skip ranks already placed
+                    let mut placed = false;
+                    let mut i = 0;
+                    while i < n {
+                        if out[k][suit][i] == suit * NUM_RANKS + r {
+                            placed = true;
+                        }
+                        i += 1;
+                    }
+                    if !placed {
+                        let st = if suit as i32 == trump {
+                            STR_TRUMP[r]
+                        } else if k == UNDENUFE {
+                            r as i32
+                        } else {
+                            str_plain(r)
+                        };
+                        if st > best_s {
+                            best_s = st;
+                            best_r = r;
+                        }
+                    }
+                    r += 1;
+                }
+                out[k][suit][n] = suit * NUM_RANKS + best_r;
+                n += 1;
+            }
+            suit += 1;
+        }
+        k += 1;
+    }
+    out
+}
+
+pub const SUIT_ORDER: [[[usize; NUM_RANKS]; NUM_SUITS]; NUM_CONTRACTS] = build_suit_order();

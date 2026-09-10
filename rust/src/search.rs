@@ -12,6 +12,7 @@ use rayon::prelude::*;
 
 use crate::cards::*;
 use crate::determinize::determinize;
+use crate::endgame::solve_root;
 use crate::legal::legal_moves;
 use crate::rng::Rng;
 use crate::rollout::{pick_random, play_out, Kernel};
@@ -28,8 +29,8 @@ pub struct Position {
     pub trick: Vec<usize>,
     /// Seat that led the current trick.
     pub trick_leader: usize,
-    /// Suit bitmask of proven voids, per seat.
-    pub voids: [u8; NUM_SEATS],
+    /// Per seat, a mask of cards that seat provably cannot hold.
+    pub forbidden: [u64; NUM_SEATS],
 }
 
 impl Position {
@@ -245,6 +246,10 @@ impl Tree {
         }
 
         // --- rollout: finish any partial trick, then hand off to the kernel ---
+        //
+        // Note there is deliberately no exact solve here. See `endgame::solve_root`: at
+        // ~3ms a five-card solve is far too expensive to run per leaf, and the endgame is
+        // handled by replacing the whole search instead.
         while !w.trick.is_empty() {
             let legal = self.legal_at(w);
             let card = pick_random(legal, rng);
@@ -282,6 +287,7 @@ pub fn dmcts(
     exploration: f64,
     seed: u64,
     threads: usize,
+    endgame_cards: u32,
 ) -> Vec<Candidate> {
     let root_legal = pos.legal(k);
     let root_team = pos.seat & 1;
@@ -303,7 +309,12 @@ pub fn dmcts(
         counts[s] = if played_this_trick { base - 1 } else { base };
     }
 
-    let run_one = |d: usize| -> Vec<(usize, u64, f64)> {
+    // Once the round is small enough, the search is *replaced* by an exact solve per
+    // determinization: strictly better than anything MCTS would return, and cheaper.
+    let max_hand = pos.hand.count_ones();
+    let endgame = endgame_cards > 0 && max_hand <= endgame_cards && max_hand > 0;
+
+    let run_one = |d: usize| -> (Vec<(usize, u64, f64)>, usize) {
         let mut rng = Rng::split(seed, d as u64);
         let mut hands = [0u64; NUM_SEATS];
         hands[pos.seat] = pos.hand;
@@ -312,7 +323,7 @@ pub fn dmcts(
         let mut ok = false;
         for _ in 0..64 {
             let mut dealt = [0u64; NUM_SEATS];
-            if determinize(pos.unseen, &counts, &pos.voids, &mut dealt, &mut rng) {
+            if determinize(pos.unseen, &counts, &pos.forbidden, &mut dealt, &mut rng) {
                 for s in 0..NUM_SEATS {
                     if s != pos.seat {
                         hands[s] = dealt[s];
@@ -323,7 +334,46 @@ pub fn dmcts(
             }
         }
         if !ok {
-            return Vec::new();
+            return (Vec::new(), usize::MAX);
+        }
+
+        if endgame {
+            let mut hands_arr = hands;
+            let exact = solve_root(&mut hands_arr, &pos.trick, pos.trick_leader, k);
+
+            // solve_root returns team-0 points; convert to the searching team's share of
+            // everything still on the table.
+            let values = &CARD_VALUES[k.contract];
+            let mut remaining = k.last_trick_bonus;
+            for &h in hands.iter() {
+                let mut m = h;
+                while m != 0 {
+                    let low = m & m.wrapping_neg();
+                    m ^= low;
+                    remaining += values[low.trailing_zeros() as usize];
+                }
+            }
+            for &c in &pos.trick {
+                remaining += values[c];
+            }
+            let denom = if remaining > 0 { remaining as f64 } else { 1.0 };
+
+            let mut best_card = usize::MAX;
+            let mut best_score = f64::NEG_INFINITY;
+            let out: Vec<(usize, u64, f64)> = exact
+                .into_iter()
+                .map(|(card, team0)| {
+                    let mine = if root_team == 0 { team0 } else { remaining - team0 };
+                    let score = mine as f64 / denom;
+                    if score > best_score {
+                        best_score = score;
+                        best_card = card;
+                    }
+                    // One "visit", but it is a certainty rather than a sample.
+                    (card, 1u64, score)
+                })
+                .collect();
+            return (out, best_card);
         }
 
         let mut tree = Tree::new(*k, exploration, root_legal);
@@ -339,19 +389,27 @@ pub fn dmcts(
             tree.iterate(&mut w, &mut rng, root_team);
         }
 
-        tree.nodes[0]
+        let stats: Vec<(usize, u64, f64)> = tree.nodes[0]
             .children
             .iter()
             .map(|&(card, ci)| {
                 let n = &tree.nodes[ci];
                 (card, n.visits as u64, n.total)
             })
-            .collect()
+            .collect();
+        // A determinization "selects" its most-visited root move — the standard DMCTS
+        // aggregation (PLAN.md §3.2), not the highest mean, which is noisy at low visits.
+        let selected = stats
+            .iter()
+            .max_by_key(|&&(_, v, _)| v)
+            .map(|&(c, _, _)| c)
+            .unwrap_or(usize::MAX);
+        (stats, selected)
     };
 
     // Determinizations are independent, which is what makes this scale linearly. Each gets
     // its own seed stream, so results do not depend on how the work was scheduled.
-    let per_det: Vec<Vec<(usize, u64, f64)>> = if threads > 1 {
+    let per_det: Vec<(Vec<(usize, u64, f64)>, usize)> = if threads > 1 {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
             .build()
@@ -364,19 +422,13 @@ pub fn dmcts(
     let mut visits = [0u64; NUM_CARDS];
     let mut totals = [0f64; NUM_CARDS];
     let mut selecting = [0u32; NUM_CARDS];
-    for det in &per_det {
-        let mut best_card = usize::MAX;
-        let mut best_visits = 0u64;
-        for &(card, v, t) in det {
+    for (stats, selected) in &per_det {
+        for &(card, v, t) in stats {
             visits[card] += v;
             totals[card] += t;
-            if v > best_visits {
-                best_visits = v;
-                best_card = card;
-            }
         }
-        if best_card != usize::MAX {
-            selecting[best_card] += 1;
+        if *selected != usize::MAX {
+            selecting[*selected] += 1;
         }
     }
 
@@ -393,11 +445,15 @@ pub fn dmcts(
             determinizations_selecting: selecting[c],
         })
         .collect();
-    // Aggregate across determinizations by selection count, then visits — PLAN.md §3.2.
+    // Aggregate across determinizations by selection count, then mean score — PLAN.md §3.2.
     out.sort_by(|a, b| {
         b.determinizations_selecting
             .cmp(&a.determinizations_selecting)
-            .then(b.visits.cmp(&a.visits))
+            .then(
+                b.mean_score
+                    .partial_cmp(&a.mean_score)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
     });
     out
 }

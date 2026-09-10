@@ -14,6 +14,7 @@ use pyo3::exceptions::PyValueError;
 
 mod cards;
 mod determinize;
+mod endgame;
 mod legal;
 mod rng;
 mod rollout;
@@ -125,9 +126,9 @@ fn play_out_many(
 /// per legal move, best first — the shape the decision trace in `PLAN.md` §6 expects.
 #[pyfunction]
 #[pyo3(signature = (
-    seat, hand, unseen, trick, trick_leader, contract, voids=None,
+    seat, hand, unseen, trick, trick_leader, contract, forbidden=None,
     determinizations=1000, iterations=800, exploration=1.5, seed=0, threads=1,
-    strict_undertrump=true, puur_exempt=true
+    endgame_cards=5, strict_undertrump=true, puur_exempt=true
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -138,22 +139,23 @@ fn dmcts(
     trick: Vec<usize>,
     trick_leader: usize,
     contract: usize,
-    voids: Option<Vec<u8>>,
+    forbidden: Option<Vec<u64>>,
     determinizations: usize,
     iterations: usize,
     exploration: f64,
     seed: u64,
     threads: usize,
+    endgame_cards: u32,
     strict_undertrump: bool,
     puur_exempt: bool,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
     }
-    let mut v = [0u8; NUM_SEATS];
-    if let Some(vs) = voids {
+    let mut v = [0u64; NUM_SEATS];
+    if let Some(vs) = forbidden {
         if vs.len() != NUM_SEATS {
-            return Err(PyValueError::new_err("voids must have 4 entries"));
+            return Err(PyValueError::new_err("forbidden must have 4 entries"));
         }
         v.copy_from_slice(&vs);
     }
@@ -164,7 +166,7 @@ fn dmcts(
         unseen,
         trick,
         trick_leader: trick_leader & 3,
-        voids: v,
+        forbidden: v,
     };
     // Long CPU-bound work: release the GIL so the caller stays responsive and rayon can
     // actually use the cores.
@@ -177,6 +179,7 @@ fn dmcts(
             exploration,
             seed,
             threads.max(1),
+            endgame_cards,
         )
     });
     Ok(out
@@ -185,11 +188,37 @@ fn dmcts(
         .collect())
 }
 
+/// Exact double-dummy solve. Returns `(team_0_points, nodes_visited)`.
+///
+/// Perfect information: every seat plays optimally knowing all four hands. Inside a
+/// determinization that assumption is exactly right, which is why it can replace the
+/// random playout in the endgame.
+#[pyfunction]
+#[pyo3(signature = (hands, trick, leader, contract, strict_undertrump=true, puur_exempt=true, last_trick_bonus=5))]
+fn solve_endgame(
+    hands: Vec<u64>,
+    trick: Vec<usize>,
+    leader: usize,
+    contract: usize,
+    strict_undertrump: bool,
+    puur_exempt: bool,
+    last_trick_bonus: i32,
+) -> PyResult<(i32, u64)> {
+    if hands.len() != NUM_SEATS {
+        return Err(PyValueError::new_err("hands must have 4 entries"));
+    }
+    let k = make_kernel(contract, strict_undertrump, puur_exempt, last_trick_bonus, 0)?;
+    let mut h = [0u64; NUM_SEATS];
+    h.copy_from_slice(&hands);
+    Ok(endgame::solve_exact(&mut h, &trick, leader & 3, &k))
+}
+
 #[pymodule]
 fn krass_jass_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(legal_moves, m)?)?;
     m.add_function(wrap_pyfunction!(play_out, m)?)?;
     m.add_function(wrap_pyfunction!(play_out_many, m)?)?;
     m.add_function(wrap_pyfunction!(dmcts, m)?)?;
+    m.add_function(wrap_pyfunction!(solve_endgame, m)?)?;
     Ok(())
 }

@@ -12,10 +12,17 @@ every session.
 
 ## Current state
 
-**M0 and M1 are done.** Rule variants are locked in `docs/rules-config.md`; the engine,
-its property tests and the benchmark harness are in. Next milestone is **M2 (playable
-loop)** — FastAPI + WebSocket + random bots in containers, and the mobile card-fan
-component, which `PLAN.md` §5.1 says to prototype before the rest of the layout.
+**M0, M1 and M4 are done.** Rule variants locked in `docs/rules-config.md`; the engine and
+its property tests are in; the search is Rust; DMCTS with void tracking and an exact
+endgame solver plays through `krass_jass.agent`, measured by `arena/`.
+
+**M3 is partly skipped and owes work:** there is no trump selection yet, so the arena
+picks a contract at random per deal. `PLAN.md` §3.1 puts rule-based trump selection at
+~16 points of win rate — the largest single gain still on the table. Do it before tuning
+anything else.
+
+Next is **M2 (playable loop)** — FastAPI + WebSocket + bots in containers, and the mobile
+card-fan component, which `PLAN.md` §5.1 says to prototype before the rest of the layout.
 
 **The search is Rust** (`rust/`, exposed via `krass_jass.native`). Measured: 1.48M DMCTS
 iterations/sec single-core, 6.19M on all cores — 42x the Python search. The tuned 800k
@@ -98,9 +105,20 @@ Do not design around an assumed answer to either. Ask.
 - Self-play training records → Parquet. Games, decision traces and eval results →
   Postgres. Do not put millions of card decisions in Postgres rows.
 
+**Search**
+- `krass_jass.agent.DmctsAgent` is the agent; the search itself is in `rust/`.
+- The endgame solver **replaces** the search once hands are small, it does not decorate it.
+  A 5-card solve costs ~3ms; running one per MCTS leaf would cost 40 minutes a move.
+- Void inference is in `voids.py` and must stay *sound* — never claim an unproven
+  constraint. An unsound one does not crash, it just makes the bot quietly worse.
+
 **Evaluation**
 - Double rounds: play each deal twice with the teams swapped. Without this, A/B results
-  are noise.
+  are noise. Both halves use the **same** game seed (common random numbers) — decision
+  seeds already vary by seat, and a different seed leaks back the variance the pairing
+  exists to cancel.
+- The cheating baseline lives in `arena/`, never in `krass_jass/`. It takes the true deal
+  and must not be reachable from anything that serves a game.
 - Protocol: 10 × 100 rounds, report mean % of total points and std, **paired** t-test on
   per-deal differences. Double rounds are a paired design; an unpaired test discards the
   pairing and most of the variance reduction with it.

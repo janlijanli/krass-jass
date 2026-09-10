@@ -24,7 +24,7 @@ DMCTS iterations/sec  35,000       1,482,000          42x   (6,187,000 on 8 core
 | M1 | ✅ Bitboard state, legal moves, trick resolution, scoring, Weis/Stöck, property tests, benchmark harness |
 | M2 | ⬜ FastAPI + WebSocket + random bots in containers; mobile card-fan component |
 | M3 | ⬜ Rule-based bot + arena with double rounds |
-| M4 | ⬜ DMCTS: void tracking, determinization, UCT, exact endgame solver |
+| M4 | ✅ DMCTS: void tracking, determinization, UCT, exact endgame solver, agents, arena |
 | M5 | ⬜ Distillation — **gated on throughput**, see `docs/plan-review.md` §1 |
 | M6 | ⬜ Polish: replay UI, security pass, difficulty levels |
 
@@ -40,6 +40,9 @@ krass_jass/
   scoring.py  round scoring: tricks, last trick, match, multiplier
   weis.py     Weis and Stöck
   state.py    RoundState — the authoritative, validating object layer
+  voids.py    exact inference: what the play history proves about other hands
+  observation.py  THE information boundary — the security-critical function
+  agent.py    random / greedy / dmcts. Observation in, move out, forget
   rollout.py  the rollout kernel (Python reference implementation)
   native.py   boundary to the Rust search core
 rust/
@@ -47,6 +50,10 @@ rust/
 tests/
   reference.py  a naive implementation written from the rules text, importing nothing
                 from krass_jass — it exists to disagree with the engine
+arena/
+  arena.py    double rounds + paired t-test
+  cheating.py the upper bound: MCTS that sees every hand. Eval only, never served
+  ladder.py   run the baseline ladder
 bench/
   benchmark.py  rounds/sec and rollouts/sec. Runs in CI; the number gates M5
 ```

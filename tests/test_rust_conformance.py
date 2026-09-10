@@ -181,16 +181,40 @@ def test_dmcts_is_deterministic_and_thread_count_does_not_change_the_result():
 
 
 def test_dmcts_respects_known_voids():
-    """A seat proven void in a suit must never be dealt that suit, or the search is
-    reasoning about impossible worlds."""
+    """A seat proven void in a suit must never be dealt that suit, or the search spends its
+    whole budget reasoning about worlds that cannot exist.
+
+    Checked directly rather than by inspection: forbid seat 1 every diamond, then confirm
+    the answer changes. If the constraint were ignored the two searches would be identical.
+    """
+    from krass_jass.cards import SUIT_MASK
+
     rng = random.Random(31)
     state = RoundState(contract=Contract.HEARTS, hands=deal(rng), cfg=EVAL)
     pos = position_from(state, 0)
-    # everyone else void in diamonds is unsatisfiable unless seat 0 holds them all;
-    # a satisfiable case: only seat 1 is void in diamonds
-    pos["voids"] = [0, 1 << 0, 0, 0]
-    out = core.dmcts(**pos, determinizations=32, iterations=32, seed=3)
-    assert out, "search should still find a move under a satisfiable void constraint"
+
+    free = core.dmcts(**pos, determinizations=64, iterations=64, seed=3)
+    constrained = core.dmcts(
+        **pos, forbidden=[0, SUIT_MASK[0], 0, 0], determinizations=64, iterations=64, seed=3
+    )
+    assert free and constrained
+    assert {c for c, _, _, _ in constrained} == {c for c, _, _, _ in free}
+    assert constrained != free, "the void constraint had no effect on the search"
+
+
+def test_impossible_constraints_do_not_hang_or_crash():
+    """Over-constrained input must fail gracefully — the sampler rejects and gives up
+    rather than looping forever looking for a world that cannot exist."""
+    from krass_jass.cards import FULL_DECK
+
+    rng = random.Random(41)
+    state = RoundState(contract=Contract.HEARTS, hands=deal(rng), cfg=EVAL)
+    pos = position_from(state, 0)
+    out = core.dmcts(
+        **pos, forbidden=[0, FULL_DECK, FULL_DECK, FULL_DECK],
+        determinizations=8, iterations=8, seed=1,
+    )
+    assert out == [] or all(v == 0 for _, v, _, _ in out)
 
 
 def test_dmcts_takes_the_trick_it_can_obviously_win():

@@ -6,35 +6,35 @@
 //! search, and it is the only constraint applied here — the published work found that
 //! sampling from a *learned* card distribution did not beat uniform sampling and mostly
 //! added variance, so this deliberately stays uniform.
+//!
+//! Constraints arrive as a per-seat mask of cards that seat provably **cannot** hold, not as
+//! suit voids. That extra generality is not gratuitous: under the Puur exemption, a player
+//! who discards on a trump lead proves their trump holding is a subset of {Puur} — which is
+//! a statement about eight specific cards, not about a suit. See `krass_jass/voids.py`.
 
 use crate::cards::*;
 use crate::rng::Rng;
 
-/// Deal `unseen` into the seats needing cards, respecting known voids.
+/// Deal `unseen` into the seats needing cards, respecting proven constraints.
 ///
-/// `counts[seat]` is how many cards that seat holds, `voids[seat]` a suit bitmask.
-/// Returns false if the constraints could not be satisfied, so the caller can retry with a
-/// fresh sample rather than silently producing an inconsistent world.
+/// `counts[seat]` is how many cards that seat holds; `forbidden[seat]` a mask of cards it
+/// provably cannot hold. Returns false if the constraints could not be satisfied, so the
+/// caller can retry with a fresh sample rather than silently producing an impossible world.
 pub fn determinize(
     unseen: u64,
     counts: &[usize; NUM_SEATS],
-    voids: &[u8; NUM_SEATS],
+    forbidden: &[u64; NUM_SEATS],
     out: &mut [u64; NUM_SEATS],
     rng: &mut Rng,
 ) -> bool {
     // Most constrained seat first, which is what keeps the rejection rate low.
     let mut order: Vec<usize> = (0..NUM_SEATS).filter(|&s| counts[s] > 0).collect();
-    order.sort_by_key(|&s| (voids[s].count_ones() as i32, s as i32));
-    order.reverse();
+    order.sort_by_key(|&s| ((unseen & !forbidden[s]).count_ones() as i32, s as i32));
 
     let mut pool = unseen;
     for &seat in &order {
-        let mut allowed = pool;
-        for suit in 0..NUM_SUITS {
-            if voids[seat] & (1 << suit) != 0 {
-                allowed &= !SUIT_MASK[suit];
-            }
-        }
+        let allowed_all = pool & !forbidden[seat];
+        let mut allowed = allowed_all;
         if (allowed.count_ones() as usize) < counts[seat] {
             return false;
         }

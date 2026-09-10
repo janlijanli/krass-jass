@@ -43,12 +43,13 @@ def dmcts(
     trick_leader: int,
     contract: Contract,
     cfg: RulesConfig,
-    voids: list[int] | None = None,
+    forbidden: list[int] | None = None,
     determinizations: int = 1000,
     iterations: int = 800,
     exploration: float = 1.5,
     seed: int = 0,
     threads: int = 1,
+    endgame_cards: int = 5,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -64,12 +65,13 @@ def dmcts(
         trick=list(trick),
         trick_leader=trick_leader,
         contract=int(contract),
-        voids=voids,
+        forbidden=forbidden,
         determinizations=determinizations,
         iterations=iterations,
         exploration=exploration,
         seed=seed,
         threads=threads,
+        endgame_cards=endgame_cards,
         strict_undertrump=cfg.strict_undertrump,
         puur_exempt=cfg.puur_exempt_trump_lead,
     )
