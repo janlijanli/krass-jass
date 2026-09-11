@@ -30,9 +30,12 @@ const el = {
   scoreUs: document.getElementById("score-us"),
   scoreThem: document.getElementById("score-them"),
   taken: document.getElementById("taken"),
+  tafel: document.getElementById("tafel"),
+  tafelSlate: document.getElementById("tafel-slate"),
 };
 
 let lifted = null;
+let lastView = { seat: 0, scores: [0, 0] };
 let socket = null;
 
 function cardNode(code) {
@@ -46,6 +49,110 @@ function cardNode(code) {
 function send(message) {
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
 }
+
+/** Small element helper. Deliberately local: about.js has its own, and importing across for
+ *  four lines would couple the game screen to the documentation panel. */
+function html(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/* The Jasstafel — the board on the wall.
+ *
+ * Rounds are recorded here as they finish rather than asked of the engine, because both
+ * builds already deliver the same scorecard and neither keeps a history. Accumulating it
+ * client-side means one implementation instead of two.
+ */
+const board = { rounds: [], target: null };
+
+function recordRound(view) {
+  const card = view.scorecard;
+  if (!card) return;
+  const last = board.rounds[board.rounds.length - 1];
+  if (last && last.round === card.round) return;   // the same scorecard, shown again
+  board.rounds.push({
+    round: card.round,
+    contract: card.contract,
+    multiplier: card.multiplier,
+    points: card.round_total.slice(),
+    totals: card.scores.slice(),
+  });
+}
+
+function renderTafel(view) {
+  const mine = view.seat % 2;
+  const pick = (pair) => [pair[mine], pair[1 - mine]];
+  const slate = el.tafelSlate;
+  slate.replaceChildren();
+
+  if (!board.rounds.length) {
+    slate.append(
+      html("p", "tafel-empty", "Nothing on the board yet — it fills in as rounds finish.")
+    );
+    return;
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "tafel-grid";
+  const cell = (text, cls) => {
+    const d = document.createElement("div");
+    d.className = cls;
+    d.textContent = text;
+    return d;
+  };
+  const rule = () => cell("", "tafel-rule");
+
+  grid.append(cell("Wir", "tafel-head"), rule(), cell("Sie", "tafel-head"));
+
+  for (const entry of board.rounds) {
+    const [us, them] = pick(entry.points);
+    const label = entry.contract
+      ? `${entry.round + 1} · ${entry.contract[0]}${entry.contract.slice(1).toLowerCase()}` +
+        (entry.multiplier > 1 ? ` ×${entry.multiplier}` : "")
+      : `${entry.round + 1}`;
+    grid.append(cell(label, "tafel-round"));
+    grid.append(
+      cell(us || "—", `tafel-cell${us ? "" : " dim"}`),
+      rule(),
+      cell(them || "—", `tafel-cell${them ? "" : " dim"}`)
+    );
+  }
+
+  const [tu, tt] = pick(board.rounds[board.rounds.length - 1].totals);
+  grid.append(
+    cell(String(tu), `tafel-cell tafel-total${tu >= tt ? " leading" : ""}`),
+    rule(),
+    cell(String(tt), `tafel-cell tafel-total${tt > tu ? " leading" : ""}`)
+  );
+  slate.append(grid);
+
+  if (board.target) {
+    slate.append(html("p", "tafel-target", `Playing to ${board.target}`));
+    for (const [value, cls] of [[tu, ""], [tt, "them"]]) {
+      const bar = html("div", "tafel-bar");
+      const fill = document.createElement("i");
+      fill.className = cls;
+      fill.style.width = `${Math.min(100, (value / board.target) * 100)}%`;
+      bar.append(fill);
+      slate.append(bar);
+    }
+  }
+}
+
+const openTafel = () => {
+  renderTafel(lastView);
+  el.tafel.hidden = false;
+};
+const closeTafel = () => { el.tafel.hidden = true; };
+
+document.getElementById("scoreboard").addEventListener("click", openTafel);
+document.getElementById("scoreboard").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTafel(); }
+});
+document.getElementById("tafel-x").addEventListener("click", closeTafel);
+el.tafel.addEventListener("click", (e) => { if (e.target === el.tafel) closeTafel(); });
 
 const CONTRACT_PIPS = { DIAMONDS: "♦", HEARTS: "♥", SPADES: "♠", CLUBS: "♣" };
 
@@ -247,6 +354,10 @@ function statusText(view) {
 }
 
 function render(view) {
+  lastView = view;
+  recordRound(view);
+  if (view.target) board.target = view.target;
+  if (!el.tafel.hidden) renderTafel(view);
   renderHand(view);
   renderTrick(view);
   renderSeats(view);

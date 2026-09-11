@@ -28,6 +28,7 @@ from pathlib import Path
 from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
 from fastapi.templating import Jinja2Templates
 
 from krass_jass.agent import Agent, DmctsAgent
@@ -41,6 +42,24 @@ from web.botclient import RemoteAgent
 
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
+
+
+class RevalidatingStatic(StaticFiles):
+    """Static files that must be revalidated rather than reused blindly.
+
+    The default is a long cache lifetime, which means a browser can run new HTML against old
+    CSS and JavaScript after a change. That fails in ways that look exactly like bugs in the
+    code — it cost real time here twice before it was diagnosed. `no-cache` still allows a
+    304, so the cost is a conditional request rather than a download.
+
+    The static site solves the same problem differently, by hashing asset URLs, because a
+    CDN is not going to revalidate on every request.
+    """
+
+    def file_response(self, *args, **kwargs) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
 
 #: The measured saturation point. `docs/measurements.md` §3: indistinguishable from 800,000
 #: iterations, and single-digit milliseconds in the Rust core.
@@ -159,7 +178,7 @@ def create_app() -> FastAPI:
     source = HERE.parent / "docs/measurements.json"
     if source.exists():
         (HERE / "static/measurements.json").write_bytes(source.read_bytes())
-    app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
+    app.mount("/static", RevalidatingStatic(directory=str(HERE / "static")), name="static")
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
@@ -377,6 +396,7 @@ def view(table: Table, seat: int) -> dict:
         # table can count them, and a Jass player does.
         "round_points": list(game.round.trick_points) if game.round else [0, 0],
         "points_in_play": 157,
+        "target": game.cfg.target_score,
         # Weis is public information the moment it is announced, so it belongs in the view
         # rather than being reconstructed by the client from the event stream. The losing
         # team's `cards` are already None by the time they get here.

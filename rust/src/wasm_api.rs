@@ -215,9 +215,10 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
         let awaiting = played > acked_tricks as usize;
 
         out.push_str(&format!(
-            "{{\"phase\":\"{}\",\"seat\":{seat},\"round\":{},\"points_in_play\":157",
+            "{{\"phase\":\"{}\",\"seat\":{seat},\"round\":{},\"points_in_play\":157,\"target\":{}",
             game.phase.as_str(),
-            game.round_index
+            game.round_index,
+            game.rules.target_score
         ));
         match game.to_act() {
             Some(s) => out.push_str(&format!(",\"to_act\":{s}")),

@@ -29,16 +29,57 @@ const PIPS = {
 function pip(x, y, glyph, size = 22) {
   // Pips in the lower half sit upside down on a real card.
   const flip = y > 70 ? ` transform="rotate(180 ${x} ${y})"` : "";
-  return `<text x="${x}" y="${y}" class="pip-mark" font-size="${size}"${flip}>${glyph}</text>`;
+  // Inline style, not a `font-size` attribute: the stylesheet sets a size for `.pip-mark`
+  // and a presentation attribute loses to it, which quietly shrank the ace to pip size.
+  return `<text x="${x}" y="${y}" class="pip-mark" style="font-size:${size}px"${flip}>${glyph}</text>`;
+}
+
+/* Court figures.
+ *
+ * Real court cards are *mirrored*: an upright half-figure on top, the same rotated 180° on
+ * the bottom, so the card reads either way up. That symmetry is most of what makes a card
+ * look like a card, so it is worth the extra geometry rather than drawing a single portrait.
+ *
+ * Heraldic rather than illustrative — flat shapes, no shading. At 62px wide on a phone,
+ * detail turns to mud, and the thing that actually matters is telling a King from an Ober
+ * from an Under at a glance in a fanned hand.
+ */
+
+const HEADWEAR = {
+  // King: a three-pointed crown on a band.
+  K: `<path d="M37 33 L40 24 L45 30 L50 21 L55 30 L60 24 L63 33 Z" class="court-ink"/>
+      <rect x="37" y="33" width="26" height="4" rx="1.5" class="court-ink"/>
+      <circle cx="50" cy="20" r="1.8" class="court-ink"/>`,
+  // Ober: a lower coronet, three lobes — clearly not the King's spikes.
+  Q: `<path d="M38 34 Q39 26 44 28 Q50 22 56 28 Q61 26 62 34 Z" class="court-ink"/>
+      <rect x="38" y="34" width="24" height="3.5" rx="1.5" class="court-ink"/>`,
+  // Under: a soft cap with a feather, deliberately unlike the other two.
+  J: `<path d="M38 35 Q37 27 45 26 Q52 22 60 27 Q63 30 62 35 Z" class="court-ink"/>
+      <path d="M60 27 Q67 20 69 13 Q64 18 58 24 Z" class="court-ink"/>
+      <rect x="38" y="35" width="24" height="3.5" rx="1.5" class="court-ink"/>`,
+};
+
+/* One half of the figure, drawn to finish well clear of the midline at y=70 — the mirrored
+   copy starts there, and figures that run right up to it merge into a blob. */
+function courtHalf(rank, glyph) {
+  return `
+    <g>
+      ${HEADWEAR[rank]}
+      <ellipse cx="50" cy="45" rx="7.5" ry="8.5" class="court-face"/>
+      <circle cx="47.2" cy="43.5" r=".9" class="court-ink"/>
+      <circle cx="52.8" cy="43.5" r=".9" class="court-ink"/>
+      <path d="M47.4 48.5 Q50 50.4 52.6 48.5" class="court-line"/>
+      <path d="M50 54 Q39 55.5 36 65 L64 65 Q61 55.5 50 54 Z" class="court-robe"/>
+      <path d="M50 54 L50 65" class="court-line"/>
+      <text x="41.5" y="63.5" class="court-pip">${glyph}</text>
+    </g>`;
 }
 
 function courtFace(rank, glyph) {
-  // A framed monogram. Deliberately high-contrast so the trump Jack is unmistakable.
   return `
-    <rect x="24" y="26" width="52" height="88" rx="5" class="court-frame"/>
-    <rect x="28" y="30" width="44" height="80" rx="3" class="court-inner"/>
-    <text x="50" y="64" class="court-letter">${rank}</text>
-    <text x="50" y="96" class="court-pip">${glyph}</text>`;
+    <rect x="19" y="16" width="62" height="108" rx="4" class="court-frame"/>
+    ${courtHalf(rank, glyph)}
+    <g transform="rotate(180 50 70)">${courtHalf(rank, glyph)}</g>`;
 }
 
 export function cardFace(code) {
