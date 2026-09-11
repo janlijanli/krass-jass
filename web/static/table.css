@@ -142,14 +142,6 @@ body {
 .trick-take.them { color: #ff8a90; }
 .trick-take .pts { opacity: .8; font-weight: 600; }
 
-/* Proven out of trump. Public information — everyone at the table saw the discard. */
-.seat-marker .void {
-  font-size: 10px; font-weight: 700; letter-spacing: .02em;
-  padding: 0 4px; border-radius: 4px;
-  background: rgba(0, 0, 0, .35);
-}
-.seat-marker .void.hard { color: #ff8a90; }
-.seat-marker .void.soft { color: #ffd9a0; opacity: .85; }
 
 .banner {
   position: absolute; inset: auto 12px 12px;

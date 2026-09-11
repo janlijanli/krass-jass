@@ -76,8 +76,6 @@ const STRINGS = {
     // everything around it is ordinary language.
     "table.points": "{n} pts",
     "table.trumpsOut": "{n} out",
-    "table.voidNone": "Proven to hold no trump",
-    "table.voidPuur": "No trump — except possibly the Puur",
 
     "score.tricks": "Tricks",
     "score.lastTrick": "Last trick",
@@ -171,8 +169,6 @@ const STRINGS = {
 
     "table.points": "{n} Pkt.",
     "table.trumpsOut": "{n} draussen",
-    "table.voidNone": "Nachweislich kein Trumpf",
-    "table.voidPuur": "Kein Trumpf — ausser allenfalls der Puur",
 
     "score.tricks": "Stiche",
     "score.lastTrick": "Letzter Stich",
@@ -266,8 +262,6 @@ const STRINGS = {
 
     "table.points": "{n} pts",
     "table.trumpsOut": "{n} dehors",
-    "table.voidNone": "Prouvé : n'a plus d'atout",
-    "table.voidPuur": "Plus d'atout — sauf peut-être le Puur",
 
     "score.tricks": "Plis",
     "score.lastTrick": "Dernier pli",
@@ -361,8 +355,6 @@ const STRINGS = {
 
     "table.points": "{n} pt",
     "table.trumpsOut": "{n} fuori",
-    "table.voidPuur": "Niente briscola — tranne forse il Puur",
-    "table.voidNone": "Dimostrato: niente briscola",
 
     "score.tricks": "Prese",
     "score.lastTrick": "Ultima presa",

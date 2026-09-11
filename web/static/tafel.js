@@ -6,18 +6,22 @@
  * strip carries both totals and the target.
  *
  *   ┌───────────────────────────┐
- *   │  ‖   X   ‖‖‖              │   ← their half, rotated 180°
- *   │  ────────────╱────────    │      (a full row is struck through)
- *   │                        0  │   ← the remainder, written out
+ *   │  ╷ ╷ ╷                    │   ← their half, rotated 180°
+ *   │  X X                      │
+ *   │  │ │ │                 0  │      (their hundreds, and the remainder)
  *   ├─── 790 ──── 2500 ─── 1119 ┤   ← totals either side, target in the middle
- *   │  9                        │
- *   │  ────╱───────────────     │
- *   │  ‖‖‖   XXX                │   ← your half
+ *   │  │ │ │ │ │                │   ← your hundreds
+ *   │  ─────────╱──── X X       │      (a full line of five is struck through)
+ *   │  ╷ ╷                   9  │   ← your twenties, and the remainder
  *   └───────────────────────────┘
  *
- * Marks accumulate round by round and are never redrawn — see `accumulate`. A row holds five
- * marks; completing one strikes it through, which is the bundling rule the notation calls for
- * (jassverzeichnis.ch/schreiben-jassen-uebersicht) drawn at row scale rather than per group.
+ * **One denomination per line.** Hundreds on their own line, then the fifties, then the
+ * twenties — never mixed along one row, because a row of `│ │ X` is read as a quantity of
+ * something and the eye has to stop and re-sort it. Each line holds five before it is struck
+ * through and continued below, which is the bundling rule the notation calls for
+ * (jassverzeichnis.ch/schreiben-jassen-uebersicht).
+ *
+ * Marks accumulate round by round and are never redrawn — see `accumulate`.
  *
  * Strokes are roughed with an SVG filter — turbulence displaces the edges so they wobble, and
  * a second turbulence layer knocks holes through the fill so they read as drawn rather than
@@ -98,15 +102,6 @@ export function markedTotal({ counts, remainder }) {
   return counts.reduce((sum, n, i) => sum + n * MARKS[i].value, 0) + remainder;
 }
 
-/** The marks in the order they are written: hundreds, then fifties, then twenties. */
-function sequence({ counts }) {
-  const out = [];
-  MARKS.forEach((m, i) => {
-    for (let n = 0; n < counts[i]; n++) out.push(m.glyph);
-  });
-  return out;
-}
-
 /* Deterministic jitter, so a mark wobbles the same way every time it is drawn. */
 function wobble(seed, amount = 1) {
   const x = Math.sin(seed * 127.1) * 43758.5453;
@@ -153,8 +148,6 @@ function text(x, y, content, cls, seed = 0) {
 const MARK_W = 16;
 const MARK_H = 24;
 const ROW_H = 36;
-/** Space left between runs of different marks, so the groups read apart. */
-const GROUP_GAP = 10;
 
 /** One mark: full-height upright for 100, a cross for 50, a short tick for 20. */
 function drawMark(g, glyph, x, y, seed) {
@@ -170,8 +163,23 @@ function drawMark(g, glyph, x, y, seed) {
   }
 }
 
+/** Lines one denomination takes: always one, more only once it runs past five. */
+function linesFor(count) {
+  return Math.max(1, Math.ceil(count / PER_ROW));
+}
+
+/** Lines a whole half takes — one band per denomination, so the board keeps its shape. */
+function rowsFor(marks) {
+  return marks.counts.reduce((sum, n) => sum + linesFor(n), 0);
+}
+
 /**
- * One team's half: rows of marks, each completed row struck through.
+ * One team's half: a line per denomination, each full line of five struck through.
+ *
+ * Hundreds first, then fifties, then twenties, each on its own line and each keeping its line
+ * even when empty — so the board holds still between rounds instead of re-flowing every time
+ * a mark is added, and so a glance at a line tells you what it is counting before you have
+ * counted it.
  *
  * `flip` turns the half upside down for the team sitting opposite, so both read their own
  * side the right way up.
@@ -180,40 +188,32 @@ function drawHalf(root, x0, y0, width, marks, rows, flip, seedBase) {
   const g = svg("g");
   if (flip) g.setAttribute("transform", `rotate(180 ${x0 + width / 2} ${y0 + rows * ROW_H / 2})`);
 
-  const glyphs = sequence(marks);
   const left = x0 + 16;
+  let row = 0;
+  MARKS.forEach(({ glyph }, band) => {
+    const count = marks.counts[band];
+    for (let i = 0; i < count; i++) {
+      const line_ = row + Math.floor(i / PER_ROW);
+      const col = i % PER_ROW;
+      drawMark(g, glyph, left + col * MARK_W + 8, y0 + 6 + line_ * ROW_H, seedBase + band * 131 + i * 17);
+    }
+    // Five to a line, and a full one is struck through.
+    for (let full = 0; full < Math.floor(count / PER_ROW); full++) {
+      const y = y0 + 6 + (row + full) * ROW_H;
+      g.append(
+        line(left - 4, y + MARK_H + 3, left + PER_ROW * MARK_W + 6, y - 3,
+          seedBase + 900 + band * 7 + full, 2.2)
+      );
+    }
+    row += linesFor(count);
+  });
 
-  // A run of one kind of mark is followed by a gap, so 100s, 50s and 20s read as groups
-  // rather than as one undifferentiated line of strokes.
-  let offset = 0;
-  for (let i = 0; i < glyphs.length; i++) {
-    const row = Math.floor(i / PER_ROW);
-    const col = i % PER_ROW;
-    if (col === 0) offset = 0;
-    else if (glyphs[i] !== glyphs[i - 1]) offset += GROUP_GAP;
-    drawMark(g, glyphs[i], left + col * MARK_W + offset + 8, y0 + 6 + row * ROW_H, seedBase + i * 17);
-  }
-
-  // A full row is struck through — the bundling rule, at row scale.
-  const fullRows = Math.floor(glyphs.length / PER_ROW);
-  for (let r = 0; r < fullRows; r++) {
-    const y = y0 + 6 + r * ROW_H;
-    g.append(
-      line(left - 4, y + MARK_H + 3, left + PER_ROW * MARK_W + 6, y - 3, seedBase + 900 + r, 2.2)
-    );
-  }
-
-  // The remainder, written where the marks are not.
+  // The remainder, written where the marks are not: on the last line, off to the side.
   g.append(
-    text(x0 + width - 20, y0 + 6 + Math.max(1, fullRows) * ROW_H - 6,
+    text(x0 + width - 20, y0 + 6 + (rows - 1) * ROW_H + MARK_H,
       String(marks.remainder), "chalk-number", seedBase + 500)
   );
   root.append(g);
-}
-
-/** Rows a half needs, at least `min` so the board keeps a stable shape. */
-function rowsFor(marks, min) {
-  return Math.max(min, Math.ceil(sequence(marks).length / PER_ROW) + 1);
 }
 
 /**
@@ -229,8 +229,8 @@ export function drawTafel(container, history, { target = null, t = null } = {}) 
   const marks = history.map(accumulate);
   const scores = marks.map(markedTotal);
 
-  const rowsThem = rowsFor(marks[1], 3);
-  const rowsUs = rowsFor(marks[0], 3);
+  const rowsThem = rowsFor(marks[1]);
+  const rowsUs = rowsFor(marks[0]);
   const topH = rowsThem * ROW_H;
   const bottomH = rowsUs * ROW_H;
   const stripY = PAD + topH + 14;

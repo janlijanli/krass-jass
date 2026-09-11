@@ -206,46 +206,24 @@ function renderTake(view) {
     `<span class="pts">${t("table.points", { n: view.trick_points ?? 0 })}</span>`;
 }
 
-/** Trump still unaccounted for, and who is proven not to hold any.
+/** Trump still unaccounted for.
  *
- * Counting trump is half of playing well and all of it is public — every card is face up
- * and the discards are there to be read. A player at the table does this from memory; the
- * screen has no reason to make them.
+ * A count, and nothing about who holds it. Counting trump is arithmetic anyone at the table
+ * can do from the cards face up; working out *who* is out of it is the read that makes the
+ * game, and handing that to a player would be playing it for them. The bots still reason
+ * about it — see krass_jass/voids.py, which constrains their search — they just do not say.
  */
 function renderTrumpRead(view) {
   const out = view.trumps_out;
   if (out === null || out === undefined || view.phase === "bidding") {
     el.trumpsOut.hidden = true;
-  } else {
-    const pip = CONTRACT_PIPS[view.contract] || "";
-    const red = view.contract === "HEARTS" || view.contract === "DIAMONDS";
-    el.trumpsOut.hidden = false;
-    el.trumpsOut.innerHTML =
-      `<span class="pip${red ? " red" : ""}">${pip}</span> ` + t("table.trumpsOut", { n: out });
+    return;
   }
-
-  const voids = view.trump_voids || [];
-  document.querySelectorAll(".seat-marker").forEach((marker) => {
-    const seat = (view.seat + Number(marker.dataset.seat)) % 4;
-    const badge = marker.querySelector(".void");
-    if (!badge) return;
-    const claim = voids[seat];
-    const pip = CONTRACT_PIPS[view.contract] || "";
-    if (claim === "none") {
-      badge.hidden = false;
-      badge.className = "void hard";
-      badge.textContent = `${pip}✕`;
-      badge.title = t("table.voidNone");
-    } else if (claim === "puur") {
-      // Not a void yet: the one card a discard on a trump lead does not rule out.
-      badge.hidden = false;
-      badge.className = "void soft";
-      badge.textContent = `${pip}J?`;
-      badge.title = t("table.voidPuur");
-    } else {
-      badge.hidden = true;
-    }
-  });
+  const pip = CONTRACT_PIPS[view.contract] || "";
+  const red = view.contract === "HEARTS" || view.contract === "DIAMONDS";
+  el.trumpsOut.hidden = false;
+  el.trumpsOut.innerHTML =
+    `<span class="pip${red ? " red" : ""}">${pip}</span> ` + t("table.trumpsOut", { n: out });
 }
 
 const weisLabel = (points) =>

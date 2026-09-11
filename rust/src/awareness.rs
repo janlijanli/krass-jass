@@ -5,17 +5,8 @@
 //! own hand — so it feeds the display without telling a player anything they could not have
 //! counted themselves.
 
-use crate::cards::{card_suit, NUM_SEATS, PUUR_MASK, SUIT_MASK};
-use crate::config::Rules;
+use crate::cards::{card_suit, NUM_SEATS, SUIT_MASK};
 use crate::tables::{CARD_VALUES, STRENGTH};
-use crate::voids::infer_forbidden;
-
-/// A seat's trump holding, as far as the cards face up prove it.
-pub const UNKNOWN: u8 = 0;
-/// Provably holds no trump except possibly the Puur.
-pub const ONLY_PUUR: u8 = 1;
-/// Provably holds no trump at all.
-pub const NO_TRUMP: u8 = 2;
 
 /// Seat the cards on the table currently go to, with the trick still in progress.
 ///
@@ -39,27 +30,21 @@ pub fn trick_points(cards: &[usize], contract: usize) -> i32 {
     cards.iter().map(|&c| values[c]).sum()
 }
 
-/// How much trump is still out, and who is proven not to hold any.
-pub struct TrumpRead {
-    /// Trumps in the other three hands — every trump is face up, in `hand`, or theirs.
-    pub out: Option<u32>,
-    pub voids: [u8; NUM_SEATS],
-}
-
-pub fn trump_read(
+/// Trumps in the other three hands.
+///
+/// Every trump is either face up, in `hand`, or in somebody else's, so subtracting the first
+/// two is exact — not an estimate, and not a read on anybody's cards.
+///
+/// Which seat is *out* of trump is deliberately not here; see the Python module's note.
+pub fn trumps_out(
     tricks: &[(usize, Vec<usize>)],
     current_trick: &[usize],
-    current_leader: usize,
-    seat: usize,
     hand: u64,
     trump: i32,
-    rules: &Rules,
-) -> TrumpRead {
+) -> Option<u32> {
     if trump < 0 {
-        return TrumpRead { out: None, voids: [UNKNOWN; NUM_SEATS] };
+        return None;
     }
-    let trump_u = trump as usize;
-
     let mut seen = hand;
     for (_, cards) in tricks {
         for &card in cards {
@@ -69,29 +54,5 @@ pub fn trump_read(
     for &card in current_trick {
         seen |= 1u64 << card;
     }
-
-    let unseen = SUIT_MASK[trump_u] & !seen;
-    let forbidden = infer_forbidden(tricks, current_trick, current_leader, trump, rules);
-
-    let mut voids = [UNKNOWN; NUM_SEATS];
-    for other in 0..NUM_SEATS {
-        if other == seat {
-            continue;
-        }
-        // What is left after removing every trump that is face up, in my own hand, or ruled
-        // out for them by the play. Nothing about *their* hand is read here.
-        let possible = unseen & !forbidden[other];
-        voids[other] = if possible == 0 {
-            NO_TRUMP
-        } else if possible & !PUUR_MASK[trump_u] == 0 {
-            // The Puur is the one trump a player may hold back on a trump lead, so it is the
-            // one card the discard did not rule out. Once it has been played this branch is
-            // unreachable: the card is in `seen`, and the read hardens to NO_TRUMP.
-            ONLY_PUUR
-        } else {
-            UNKNOWN
-        };
-    }
-
-    TrumpRead { out: Some(unseen.count_ones()), voids }
+    Some((SUIT_MASK[trump as usize] & !seen).count_ones())
 }

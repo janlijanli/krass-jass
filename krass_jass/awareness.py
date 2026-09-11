@@ -9,24 +9,21 @@ Two things a human does automatically and a screen otherwise hides:
 1. **Who is currently taking the trick.** Three cards are down, one of them is an ace worth
    eleven, and whether that is a gift or a loss depends on a comparison the player has to
    redo every time a card lands.
-2. **Where the trump is.** A player counts trump and remembers who could not follow one.
-   The inference has a Jass-specific sharp edge: a discard on a trump lead proves only that
-   their trump holding is a subset of the Puur, because the Puur may always be held back —
-   so it is a *hard* void only once the Puur itself is accounted for. That is `voids.py`'s
-   rule, read from the asking seat's side of the table.
+2. **How much trump is left.** Every trump is either face up, in your own hand, or in
+   somebody else's, so the count is exact arithmetic rather than a read.
+
+Deliberately *not* here: which seat is out of trump. The play proves it — that is what
+`voids.py` infers, and the bots search with it — but working out who can still trump you is
+the read that makes the game, and a screen that hands it over is playing the game for you.
+The bots know; they do not say.
 """
 
 from __future__ import annotations
 
 from .cards import SUIT_MASK
-from .rules import Contract, RulesConfig
-from .tables import CARD_VALUES, PUUR_MASK, STRENGTH
+from .rules import Contract
+from .tables import CARD_VALUES, STRENGTH
 from .trick import NUM_SEATS
-from .voids import infer_forbidden
-
-#: A seat's trump holding, as far as the cards face up prove it.
-NONE = "none"     #: provably holds no trump at all
-PUUR = "puur"     #: provably holds no trump except possibly the Puur
 
 
 def trick_taker(cards, leader: int, contract: Contract) -> int | None:
@@ -51,25 +48,16 @@ def trick_points(cards, contract: Contract) -> int:
     return sum(values[c] for c in cards)
 
 
-def trump_read(
-    tricks_played,
-    current_trick,
-    current_leader: int,
-    seat: int,
-    hand: int,
-    contract: Contract,
-    cfg: RulesConfig,
-) -> dict:
-    """How much trump is still out, and who is proven not to hold any.
+def trumps_out(tricks_played, current_trick, hand: int, contract: Contract) -> int | None:
+    """Trumps in the other three hands.
 
-    `out` counts the trumps in the other three hands: every trump is either face up, in
-    `hand`, or in somebody else's — so subtracting the first two is exact, not an estimate.
+    Every trump is either face up, in `hand`, or in somebody else's, so subtracting the first
+    two is exact — not an estimate, and not a read on anybody's cards.
     """
     # `is_trump`, not truthiness: Contract.DIAMONDS is 0 and therefore falsy.
     if not contract.is_trump:
-        return {"out": None, "voids": [None] * NUM_SEATS}
+        return None
 
-    trump = contract.trump_suit
     seen = hand
     for _, cards in tricks_played:
         for card in cards:
@@ -77,26 +65,4 @@ def trump_read(
     for card in current_trick:
         seen |= 1 << card
 
-    mask = SUIT_MASK[trump]
-    unseen = mask & ~seen
-    forbidden = infer_forbidden(tricks_played, current_trick, current_leader, contract, cfg)
-
-    voids: list[str | None] = []
-    for other in range(NUM_SEATS):
-        if other == seat:
-            voids.append(None)
-            continue
-        # What is left after removing every trump that is face up, in my own hand, or ruled
-        # out for them by the play. Nothing about *their* hand is read here.
-        possible = unseen & ~forbidden[other]
-        if possible == 0:
-            voids.append(NONE)
-        elif possible & ~PUUR_MASK[trump] == 0:
-            # The Puur is the one trump a player may hold back on a trump lead, so it is the
-            # one card the discard did not rule out. Once it has been played this branch
-            # cannot be reached: the card is in `seen`, and the read hardens to NONE.
-            voids.append(PUUR)
-        else:
-            voids.append(None)
-
-    return {"out": bin(unseen).count("1"), "voids": voids}
+    return bin(SUIT_MASK[contract.trump_suit] & ~seen).count("1")

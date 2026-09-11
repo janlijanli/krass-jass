@@ -8,7 +8,7 @@
 
 use pyo3::prelude::*;
 
-use crate::awareness::{trick_points, trick_taker, trump_read};
+use crate::awareness::{trick_points, trick_taker, trumps_out};
 use crate::config::Rules;
 use crate::scoring::{claim_sequence, score_round, RoundScore};
 use crate::trump::{select_trump, SHOVE};
@@ -239,23 +239,15 @@ fn rs_trick_points(cards: Vec<usize>, contract: usize) -> i32 {
     trick_points(&cards, contract)
 }
 
-/// `(trumps still out, per-seat void codes)` — 0 unknown, 1 only-possibly-Puur, 2 none.
+/// Trumps in the other three hands.
 #[pyfunction]
-#[pyo3(signature = (tricks, current_trick, current_leader, seat, hand, trump, puur_exempt=true))]
-fn rs_trump_read(
+fn rs_trumps_out(
     tricks: Vec<(usize, Vec<usize>)>,
     current_trick: Vec<usize>,
-    current_leader: usize,
-    seat: usize,
     hand: u64,
     trump: i32,
-    puur_exempt: bool,
-) -> (Option<u32>, Vec<u8>) {
-    let rules = Rules { puur_exempt, ..Rules::default() };
-    let read = trump_read(
-        &tricks, &current_trick, current_leader, seat, hand, trump, &rules,
-    );
-    (read.out, read.voids.to_vec())
+) -> Option<u32> {
+    trumps_out(&tricks, &current_trick, hand, trump)
 }
 
 /// Returns the contract index, or -1 for a shove.
@@ -446,7 +438,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_infer_forbidden, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trick_taker, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trick_points, m)?)?;
-    m.add_function(wrap_pyfunction!(rs_trump_read, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_trumps_out, m)?)?;
     m.add_function(wrap_pyfunction!(rs_select_trump, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trump_scores, m)?)?;
     Ok(())

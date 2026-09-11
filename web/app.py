@@ -32,7 +32,7 @@ from starlette.responses import Response
 from fastapi.templating import Jinja2Templates
 
 from krass_jass.agent import Agent, DmctsAgent
-from krass_jass.awareness import trick_points, trick_taker, trump_read
+from krass_jass.awareness import trick_points, trick_taker, trumps_out
 from krass_jass.cards import card_list, card_rank, card_suit, format_card, parse_card
 from krass_jass.game import Game, Phase
 from krass_jass.rules import DEFAULT_MULTIPLIERS, HOUSE, Contract
@@ -374,22 +374,16 @@ def view(table: Table, seat: int) -> dict:
             trick.append({"seat": (game.round.leader + i) % NUM_SEATS, "card": format_card(card)})
         shown, shown_leader = list(game.round.trick), game.round.leader
 
-    # Which way the cards on the table are going, and what the other three still hold in
-    # trump. Public both ways — see krass_jass/awareness.py.
+    # Which way the cards on the table are going, and how much trump is left to come. Both
+    # public — see krass_jass/awareness.py.
     taker = None
     at_stake = 0
-    read = {"out": None, "voids": [None] * NUM_SEATS}
+    out = None
     if game.round is not None and game.contract is not None:
         taker = trick_taker(shown, shown_leader, game.contract)
         at_stake = trick_points(shown, game.contract)
-        read = trump_read(
-            game.round.tricks_played,
-            game.round.trick,
-            game.round.leader,
-            seat,
-            game.round.hands[seat],
-            game.contract,
-            game.cfg,
+        out = trumps_out(
+            game.round.tricks_played, game.round.trick, game.round.hands[seat], game.contract
         )
 
     return {
@@ -405,8 +399,7 @@ def view(table: Table, seat: int) -> dict:
         # Who the cards on the table go to as it stands, and what they are worth.
         "trick_taker": taker,
         "trick_points": at_stake,
-        "trumps_out": read["out"],
-        "trump_voids": read["voids"],
+        "trumps_out": out,
         # `is not None`: Contract.DIAMONDS == 0 is falsy
         "contract": game.contract.name if game.contract is not None else None,
         "multiplier": game.cfg.multiplier(game.contract) if game.contract is not None else None,

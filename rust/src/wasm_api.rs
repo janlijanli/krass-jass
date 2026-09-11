@@ -11,9 +11,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use crate::awareness::{
-    trick_points, trick_taker, trump_read, TrumpRead, NO_TRUMP, ONLY_PUUR, UNKNOWN,
-};
+use crate::awareness::{trick_points, trick_taker, trumps_out};
 use crate::cards::{card_list, card_suit, format_card, NUM_SEATS};
 use crate::config::Rules;
 use crate::game::{Game, Phase};
@@ -279,32 +277,19 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
         }
         out.push_str(&format!(",\"trick_points\":{}", trick_points(&shown, contract)));
 
-        let read = match (&game.round, game.contract) {
-            (Some(round), Some(c)) => trump_read(
+        let out_count = match (&game.round, game.contract) {
+            (Some(round), Some(c)) => trumps_out(
                 &round.tricks_played,
                 &round.trick,
-                round.leader,
-                seat,
                 round.hands[seat],
                 if c < 4 { c as i32 } else { -1 },
-                &game.rules,
             ),
-            _ => TrumpRead { out: None, voids: [UNKNOWN; NUM_SEATS] },
+            _ => None,
         };
-        match read.out {
+        match out_count {
             Some(n) => out.push_str(&format!(",\"trumps_out\":{n}")),
             None => out.push_str(",\"trumps_out\":null"),
         }
-        let voids: Vec<String> = read
-            .voids
-            .iter()
-            .map(|&v| match v {
-                NO_TRUMP => "\"none\"".to_string(),
-                ONLY_PUUR => "\"puur\"".to_string(),
-                _ => "null".to_string(),
-            })
-            .collect();
-        out.push_str(&format!(",\"trump_voids\":[{}]", voids.join(",")));
 
         match game.contract {
             Some(c) => out.push_str(&format!(
