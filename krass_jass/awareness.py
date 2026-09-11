@@ -4,27 +4,20 @@ Everything here is *public*: the arguments are the played cards plus the asking 
 hand, and nothing else is reachable from them. That is the point — this feeds the display,
 and a display that knew more than a player at the table would be a cheat rather than a help.
 
-Two things a human does automatically and a screen otherwise hides:
+One thing a human does automatically and a screen otherwise hides: **who is currently taking
+the trick**. Four cards land at angles, the strength order depends on the contract, and
+whether the ace just played is a gift or a loss is a comparison the player would otherwise
+redo every time a card lands.
 
-1. **Who is currently taking the trick.** Three cards are down, one of them is an ace worth
-   eleven, and whether that is a gift or a loss depends on a comparison the player has to
-   redo every time a card lands.
-2. **How much trump is left.** Every trump is either face up, in your own hand, or in
-   somebody else's, so the count is exact arithmetic rather than a read.
-
-Deliberately *not* here: the points lying on the table, or taken so far. Adding up card
-points is what a player is at the table to do, and a screen that keeps the running total is
-doing it for them.
-
-Deliberately *not* here: which seat is out of trump. The play proves it — that is what
-`voids.py` infers, and the bots search with it — but working out who can still trump you is
-the read that makes the game, and a screen that hands it over is playing the game for you.
-The bots know; they do not say.
+That is the whole list, and what is left off it is the point of the module. Not who is out of
+trump: the play proves it and the bots search with it (`voids.py`), but working out who can
+still trump you is the read that makes the game. Not how much trump is left, not the points
+on the table, not the points taken so far. Counting is what a player is at the table to do,
+and a screen that counts for them is playing it for them.
 """
 
 from __future__ import annotations
 
-from .cards import SUIT_MASK
 from .rules import Contract
 from .tables import STRENGTH
 from .trick import NUM_SEATS
@@ -44,23 +37,3 @@ def trick_taker(cards, leader: int, contract: Contract) -> int | None:
         if strength[cards[i]] > strength[cards[best]]:
             best = i
     return (leader + best) % NUM_SEATS
-
-
-def trumps_out(tricks_played, current_trick, hand: int, contract: Contract) -> int | None:
-    """Trumps in the other three hands.
-
-    Every trump is either face up, in `hand`, or in somebody else's, so subtracting the first
-    two is exact — not an estimate, and not a read on anybody's cards.
-    """
-    # `is_trump`, not truthiness: Contract.DIAMONDS is 0 and therefore falsy.
-    if not contract.is_trump:
-        return None
-
-    seen = hand
-    for _, cards in tricks_played:
-        for card in cards:
-            seen |= 1 << card
-    for card in current_trick:
-        seen |= 1 << card
-
-    return bin(SUIT_MASK[contract.trump_suit] & ~seen).count("1")

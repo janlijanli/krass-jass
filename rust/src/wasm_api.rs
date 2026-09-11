@@ -11,7 +11,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use crate::awareness::{trick_taker, trumps_out};
+use crate::awareness::trick_taker;
 use crate::cards::{card_list, card_suit, format_card, NUM_SEATS};
 use crate::config::Rules;
 use crate::convention;
@@ -291,19 +291,6 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
             None => out.push_str(",\"trick_taker\":null"),
         }
 
-        let out_count = match (&game.round, game.contract) {
-            (Some(round), Some(c)) => trumps_out(
-                &round.tricks_played,
-                &round.trick,
-                round.hands[seat],
-                if c < 4 { c as i32 } else { -1 },
-            ),
-            _ => None,
-        };
-        match out_count {
-            Some(n) => out.push_str(&format!(",\"trumps_out\":{n}")),
-            None => out.push_str(",\"trumps_out\":null"),
-        }
 
         match game.contract {
             Some(c) => out.push_str(&format!(

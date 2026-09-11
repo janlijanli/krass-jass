@@ -32,7 +32,7 @@ from starlette.responses import Response
 from fastapi.templating import Jinja2Templates
 
 from krass_jass.agent import Agent, DmctsAgent
-from krass_jass.awareness import trick_taker, trumps_out
+from krass_jass.awareness import trick_taker
 from krass_jass.cards import card_list, card_rank, card_suit, format_card, parse_card
 from krass_jass.game import Game, Phase
 from krass_jass.rules import DEFAULT_MULTIPLIERS, HOUSE, Contract
@@ -377,12 +377,8 @@ def view(table: Table, seat: int) -> dict:
     # Which way the cards on the table are going, and how much trump is left to come. Both
     # public — see krass_jass/awareness.py.
     taker = None
-    out = None
     if game.round is not None and game.contract is not None:
         taker = trick_taker(shown, shown_leader, game.contract)
-        out = trumps_out(
-            game.round.tricks_played, game.round.trick, game.round.hands[seat], game.contract
-        )
 
     return {
         "type": "view",
@@ -394,10 +390,9 @@ def view(table: Table, seat: int) -> dict:
         "trick": trick,
         "trick_complete": complete,
         "trick_winner": winner,
-        # Who the cards on the table go to as it stands. Not what they are worth: adding
-        # up the points on the table is the player's own arithmetic.
+        # Who the cards on the table go to as it stands, and nothing else about the cards:
+        # counting the points and the trump is the player's own work.
         "trick_taker": taker,
-        "trumps_out": out,
         # `is not None`: Contract.DIAMONDS == 0 is falsy
         "contract": game.contract.name if game.contract is not None else None,
         "multiplier": game.cfg.multiplier(game.contract) if game.contract is not None else None,

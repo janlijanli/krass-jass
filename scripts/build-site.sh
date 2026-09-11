@@ -7,6 +7,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# macOS strips DYLD_* when it spawns a SIP-protected interpreter, so exporting this in the
+# shell that calls the script does not reach cargo. Some rustup layouts put libLLVM where
+# `rust-lld` cannot find it by rpath, and the link then fails with a bare SIGABRT that reads
+# like a compile error. Pointing at the active toolchain's lib is a no-op on a healthy
+# install and the difference between a build and a mystery on a broken one.
+export DYLD_FALLBACK_LIBRARY_PATH="$(rustc --print sysroot)/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
+
 echo "building wasm…"
 (cd rust && cargo build --release --target wasm32-unknown-unknown \
     --no-default-features --features wasm)

@@ -31,7 +31,6 @@ const el = {
   round: document.getElementById("round"),
   scoreUs: document.getElementById("score-us"),
   scoreThem: document.getElementById("score-them"),
-  trumpsOut: document.getElementById("trumps-out"),
   trickTake: document.getElementById("trick-take"),
   tafel: document.getElementById("tafel"),
   tafelSlate: document.getElementById("tafel-slate"),
@@ -202,25 +201,6 @@ function renderTake(view) {
   el.trickTake.innerHTML = `<span class="side">${ours ? t("team.us") : t("team.them")}</span>`;
 }
 
-/** Trump still unaccounted for.
- *
- * A count, and nothing about who holds it. Counting trump is arithmetic anyone at the table
- * can do from the cards face up; working out *who* is out of it is the read that makes the
- * game, and handing that to a player would be playing it for them. The bots still reason
- * about it — see krass_jass/voids.py, which constrains their search — they just do not say.
- */
-function renderTrumpRead(view) {
-  const out = view.trumps_out;
-  if (out === null || out === undefined || view.phase === "bidding") {
-    el.trumpsOut.hidden = true;
-    return;
-  }
-  const pip = CONTRACT_PIPS[view.contract] || "";
-  const red = view.contract === "HEARTS" || view.contract === "DIAMONDS";
-  el.trumpsOut.hidden = false;
-  el.trumpsOut.innerHTML =
-    `<span class="pip${red ? " red" : ""}">${pip}</span> ` + t("table.trumpsOut", { n: out });
-}
 
 const weisLabel = (points) =>
   ["20", "50", "100", "150", "200"].includes(String(points))
@@ -375,7 +355,6 @@ function render(view) {
   renderHand(view);
   renderTrick(view);
   renderSeats(view);
-  renderTrumpRead(view);
   renderWeis(view);
   renderScorecard(view);
 

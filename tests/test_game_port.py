@@ -69,21 +69,14 @@ def assert_table_read_matches(py):
     about what the cards on the table mean — the sort of thing a player would notice and
     nothing else would catch.
     """
-    from krass_jass.awareness import trick_taker, trumps_out
+    from krass_jass.awareness import trick_taker
 
     state = py.round
-    trump = py.contract.trump_suit if py.contract.is_trump else -1
     contract = int(py.contract)
 
     assert trick_taker(state.trick, state.leader, py.contract) == core.rs_trick_taker(
         state.trick, state.leader, contract
     ), "trick taker diverged"
-    for seat in range(4):
-        assert trumps_out(
-            state.tricks_played, state.trick, state.hands[seat], py.contract
-        ) == core.rs_trumps_out(
-            state.tricks_played, state.trick, state.hands[seat], trump
-        ), f"trumps out diverged for seat {seat}"
 
 
 def drive_both(seed, target=1000, weis_manual=False, decide=None):

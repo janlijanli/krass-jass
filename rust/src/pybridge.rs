@@ -8,7 +8,7 @@
 
 use pyo3::prelude::*;
 
-use crate::awareness::{trick_taker, trumps_out};
+use crate::awareness::trick_taker;
 use crate::convention;
 use crate::search::Candidate;
 use crate::config::Rules;
@@ -236,17 +236,6 @@ fn rs_trick_taker(cards: Vec<usize>, leader: usize, contract: usize) -> Option<u
     trick_taker(&cards, leader, contract)
 }
 
-/// Trumps in the other three hands.
-#[pyfunction]
-fn rs_trumps_out(
-    tricks: Vec<(usize, Vec<usize>)>,
-    current_trick: Vec<usize>,
-    hand: u64,
-    trump: i32,
-) -> Option<u32> {
-    trumps_out(&tricks, &current_trick, hand, trump)
-}
-
 /// The convention tie-break, on a candidate list the caller already has.
 ///
 /// Exposed so `tests/test_convention.py` can hold both implementations to the same answer:
@@ -470,7 +459,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_claim_sequence, m)?)?;
     m.add_function(wrap_pyfunction!(rs_infer_forbidden, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trick_taker, m)?)?;
-    m.add_function(wrap_pyfunction!(rs_trumps_out, m)?)?;
     m.add_function(wrap_pyfunction!(rs_convention_choose, m)?)?;
     m.add_function(wrap_pyfunction!(rs_select_trump, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trump_scores, m)?)?;

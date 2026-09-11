@@ -71,9 +71,6 @@ const STRINGS = {
 
     "round.n": "Round {n}",
 
-    // The table read. Jass vocabulary stays untranslated — see the note at the top — but
-    // everything around it is ordinary language.
-    "table.trumpsOut": "{n} out",
 
     "score.tricks": "Tricks",
     "score.lastTrick": "Last trick",
@@ -164,7 +161,6 @@ const STRINGS = {
 
     "round.n": "Runde {n}",
 
-    "table.trumpsOut": "{n} draussen",
 
     "score.tricks": "Stiche",
     "score.lastTrick": "Letzter Stich",
@@ -255,7 +251,6 @@ const STRINGS = {
 
     "round.n": "Manche {n}",
 
-    "table.trumpsOut": "{n} dehors",
 
     "score.tricks": "Plis",
     "score.lastTrick": "Dernier pli",
@@ -346,7 +341,6 @@ const STRINGS = {
 
     "round.n": "Mano {n}",
 
-    "table.trumpsOut": "{n} fuori",
 
     "score.tricks": "Prese",
     "score.lastTrick": "Ultima presa",
