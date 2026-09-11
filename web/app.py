@@ -421,7 +421,12 @@ def view(table: Table, seat: int) -> dict:
         "stoeck": visible_stoeck(table),
         "weis_offer": game.weis_offers.get(seat) if game.phase is Phase.WEIS else None,
         "weis_pending": game.phase is Phase.WEIS,
-        "scorecard": game.last_score if game.phase in (Phase.ROUND_OVER, Phase.GAME_OVER) else None,
+        # Not until the last trick has been acknowledged. The ninth trick is a trick like any
+        # other and is worth seeing — who took it decides the five for the last one, and
+        # often the round — so it stays on the table and the scorecard waits for the tap.
+        "scorecard": game.last_score
+        if game.phase in (Phase.ROUND_OVER, Phase.GAME_OVER) and not table.awaiting_ack()
+        else None,
     }
 
 

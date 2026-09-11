@@ -328,9 +328,11 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
             game.phase == Phase::Weis
         ));
 
+        // Not until the last trick has been acknowledged — it stays on the table like any
+        // other, and the scorecard waits for the tap.
         out.push_str(",\"scorecard\":");
         match (game.last_score, game.phase) {
-            (Some(d), Phase::RoundOver | Phase::GameOver) => out.push_str(&format!(
+            (Some(d), Phase::RoundOver | Phase::GameOver) if !awaiting => out.push_str(&format!(
                 "{{\"round\":{},\"contract\":\"{}\",\"multiplier\":{},\"trick_points\":[{},{}],\
                  \"last_trick\":[{},{}],\"match\":[{},{}],\"weis\":[{},{}],\"stoeck\":[{},{}],\
                  \"round_total\":[{},{}],\"scores\":[{},{}]}}",
