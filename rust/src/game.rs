@@ -78,6 +78,7 @@ pub struct Game {
     pub stoeck_announced: Vec<(usize, i32, usize)>,
     pub weis_offers: [i32; NUM_SEATS],
     weis_choices: [Option<bool>; NUM_SEATS],
+    weis_resolved: bool,
     pub last_score: Option<RoundDetail>,
     pub first_across: i32,
 }
@@ -105,6 +106,7 @@ impl Game {
             stoeck_announced: Vec::new(),
             weis_offers: [0; NUM_SEATS],
             weis_choices: [None; NUM_SEATS],
+            weis_resolved: false,
             last_score: None,
             first_across: -1,
         };
@@ -129,6 +131,8 @@ impl Game {
         self.stoeck_announced.clear();
         self.weis_offers = [0; NUM_SEATS];
         self.weis_choices = [None; NUM_SEATS];
+        self.weis_resolved = false;
+        self.weis_points = [0, 0];
         self.stoeck_holders = [false; NUM_SEATS];
 
         self.log.emit(
@@ -149,8 +153,9 @@ impl Game {
 
     pub fn to_act(&self) -> Option<usize> {
         match self.phase {
-            Phase::Weis => (0..NUM_SEATS)
-                .find(|&s| self.weis_offers[s] > 0 && self.weis_choices[s].is_none()),
+            // The question belongs to whoever is about to play: it is asked on their turn
+            // in the first trick, not to the whole table before a card is down.
+            Phase::Weis => self.round.as_ref().map(|r| r.to_play()),
             Phase::Bidding => Some(self.declarer),
             Phase::Playing => self.round.as_ref().map(|r| r.to_play()),
             _ => None,
@@ -210,6 +215,11 @@ impl Game {
         );
 
         let trump = if contract < 4 { contract as i32 } else { -1 };
+
+        // Stöck is settled now whatever happens to the Weis: a King/Queen of trumps can go
+        // down on the first trick, before the last player has answered.
+        self.note_stoeck();
+
         if self.rules.weis_enabled && self.rules.weis_manual {
             let mut any = false;
             for seat in 0..NUM_SEATS {
@@ -219,109 +229,157 @@ impl Game {
                 any |= total > 0;
             }
             if any {
-                self.phase = Phase::Weis;
+                // Nobody is asked yet. Each seat answers when its turn comes round in the
+                // first trick, which is when a player calls a Weis at the table.
+                self.phase = Phase::Playing;
+                self.ask_weis_if_due();
                 return;
             }
         }
-        self.declare_weis();
+
         self.phase = Phase::Playing;
+        for seat in 0..NUM_SEATS {
+            self.announce_weis(seat);
+        }
+        self.resolve_weis();
+    }
+
+    /// Put the question to the seat about to play, if it still owes an answer. Only in the
+    /// first trick: that is the whole window in which a Weis may be called.
+    fn ask_weis_if_due(&mut self) {
+        let seat = match self.round.as_ref() {
+            Some(r) if r.tricks_played.is_empty() => r.to_play(),
+            _ => return,
+        };
+        if self.weis_offers[seat] > 0 && self.weis_choices[seat].is_none() {
+            self.phase = Phase::Weis;
+        }
     }
 
     pub fn choose_weis(&mut self, seat: usize, announce: bool) -> Result<(), GameError> {
         if self.phase != Phase::Weis {
             return Err(GameError::WrongPhase("not choosing Weis"));
         }
+        if self.to_act() != Some(seat) {
+            return Err(GameError::NotYourTurn(seat));
+        }
         if self.weis_offers[seat] == 0 {
             return Err(GameError::NoWeisToAnnounce(seat));
         }
         self.weis_choices[seat] = Some(announce);
-        if (0..NUM_SEATS).all(|s| self.weis_offers[s] == 0 || self.weis_choices[s].is_some()) {
-            self.declare_weis();
-            self.phase = Phase::Playing;
-        }
+        self.announce_weis(seat);
+        // The seat that just answered now plays its card; the comparison waits until the
+        // whole table has called, at the end of the first trick.
+        self.phase = Phase::Playing;
         Ok(())
     }
 
-    /// Announced in two stages, as at the table: everyone calls a value, then the single
-    /// best Weis shows its cards. Emitting cards for every seat would leak three hands.
-    fn declare_weis(&mut self) {
+    /// The seat's melds — nothing at all if it declined.
+    ///
+    /// A declined Weis is not merely hidden: it leaves the contest, so it cannot win the
+    /// comparison for its team either.
+    fn weis_of(&self, seat: usize) -> Vec<crate::weis::Weis> {
+        if !self.rules.weis_enabled || self.weis_choices[seat] == Some(false) {
+            return Vec::new();
+        }
+        let trump = match self.contract {
+            Some(c) if c < 4 => c as i32,
+            _ => -1,
+        };
+        find_weis(self.dealt[seat], &self.rules, trump)
+    }
+
+    /// Stage one: the seat calls a *value*. Public, and carries no cards.
+    ///
+    /// At the table everyone calls the value of their best Weis as their turn comes round in
+    /// the first trick; only the team holding the best one then shows the actual cards. That
+    /// staging is what keeps a losing team's holding secret.
+    fn announce_weis(&mut self, seat: usize) {
+        let melds = self.weis_of(seat);
+        let total: i32 = melds.iter().map(|m| m.points).sum();
+        if total == 0 {
+            return;
+        }
+        self.log
+            .emit(Payload::WeisAnnounced { seat, points: total, melds: melds.len() }, None);
+        self.weis_summary.push(WeisEntry {
+            seat,
+            points: total,
+            cards: None,
+            winner: false,
+            best: false,
+        });
+    }
+
+    /// Stage two: everyone has called, so the single best one shows what it holds.
+    fn resolve_weis(&mut self) {
+        if self.weis_resolved {
+            return;
+        }
+        self.weis_resolved = true;
+
         let contract = self.contract.expect("contract set");
         let trump = if contract < 4 { contract as i32 } else { -1 };
-
-        if self.rules.weis_enabled {
-            // A declined Weis leaves the contest entirely — not merely hidden, so it cannot
-            // win the comparison for its team either.
-            let mut hands = self.dealt;
-            for seat in 0..NUM_SEATS {
-                if self.weis_choices[seat] == Some(false) {
-                    hands[seat] = 0;
-                }
-            }
-            let (points, winner) = score_weis(&hands, trump, &self.rules, self.forehand);
-            let per_seat: Vec<Vec<_>> =
-                hands.iter().map(|&h| find_weis(h, &self.rules, trump)).collect();
-
-            for seat in 0..NUM_SEATS {
-                let total: i32 = per_seat[seat].iter().map(|m| m.points).sum();
-                if total > 0 {
-                    self.log.emit(
-                        Payload::WeisAnnounced { seat, points: total, melds: per_seat[seat].len() },
-                        None,
-                    );
-                    self.weis_summary.push(WeisEntry {
-                        seat,
-                        points: total,
-                        cards: None,
-                        winner: false,
-                        best: false,
-                    });
-                }
-            }
-
-            if winner >= 0 {
-                let winner = winner as usize;
-                let best = best_weis(&per_seat[winner], trump, &self.rules);
-                for seat in 0..NUM_SEATS {
-                    if team_of(seat) != team_of(winner) {
-                        continue;
-                    }
-                    for meld in &per_seat[seat] {
-                        self.log.emit(
-                            Payload::WeisDeclared {
-                                seat,
-                                kind: match meld.kind {
-                                    WeisKind::Sequence => "sequence".into(),
-                                    WeisKind::Four => "four".into(),
-                                },
-                                points: meld.points,
-                                cards: card_list(meld.cards),
-                            },
-                            None,
-                        );
-                    }
-                }
-                self.log.emit(
-                    Payload::WeisResolved { seat: winner, team: team_of(winner), points },
-                    None,
-                );
-                for entry in self.weis_summary.iter_mut() {
-                    if team_of(entry.seat) == team_of(winner) {
-                        entry.winner = true;
-                    }
-                    if entry.seat == winner {
-                        if let Some(m) = best {
-                            entry.best = true;
-                            entry.cards = Some(card_list(m.cards));
-                        }
-                    }
-                }
-            }
-            self.weis_points = points;
-        } else {
+        if !self.rules.weis_enabled {
             self.weis_points = [0, 0];
+            return;
         }
 
-        // Stöck is *held* now but announced later, when the second of King/Queen is played.
+        let mut hands = self.dealt;
+        for seat in 0..NUM_SEATS {
+            if self.weis_choices[seat] == Some(false) {
+                hands[seat] = 0;
+            }
+        }
+        let (points, winner) = score_weis(&hands, trump, &self.rules, self.forehand);
+        let per_seat: Vec<Vec<_>> =
+            hands.iter().map(|&h| find_weis(h, &self.rules, trump)).collect();
+
+        if winner >= 0 {
+            let winner = winner as usize;
+            let best = best_weis(&per_seat[winner], trump, &self.rules);
+            for seat in 0..NUM_SEATS {
+                if team_of(seat) != team_of(winner) {
+                    continue;
+                }
+                for meld in &per_seat[seat] {
+                    self.log.emit(
+                        Payload::WeisDeclared {
+                            seat,
+                            kind: match meld.kind {
+                                WeisKind::Sequence => "sequence".into(),
+                                WeisKind::Four => "four".into(),
+                            },
+                            points: meld.points,
+                            cards: card_list(meld.cards),
+                        },
+                        None,
+                    );
+                }
+            }
+            self.log.emit(
+                Payload::WeisResolved { seat: winner, team: team_of(winner), points },
+                None,
+            );
+            for entry in self.weis_summary.iter_mut() {
+                if team_of(entry.seat) == team_of(winner) {
+                    entry.winner = true;
+                }
+                if entry.seat == winner {
+                    if let Some(m) = best {
+                        entry.best = true;
+                        entry.cards = Some(card_list(m.cards));
+                    }
+                }
+            }
+        }
+        self.weis_points = points;
+    }
+
+    /// Stöck is *held* now but announced later, when the second of King/Queen is played.
+    fn note_stoeck(&mut self) {
+        let contract = self.contract.expect("contract set");
+        let trump = if contract < 4 { contract as i32 } else { -1 };
         self.stoeck_points = score_stoeck(&self.dealt, trump, &self.rules);
         if trump >= 0 {
             let mask = STOECK_MASK[trump as usize];
@@ -358,6 +416,14 @@ impl Game {
             let index = round.tricks_played.len();
             self.log.emit(Payload::TrickWon { seat: winner, trick: index, cards }, None);
         }
+        if self.round.as_ref().unwrap().tricks_played.is_empty() {
+            self.ask_weis_if_due();
+        } else {
+            // Everyone has had a turn, so everyone has called: the comparison can happen and
+            // the best holding shows its cards.
+            self.resolve_weis();
+        }
+
         if self.round.as_ref().unwrap().done() {
             self.score_round();
         }

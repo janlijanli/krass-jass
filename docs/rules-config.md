@@ -168,6 +168,12 @@ Weis; the other team scores nothing.**
 announce rather than announcing for them. A declined Weis leaves the contest entirely: not
 scored, not announced, and unable to win the comparison for its team.
 
+The question reaches a seat **on its turn in the first trick**, in play order, the same
+moment the call itself is made — not to the whole table before a card is down. The seat on
+turn is the only one that may answer, and it answers before it plays. That is the rule, and
+it is also the only point at which the answer can be an informed one: by your turn you have
+seen what was led.
+
 **Announcement is staged, in three steps.** Each player calls the *value* of their best Weis
 when their turn comes round in the first trick — not all at once when the contract settles.
 Once every call is in, the **single best** Weis shows its cards to prove it. Everything then

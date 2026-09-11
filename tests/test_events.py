@@ -309,6 +309,23 @@ def test_no_stoeck_event_in_a_no_trump_contract():
     assert not [e for e in game.log.all() if e.type is EventType.STOECK]
 
 
+def first_trick(game, choices):
+    """Walk the first trick, answering the Weis question as it reaches each seat.
+
+    The question is put on a seat's turn in the first trick, not to the whole table before
+    a card is down — so a test cannot answer for four seats in a row any more than a player
+    could call a Weis out of turn.
+    """
+    from krass_jass.cards import card_list
+
+    for _ in range(4):
+        seat = game.to_act
+        if game.phase is Phase.WEIS:
+            game.choose_weis(seat, choices.get(seat, True))
+            assert game.to_act == seat, "the seat that answered still has to play"
+        game.play(seat, card_list(game.round.legal_moves(seat))[0])
+
+
 def test_manual_weis_lets_a_holder_decline():
     """Announcing tells the table what you hold, so declining is a real choice. A declined
     Weis is not merely hidden — it leaves the contest, so it cannot win for its team."""
@@ -327,13 +344,12 @@ def test_manual_weis_lets_a_holder_decline():
     game.declarer = 0
     game.bid(0, "DIAMONDS")
 
+    # Nobody is asked before a card is down; forehand is asked because it is forehand's turn.
     assert game.phase is Phase.WEIS
+    assert game.to_act == 0
     assert set(game.weis_offers) == {0, 1, 2, 3}
 
-    game.choose_weis(0, True)
-    game.choose_weis(1, True)
-    game.choose_weis(2, False)
-    game.choose_weis(3, True)
+    first_trick(game, {2: False})
 
     assert game.phase is Phase.PLAYING
     # seat 2 declining hands the Weis to the other team entirely
@@ -357,9 +373,7 @@ def test_declining_is_not_announced_at_all():
     game.forehand = 0
     game.declarer = 0
     game.bid(0, "DIAMONDS")
-    for seat in (0, 1, 3):
-        game.choose_weis(seat, False)
-    game.choose_weis(2, True)
+    first_trick(game, {0: False, 1: False, 3: False})
 
     announced = [e.payload["seat"] for e in game.log.all() if e.type is EventType.WEIS_ANNOUNCED]
     assert announced == [2], "a declined Weis must not be announced"
@@ -369,3 +383,69 @@ def test_automatic_weis_still_skips_the_prompt():
     game = Game(seed=2)
     game.bid(game.to_act, "HEARTS")
     assert game.phase is Phase.PLAYING
+
+
+def test_the_weis_question_waits_for_your_turn():
+    """It is asked when your turn comes round in the first trick, not before a card is down.
+
+    A player calls a Weis as they play their first card; asking the whole table up front
+    both misstates the rule and makes the answer less informed than it should be, since by
+    your turn you have seen what was led.
+    """
+    from krass_jass.cards import card_list, parse_hand as H
+    from krass_jass.rules import HOUSE
+
+    cfg = HOUSE.variant(weis_manual=True)
+    game = Game(cfg=cfg, seed=2)
+    game._dealt = [
+        H("DK DQ DA D9 D8 S6 S7 H6 H7"),   # 20
+        H("SA SK SQ SJ ST S9 S8 H8 H9"),   # 100
+        H("CA CK CQ CJ CT C9 C8 C7 C6"),   # 100
+        H("DJ DT D7 D6 HA HK HQ HJ HT"),   # 100
+    ]
+    # Seat 2 leads, so seat 0 must wait two cards for the question despite holding a Weis.
+    game.forehand = 2
+    game.declarer = 2
+    game.bid(2, "DIAMONDS")
+
+    asked = []
+    for _ in range(4):
+        seat = game.to_act
+        if game.phase is Phase.WEIS:
+            asked.append(seat)
+            with pytest.raises(IllegalMove):
+                game.choose_weis((seat + 1) % 4, True)   # not your turn, not your question
+            game.choose_weis(seat, True)
+        game.play(seat, card_list(game.round.legal_moves(seat))[0])
+
+    assert asked == [2, 3, 0, 1], "asked in play order, starting with forehand"
+
+
+def test_weis_is_only_compared_once_the_table_has_called():
+    """Nobody's cards are shown until everyone has spoken — which is the end of the first
+    trick, not the start of the round."""
+    from krass_jass.cards import card_list, parse_hand as H
+    from krass_jass.rules import HOUSE
+
+    cfg = HOUSE.variant(weis_manual=True)
+    game = Game(cfg=cfg, seed=2)
+    game._dealt = [
+        H("DK DQ DA D9 D8 S6 S7 H6 H7"),
+        H("SA SK SQ SJ ST S9 S8 H8 H9"),
+        H("CA CK CQ CJ CT C9 C8 C7 C6"),
+        H("DJ DT D7 D6 HA HK HQ HJ HT"),
+    ]
+    game.forehand = 0
+    game.declarer = 0
+    game.bid(0, "DIAMONDS")
+
+    for played in range(4):
+        assert not [e for e in game.log.all() if e.type is EventType.WEIS_RESOLVED], (
+            f"resolved after {played} cards — the table has not finished calling"
+        )
+        seat = game.to_act
+        if game.phase is Phase.WEIS:
+            game.choose_weis(seat, True)
+        game.play(seat, card_list(game.round.legal_moves(seat))[0])
+
+    assert [e for e in game.log.all() if e.type is EventType.WEIS_RESOLVED]

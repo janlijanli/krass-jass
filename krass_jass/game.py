@@ -85,6 +85,8 @@ class Game:
         self.stoeck_seats = []
         self.weis_choices = {}
         self.weis_offers = {}
+        self._weis = (0, 0)
+        self._weis_resolved = False
         self._stoeck_holders = set()
 
         self.log.emit(
@@ -103,8 +105,9 @@ class Game:
     @property
     def to_act(self) -> int | None:
         if self.phase is Phase.WEIS:
-            pending = [s for s in sorted(self.weis_offers) if s not in self.weis_choices]
-            return pending[0] if pending else None
+            # The question belongs to whoever is about to play: it is asked on their turn
+            # in the first trick, not to the whole table before a card is down.
+            return self.round.to_play if self.round is not None else None
         if self.phase is Phase.BIDDING:
             return self.declarer
         if self.phase is Phase.PLAYING and self.round is not None:
@@ -194,6 +197,10 @@ class Game:
                 "leader": self.forehand,
             },
         )
+        # Stöck is settled now whatever happens to the Weis: a King/Queen of trumps can go
+        # down on the first trick, before the last player has answered.
+        self._note_stoeck()
+
         if self.cfg.weis_enabled and self.cfg.weis_manual:
             trump = self.contract.trump_suit if self.contract is not None else -1
             self.weis_offers = {
@@ -202,112 +209,145 @@ class Game:
             }
             self.weis_offers = {s: p for s, p in self.weis_offers.items() if p}
             if self.weis_offers:
-                self.phase = Phase.WEIS
+                # Nobody is asked yet. Each seat answers when its turn comes round in the
+                # first trick, which is when a player calls a Weis at the table — and it is
+                # also the only point at which the answer can be an informed one, since by
+                # then you have seen what was led.
+                self.phase = Phase.PLAYING
+                self._ask_weis_if_due()
                 return
-        self._declare_weis()
+
         self.phase = Phase.PLAYING
+        for seat in range(NUM_SEATS):
+            self._announce_weis(seat)
+        self._resolve_weis()
 
-    def _declare_weis(self) -> None:
-        """Automatic announcement, in the two stages the real game uses.
+    def _weis_of(self, seat: int) -> list:
+        """The seat's melds — nothing at all if it declined.
 
-        At the table everyone calls the *value* of their best Weis; only the team holding
-        the best one then shows the actual cards. That staging is not decoration — it is
-        what keeps a losing team's holding secret. Emitting cards for every seat would leak
-        three hands at the top of every round.
-
-        `docs/webapp-plan.md` §6 flags automatic-versus-manual as a real choice: announcing
-        reveals your holding and an experienced player occasionally declines. Automatic is
-        the default because it is what a player wants nearly always, and making it manual is
-        a UI change here rather than an engine one.
+        A declined Weis is not merely hidden: it is out of the contest, so it cannot win the
+        comparison for its team either.
         """
+        if not self.cfg.weis_enabled or self.weis_choices.get(seat) is False:
+            return []
         # `is not None`, not truthiness: Contract.DIAMONDS is 0 and therefore falsy, which
         # would silently turn every diamonds contract into a no-trump one here — no Stöck,
         # and the wrong tie-break for Weis.
         trump = self.contract.trump_suit if self.contract is not None else -1
+        return find_weis(self._dealt[seat], self.cfg, trump)
 
-        self.weis_summary = []
-        if self.cfg.weis_enabled:
-            # A declined Weis is not merely hidden — it is not in the contest at all, so it
-            # cannot win the comparison for its team either.
-            declined = {s for s, keep in self.weis_choices.items() if not keep}
-            hands = [0 if seat in declined else h for seat, h in enumerate(self._dealt)]
-            points, winner = score_weis(hands, trump, self.cfg, self.forehand)
-            per_seat = {
-                seat: find_weis(hands[seat], self.cfg, trump) for seat in range(NUM_SEATS)
-            }
+    def _announce_weis(self, seat: int) -> None:
+        """Stage one: the seat calls a *value*. Public, and carries no cards.
 
-            # Stage one: everyone calls a value. Public, and carries no cards.
+        At the table everyone calls the value of their best Weis as their turn comes round
+        in the first trick; only the team holding the best one then shows the actual cards.
+        That staging is not decoration — it is what keeps a losing team's holding secret.
+        """
+        melds = self._weis_of(seat)
+        total = sum(m.points for m in melds)
+        if not total:
+            return
+        self.log.emit(
+            EventType.WEIS_ANNOUNCED,
+            {"seat": seat, "points": total, "melds": len(melds)},
+        )
+        self.weis_summary.append(
+            {"seat": seat, "points": total, "cards": None, "winner": False, "best": False}
+        )
+
+    def _resolve_weis(self) -> None:
+        """Stage two: everyone has called, so the single best one shows what it holds.
+
+        `docs/webapp-plan.md` §6 flags automatic-versus-manual as a real choice: announcing
+        reveals your holding and an experienced player occasionally declines.
+        """
+        if self._weis_resolved:
+            return
+        self._weis_resolved = True
+
+        trump = self.contract.trump_suit if self.contract is not None else -1
+        if not self.cfg.weis_enabled:
+            self._weis = (0, 0)
+            return
+
+        declined = {seat for seat, keep in self.weis_choices.items() if not keep}
+        hands = [0 if seat in declined else h for seat, h in enumerate(self._dealt)]
+        points, winner = score_weis(hands, trump, self.cfg, self.forehand)
+        per_seat = {seat: self._weis_of(seat) for seat in range(NUM_SEATS)}
+
+        if winner >= 0:
             for seat in range(NUM_SEATS):
-                total = sum(m.points for m in per_seat[seat])
-                if total:
+                if team_of(seat) != team_of(winner):
+                    continue
+                for meld in per_seat[seat]:
                     self.log.emit(
-                        EventType.WEIS_ANNOUNCED,
-                        {"seat": seat, "points": total, "melds": len(per_seat[seat])},
-                    )
-                    self.weis_summary.append(
+                        EventType.WEIS_DECLARED,
                         {
                             "seat": seat,
-                            "points": total,
-                            "cards": None,
-                            "winner": False,
-                            "best": False,
-                        }
+                            "kind": meld.kind.value,
+                            "points": meld.points,
+                            "cards": [format_card(c) for c in card_list(meld.cards)],
+                        },
                     )
+            self.log.emit(
+                EventType.WEIS_RESOLVED,
+                {"seat": winner, "team": team_of(winner), "points": list(points)},
+            )
+            # The winning *team* scores all of its Weis, but only the single best one is
+            # shown — it is what has to be proved. Everyone else's holding, partner
+            # included, stays private.
+            best_meld = best_weis(per_seat[winner], trump, self.cfg)
+            for entry in self.weis_summary:
+                if team_of(entry["seat"]) == team_of(winner):
+                    entry["winner"] = True
+                if entry["seat"] == winner and best_meld is not None:
+                    entry["best"] = True
+                    entry["cards"] = [format_card(c) for c in card_list(best_meld.cards)]
+        self._weis = points
 
-            # Stage two: only the winning team shows what it holds.
-            if winner >= 0:
-                for seat in range(NUM_SEATS):
-                    if team_of(seat) != team_of(winner):
-                        continue
-                    for meld in per_seat[seat]:
-                        self.log.emit(
-                            EventType.WEIS_DECLARED,
-                            {
-                                "seat": seat,
-                                "kind": meld.kind.value,
-                                "points": meld.points,
-                                "cards": [format_card(c) for c in card_list(meld.cards)],
-                            },
-                        )
-                self.log.emit(
-                    EventType.WEIS_RESOLVED,
-                    {"seat": winner, "team": team_of(winner), "points": list(points)},
-                )
-                # The winning *team* scores all of its Weis, but only the single best one
-                # is shown — it is what has to be proved. Everyone else's holding, partner
-                # included, stays private.
-                best_meld = best_weis(per_seat[winner], trump, self.cfg)
-                for entry in self.weis_summary:
-                    if team_of(entry["seat"]) == team_of(winner):
-                        entry["winner"] = True
-                    if entry["seat"] == winner and best_meld is not None:
-                        entry["best"] = True
-                        entry["cards"] = [format_card(c) for c in card_list(best_meld.cards)]
-            self._weis = points
-        else:
-            self._weis = (0, 0)
-
-        # Stöck is *held* now but announced later — when the second of King/Queen is
-        # actually played (see `_check_stoeck`). Announcing it here would tell the table
-        # who holds the trump King and Queen before a card is down.
-        stoeck = score_stoeck(self._dealt, trump, self.cfg)
+    def _note_stoeck(self) -> None:
+        """Stöck is *held* now but announced later — when the second of King/Queen is
+        actually played (see `_check_stoeck`). Announcing it here would tell the table who
+        holds the trump King and Queen before a card is down.
+        """
+        trump = self.contract.trump_suit if self.contract is not None else -1
+        self._stoeck = score_stoeck(self._dealt, trump, self.cfg)
         if trump >= 0:
             mask = STOECK_MASK[trump]
             self._stoeck_holders = {
                 seat for seat in range(NUM_SEATS) if self._dealt[seat] & mask == mask
             }
-        self._stoeck = stoeck
+
+    def _ask_weis_if_due(self) -> None:
+        """Put the question to the seat about to play, if it still owes an answer.
+
+        Only in the first trick: that is the whole window in which a Weis may be called.
+        """
+        if self.round is None or self.round.tricks_played:
+            return
+        seat = self.round.to_play
+        if seat is None:
+            return
+        if self.weis_offers.get(seat) and seat not in self.weis_choices:
+            self.phase = Phase.WEIS
 
     def choose_weis(self, seat: int, announce: bool) -> None:
-        """Answer the announce-or-decline question for one seat (manual mode only)."""
+        """Answer the announce-or-decline question for one seat (manual mode only).
+
+        Asked on that seat's turn in the first trick, so the answer comes from the seat on
+        turn and from no other.
+        """
         if self.phase is not Phase.WEIS:
             raise IllegalMove("not choosing Weis")
+        if seat != self.to_act:
+            raise IllegalMove(f"seat {seat} is not on turn")
         if seat not in self.weis_offers:
             raise IllegalMove(f"seat {seat} has no Weis to announce")
         self.weis_choices[seat] = bool(announce)
-        if set(self.weis_choices) >= set(self.weis_offers):
-            self._declare_weis()
-            self.phase = Phase.PLAYING
+        self._announce_weis(seat)
+        # The seat that just answered now plays its card; the comparison waits until the
+        # whole table has called, at the end of the first trick.
+        self.phase = Phase.PLAYING
 
     def play(self, seat: int, card: int) -> None:
         """Play one card. The engine re-validates — a client's move is never trusted."""
@@ -331,6 +371,13 @@ class Game:
                     "cards": [format_card(c) for c in cards],
                 },
             )
+        if len(self.round.tricks_played) >= 1:
+            # Everyone has had a turn, so everyone has called: the comparison can happen and
+            # the best holding shows its cards.
+            self._resolve_weis()
+        else:
+            self._ask_weis_if_due()
+
         if self.round.done:
             self._score_round()
 
@@ -481,3 +528,4 @@ class Game:
     _stoeck_holders: set = field(default_factory=set)
     #: seat -> points on offer, for the seats that actually hold something
     weis_offers: dict = field(default_factory=dict)
+    _weis_resolved: bool = False

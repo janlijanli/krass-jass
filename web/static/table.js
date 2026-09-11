@@ -358,7 +358,7 @@ function render(view) {
 
   const askingWeis = view.phase === "weis" && view.to_act === view.seat && view.weis_offer;
   el.weisPrompt.hidden = !askingWeis;
-  if (askingWeis) el.weisPoints.textContent = `${view.weis_offer} in Weis`;
+  if (askingWeis) el.weisPoints.textContent = t("weis.prompt.amount", { n: view.weis_offer });
   el.shove.hidden = !view.can_shove;
   el.status.textContent = statusText(view);
 
