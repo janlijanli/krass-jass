@@ -14,7 +14,14 @@
   </button>
 
   <div class="menu-backdrop" id="menu" hidden>
-    <form class="menu" method="post" action="/new">
+    <div class="menu menu-shell">
+      <nav class="menu-modes">
+        <button type="button" class="menu-mode on" data-mode="settings">Settings</button>
+        <button type="button" class="menu-mode" data-mode="about">How it works</button>
+        <button type="button" class="menu-close" id="menu-x" aria-label="Close">×</button>
+      </nav>
+      <div class="menu-mode-panel" id="mode-about" hidden></div>
+    <form class="menu menu-mode-panel" id="mode-settings" method="post" action="/new">
       <header><span>Game settings</span></header>
       <p class="menu-note">Changing these starts a new game.</p>
 
@@ -70,6 +77,7 @@
         <button type="submit" class="bid primary">Start new game</button>
       </div>
     </form>
+    </div>
   </div>
 
   <header class="scoreboard">

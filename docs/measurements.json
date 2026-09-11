@@ -1,0 +1,69 @@
+{
+  "_comment": "The single source for every number shown to a reader. docs/documentation-plan.md §3: figures render from an artifact, never from typed prose, and each carries the date and sample size it was measured with. docs/measurements.md is the narrative version of this file; the in-app 'How it works' panels read this one. Regenerate from arena/ladder.py and bench/benchmark.py rather than editing by hand.",
+  "measured_on": "2026-09-10",
+  "machine": "Apple M2, 8 cores",
+  "conditions": "EVAL rules (Weis, Stöck and the match bonus off), double rounds, paired t-test, agents bidding for trump",
+
+  "ladder": {
+    "deals": 300,
+    "note": "Rule-based trump selection for all agents, so these compare card play only.",
+    "matchups": [
+      { "a": "greedy", "b": "random", "share": 49.90, "std": 8.82, "p": 0.84 },
+      { "a": "dmcts(2.4k)", "b": "random", "share": 65.33, "std": 8.11, "p": 0.0 },
+      { "a": "dmcts(2.4k)", "b": "greedy", "share": 66.75, "std": 7.54, "p": 0.0 },
+      { "a": "cheating", "b": "dmcts(2.4k)", "share": 56.01, "std": 7.40, "p": 0.0 },
+      { "a": "cheating", "b": "dmcts(40k)", "share": 55.73, "std": 6.73, "p": 0.0 }
+    ]
+  },
+
+  "trump_selection": {
+    "deals": 600,
+    "share": 58.49,
+    "std": 14.76,
+    "p": 0.0,
+    "note": "Identical card play on both sides; only the bidding differs."
+  },
+
+  "budget_sweep": {
+    "deals": 500,
+    "reference": 2400,
+    "note": "Each budget played against a fixed 2,400-iteration reference, endgame solver off.",
+    "points": [
+      { "iterations": 60, "share": 43.71, "std": 7.71, "p": 0.0 },
+      { "iterations": 800, "share": 49.14, "std": 7.58, "p": 0.011 },
+      { "iterations": 2400, "share": 50.0, "std": 0.0, "p": 1.0, "is_reference": true },
+      { "iterations": 8000, "share": 50.03, "std": 6.12, "p": 0.92 },
+      { "iterations": 40000, "share": 50.23, "std": 6.54, "p": 0.43 }
+    ],
+    "high_end": [
+      { "a": 40000, "b": 2400, "share": 50.30, "std": 7.31, "deals": 1000, "p": 0.20 },
+      { "a": 800000, "b": 40000, "share": 49.60, "std": 6.27, "deals": 300, "p": 0.27 }
+    ]
+  },
+
+  "throughput": {
+    "note": "Search budget 2,400 iterations — the measured saturation point.",
+    "rows": [
+      { "engine": "Python", "iterations_per_sec": 35000, "ms_per_move": 68.6 },
+      { "engine": "Rust", "iterations_per_sec": 1664246, "ms_per_move": 1.44 },
+      { "engine": "Rust → wasm", "iterations_per_sec": 1194030, "ms_per_move": 2.01 }
+    ]
+  },
+
+  "endgame": {
+    "note": "Exact double-dummy solve, median nodes visited. Roughly 15x per extra card, which is why the solver replaces the search rather than running at every leaf.",
+    "points": [
+      { "cards_each": 2, "nodes": 33, "ms": 0.01 },
+      { "cards_each": 3, "nodes": 339, "ms": 0.02 },
+      { "cards_each": 4, "nodes": 4513, "ms": 0.17 },
+      { "cards_each": 5, "nodes": 92131, "ms": 3.01 }
+    ]
+  },
+
+  "literature": {
+    "source": "Niklaus, JassTheRipper (MSc, Fribourg 2019)",
+    "human_parity": "49.5% ± 14.2% of points, six experienced human teams over 136 rounds, against a DMCTS team",
+    "trump_selection_claim": "~16 points of win rate over choosing at random",
+    "budget_claim": "1000 determinizations × 800 iterations"
+  }
+}

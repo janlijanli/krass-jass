@@ -8,6 +8,7 @@ so keeping a second copy in sync by hand would guarantee they drift.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 
@@ -21,7 +22,9 @@ TARGETS = (1000, 2000, 2500)
 def build_render_js() -> None:
     """Everything from table.js up to the WebSocket, with the sender left injectable."""
     src = (ROOT / "web/static/table.js").read_text()
-    render = src[: src.index('const menu = document.getElementById("menu");')]
+    # Cut at the transport, not at the menu: the menu and the "How it works" panels are a
+    # shared module now, so both builds get them.
+    render = src[: src.index('import { initMenu } from "./menu.js";')]
     render = render.replace(
         """function send(message) {
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -40,6 +43,21 @@ export function setSender(fn) { send = fn; }""",
         'import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js";\n\nexport { render };',
     )
     (SITE / "render.js").write_text(render)
+
+
+def asset_version() -> str:
+    """Short hash over the built assets.
+
+    Appended to the asset URLs so a deploy is not served half-old. Static hosts cache
+    aggressively, and a page running new HTML against old CSS fails in ways that look like
+    bugs in the code — which cost time here before it cost a user anything.
+    """
+    digest = hashlib.sha256()
+    for name in sorted(("table.css", "cards.js", "about.js", "menu.js", "render.js", "solo.js")):
+        path = SITE / name
+        if path.exists():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:8]
 
 
 def build_index() -> None:
@@ -103,11 +121,37 @@ def build_index() -> None:
     leftovers = [line for line in html.splitlines() if "{%" in line or "{{" in line]
     if leftovers:
         raise SystemExit(f"unresolved template tags: {leftovers[:3]}")
+
+    version = asset_version()
+    html = html.replace('href="table.css"', f'href="table.css?v={version}"')
+    html = html.replace('src="solo.js"', f'src="solo.js?v={version}"')
     (SITE / "index.html").write_text(html)
+
+    # The modules import each other by bare name, so version those too — otherwise solo.js
+    # is fresh and everything it pulls in is not.
+    for name in ("solo.js", "render.js", "menu.js"):
+        path = SITE / name
+        text = path.read_text()
+        for dep in ("engine.js", "render.js", "menu.js", "cards.js", "about.js"):
+            text = text.replace(f'"./{dep}"', f'"./{dep}?v={version}"')
+        text = text.replace('"measurements.json"', f'"measurements.json?v={version}"')
+        path.write_text(text)
+
+
+def copy_assets() -> None:
+    """Assets shared with the hosted build, plus the measurements artifact.
+
+    Copied rather than duplicated: `docs/measurements.json` is the single source for every
+    number either build shows a reader.
+    """
+    for name in ("table.css", "cards.js", "about.js", "menu.js"):
+        (SITE / name).write_text((ROOT / "web/static" / name).read_text())
+    (SITE / "measurements.json").write_text((ROOT / "docs/measurements.json").read_text())
 
 
 if __name__ == "__main__":
     SITE.mkdir(exist_ok=True)
+    copy_assets()
     build_render_js()
     build_index()
     print("site/index.html and site/render.js generated from the hosted UI")

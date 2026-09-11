@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>krass-jass — offline</title>
-<link rel="stylesheet" href="table.css">
+<link rel="stylesheet" href="table.css?v=49f276d4">
 </head>
 <body data-seat="0">
 <main class="table">
@@ -14,7 +14,14 @@
   </button>
 
   <div class="menu-backdrop" id="menu" hidden>
-    <form class="menu">
+    <div class="menu menu-shell">
+      <nav class="menu-modes">
+        <button type="button" class="menu-mode on" data-mode="settings">Settings</button>
+        <button type="button" class="menu-mode" data-mode="about">How it works</button>
+        <button type="button" class="menu-close" id="menu-x" aria-label="Close">×</button>
+      </nav>
+      <div class="menu-mode-panel" id="mode-about" hidden></div>
+    <form class="menu menu-mode-panel" id="mode-settings" method="post" action="/new">
       <header><span>Game settings</span></header>
       <p class="menu-note">Changing these starts a new game. Everything runs in this tab — no server.</p>
 
@@ -187,6 +194,7 @@
         <button type="submit" class="bid primary">Start new game</button>
       </div>
     </form>
+    </div>
   </div>
 
   <header class="scoreboard">
@@ -251,6 +259,6 @@
     <button class="newgame" id="settings-open">Settings</button>
   </footer>
 </main>
-<script type="module" src="solo.js"></script>
+<script type="module" src="solo.js?v=49f276d4"></script>
 </body>
 </html>

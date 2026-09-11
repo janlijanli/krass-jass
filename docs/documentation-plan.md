@@ -284,14 +284,22 @@ at the end. The ones that matter for `/strength` and `/internals`:
 
 ---
 
-## 10. Sequencing
+## 10. Status
 
-| When | What |
-|---|---|
-| **Now** | `--json` output from `arena/ladder.py`; commit dated artifacts. Costs an hour, and every later number depends on it. |
-| **After M2** | `/how-it-works` short version. The app needs *something* explaining the opponent. |
-| **After M3** | `/strength` — meaningful only once trump selection exists and the ladder is real. |
-| **M6** | Replay viewer with search traces; `/internals`. Both are naturally part of the debug/replay work already scheduled there. |
+**Built**, as three tabs behind the hamburger rather than three routes — the app is a single
+screen, so a panel is the right shape.
+
+- `docs/measurements.json` is the artifact. Both builds read it; neither types a number into
+  prose. `web/app.py` copies it in at startup and `scripts/make_site.py` copies it into the
+  static build, so the two cannot drift.
+- Four figures, hand-written inline SVG: the ladder as a forest plot with confidence
+  intervals, the saturation curve, the void-inference walkthrough, and throughput.
+- The honesty constraints of §7 are in the copy: no claim of superhuman play, the team-play
+  weakness stated up front, every figure carrying its date and `n`, and the offline build's
+  "all four hands are in this tab" caveat said plainly.
+
+Still outstanding: `arena/ladder.py --json` so the artifact regenerates from a run rather
+than being hand-maintained, and the replay viewer with per-decision traces (M6).
 
 ## 11. Effort
 

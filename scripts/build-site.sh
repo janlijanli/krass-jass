@@ -13,7 +13,6 @@ echo "building wasm…"
 
 mkdir -p site
 cp rust/target/wasm32-unknown-unknown/release/krass_jass_core.wasm site/
-cp web/static/table.css web/static/cards.js site/
 python3 scripts/make_site.py
 
 wasm=site/krass_jass_core.wasm

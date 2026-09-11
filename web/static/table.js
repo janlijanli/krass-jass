@@ -7,6 +7,8 @@
 
 import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js";
 
+const MEASUREMENTS_URL = "/static/measurements.json";
+
 const mySeat = Number(document.body.dataset.seat);
 const el = {
   hand: document.getElementById("hand"),
@@ -299,20 +301,9 @@ document.getElementById("weis-no").addEventListener("click", () =>
   send({ type: "weis", announce: false })
 );
 
-const menu = document.getElementById("menu");
-const openMenu = () => {
-  menu.hidden = false;
-  document.getElementById("menu-open").setAttribute("aria-expanded", "true");
-};
-const closeMenu = () => {
-  menu.hidden = true;
-  document.getElementById("menu-open").setAttribute("aria-expanded", "false");
-};
-document.getElementById("menu-open").addEventListener("click", openMenu);
-document.getElementById("settings-open").addEventListener("click", openMenu);
-document.getElementById("menu-close").addEventListener("click", closeMenu);
-menu.addEventListener("click", (e) => { if (e.target === menu) closeMenu(); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !menu.hidden) closeMenu(); });
+import { initMenu } from "./menu.js";
+
+initMenu({ measurementsUrl: MEASUREMENTS_URL });
 
 function connect() {
   const scheme = location.protocol === "https:" ? "wss" : "ws";

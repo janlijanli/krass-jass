@@ -154,6 +154,11 @@ def new_table(human_seat: int = 0, settings: dict | None = None) -> Table:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="krass-jass")
+    # docs/measurements.json is the single source for every number the app shows a reader.
+    # Copied in at startup rather than duplicated, so the two cannot drift.
+    source = HERE.parent / "docs/measurements.json"
+    if source.exists():
+        (HERE / "static/measurements.json").write_bytes(source.read_bytes())
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
     @app.get("/", response_class=HTMLResponse)

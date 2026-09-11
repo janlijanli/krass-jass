@@ -10,8 +10,9 @@
  * with no server; it is why multiplayer stays server-side.
  */
 
-import { loadEngine, CARD_INDEX } from "./engine.js";
-import { render, setSender } from "./render.js";
+import { loadEngine, CARD_INDEX } from "./engine.js?v=49f276d4";
+import { render, setSender } from "./render.js?v=49f276d4";
+import { initMenu } from "./menu.js?v=49f276d4";
 
 const HUMAN_SEAT = 0;
 // docs/measurements.md §3: indistinguishable from 800,000 iterations, ~2 ms in wasm.
@@ -128,10 +129,6 @@ function ackTarget() {
   return v.trick_complete ? acked + 1 : acked;
 }
 
-document.querySelector(".menu").addEventListener("submit", (event) => {
-  event.preventDefault();
-  document.getElementById("menu").hidden = true;
-  newGame();
-});
+initMenu({ measurementsUrl: "measurements.json?v=49f276d4", onNewGame: newGame });
 
 newGame();
