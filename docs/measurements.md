@@ -150,7 +150,17 @@ though the hidden cards were known, so the search never values an action for wha
 fixed, suboptimal policy. Steep gains to ~2,400 iterations, then a plateau no compute moves,
 is exactly that signature.
 
-**The remaining gap is not a search problem.** Closing it needs learning.
+**The remaining gap is not a search problem.** Closing it needs learning — see
+`docs/value-net-plan.md`, which starts from §5e's conclusion that only the leaf evaluator and
+the aggregation can move decisions the search holds a strong opinion about.
+
+### An external measurement of the partner half
+
+Niklaus §13 ran a second human experiment we had not recorded: **47 humans playing with a
+DMCTS partner scored 44.47% ± 13.74% over 832 rounds**, about five points below the all-human
+team's 49.5%. A human is worse off with a bot partner than with a person — which is the
+partner gap stated from the outside, and stronger evidence for it than anything measured here,
+since everything in this file is bots against bots.
 
 ---
 
