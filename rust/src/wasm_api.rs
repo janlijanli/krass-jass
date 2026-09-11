@@ -11,7 +11,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use crate::awareness::{trick_points, trick_taker, trumps_out};
+use crate::awareness::{trick_taker, trumps_out};
 use crate::cards::{card_list, card_suit, format_card, NUM_SEATS};
 use crate::config::Rules;
 use crate::game::{Game, Phase};
@@ -216,7 +216,7 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
         let awaiting = played > acked_tricks as usize;
 
         out.push_str(&format!(
-            "{{\"phase\":\"{}\",\"seat\":{seat},\"round\":{},\"points_in_play\":157,\"target\":{}",
+            "{{\"phase\":\"{}\",\"seat\":{seat},\"round\":{},\"target\":{}",
             game.phase.as_str(),
             game.round_index,
             game.rules.target_score
@@ -275,7 +275,6 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
             Some(s) => out.push_str(&format!(",\"trick_taker\":{s}")),
             None => out.push_str(",\"trick_taker\":null"),
         }
-        out.push_str(&format!(",\"trick_points\":{}", trick_points(&shown, contract)));
 
         let out_count = match (&game.round, game.contract) {
             (Some(round), Some(c)) => trumps_out(
@@ -305,13 +304,8 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
             ",\"can_shove\":{}",
             game.phase == Phase::Bidding && seat == game.forehand && !game.shoved
         ));
-        let (won, points) = game
-            .round
-            .as_ref()
-            .map(|r| (r.tricks_won, r.trick_points))
-            .unwrap_or(([0, 0], [0, 0]));
+        let won = game.round.as_ref().map(|r| r.tricks_won).unwrap_or([0, 0]);
         out.push_str(&format!(",\"tricks_won\":[{},{}]", won[0], won[1]));
-        out.push_str(&format!(",\"round_points\":[{},{}]", points[0], points[1]));
 
         // The trump Jack, so the page does not have to work out what trump means.
         match game.contract {

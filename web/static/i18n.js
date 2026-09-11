@@ -70,11 +70,9 @@ const STRINGS = {
     "status.disconnected": "Disconnected — reconnecting…",
 
     "round.n": "Round {n}",
-    "hud.taken": "{us} – {them} of {total}",
 
     // The table read. Jass vocabulary stays untranslated — see the note at the top — but
     // everything around it is ordinary language.
-    "table.points": "{n} pts",
     "table.trumpsOut": "{n} out",
 
     "score.tricks": "Tricks",
@@ -165,9 +163,7 @@ const STRINGS = {
     "status.disconnected": "Getrennt — verbinde neu…",
 
     "round.n": "Runde {n}",
-    "hud.taken": "{us} – {them} von {total}",
 
-    "table.points": "{n} Pkt.",
     "table.trumpsOut": "{n} draussen",
 
     "score.tricks": "Stiche",
@@ -258,9 +254,7 @@ const STRINGS = {
     "status.disconnected": "Déconnecté — reconnexion…",
 
     "round.n": "Manche {n}",
-    "hud.taken": "{us} – {them} sur {total}",
 
-    "table.points": "{n} pts",
     "table.trumpsOut": "{n} dehors",
 
     "score.tricks": "Plis",
@@ -351,9 +345,7 @@ const STRINGS = {
     "status.disconnected": "Disconnesso — riconnessione…",
 
     "round.n": "Mano {n}",
-    "hud.taken": "{us} – {them} su {total}",
 
-    "table.points": "{n} pt",
     "table.trumpsOut": "{n} fuori",
 
     "score.tricks": "Prese",

@@ -6,7 +6,7 @@
 //! counted themselves.
 
 use crate::cards::{card_suit, NUM_SEATS, SUIT_MASK};
-use crate::tables::{CARD_VALUES, STRENGTH};
+use crate::tables::STRENGTH;
 
 /// Seat the cards on the table currently go to, with the trick still in progress.
 ///
@@ -22,12 +22,6 @@ pub fn trick_taker(cards: &[usize], leader: usize, contract: usize) -> Option<us
         }
     }
     Some((leader + best) % NUM_SEATS)
-}
-
-/// Card points lying on the table.
-pub fn trick_points(cards: &[usize], contract: usize) -> i32 {
-    let values = &CARD_VALUES[contract];
-    cards.iter().map(|&c| values[c]).sum()
 }
 
 /// Trumps in the other three hands.

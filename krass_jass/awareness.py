@@ -12,6 +12,10 @@ Two things a human does automatically and a screen otherwise hides:
 2. **How much trump is left.** Every trump is either face up, in your own hand, or in
    somebody else's, so the count is exact arithmetic rather than a read.
 
+Deliberately *not* here: the points lying on the table, or taken so far. Adding up card
+points is what a player is at the table to do, and a screen that keeps the running total is
+doing it for them.
+
 Deliberately *not* here: which seat is out of trump. The play proves it — that is what
 `voids.py` infers, and the bots search with it — but working out who can still trump you is
 the read that makes the game, and a screen that hands it over is playing the game for you.
@@ -22,7 +26,7 @@ from __future__ import annotations
 
 from .cards import SUIT_MASK
 from .rules import Contract
-from .tables import CARD_VALUES, STRENGTH
+from .tables import STRENGTH
 from .trick import NUM_SEATS
 
 
@@ -40,12 +44,6 @@ def trick_taker(cards, leader: int, contract: Contract) -> int | None:
         if strength[cards[i]] > strength[cards[best]]:
             best = i
     return (leader + best) % NUM_SEATS
-
-
-def trick_points(cards, contract: Contract) -> int:
-    """Card points lying on the table."""
-    values = CARD_VALUES[contract]
-    return sum(values[c] for c in cards)
 
 
 def trumps_out(tricks_played, current_trick, hand: int, contract: Contract) -> int | None:

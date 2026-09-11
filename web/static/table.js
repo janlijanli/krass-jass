@@ -31,7 +31,6 @@ const el = {
   round: document.getElementById("round"),
   scoreUs: document.getElementById("score-us"),
   scoreThem: document.getElementById("score-them"),
-  taken: document.getElementById("taken"),
   trumpsOut: document.getElementById("trumps-out"),
   trickTake: document.getElementById("trick-take"),
   tafel: document.getElementById("tafel"),
@@ -185,12 +184,11 @@ function renderTrick(view) {
   renderTake(view);
 }
 
-/** Which team the cards on the table go to as it stands, and what they are worth.
+/** Which team the cards on the table go to as it stands.
  *
- * The comparison a player at the table makes every time a card lands, and the one thing a
- * screen hides: three cards down, one of them an ace worth eleven, and whether that is a
- * gift or a loss is a re-reckoning nobody should have to redo in their head each turn. It
- * says nothing a player could not work out from the cards face up.
+ * Which side, and not what it is worth: the comparison that decides who takes the trick is
+ * the one a screen genuinely hides, while adding up the card points on the table is
+ * arithmetic the player is there to do.
  */
 function renderTake(view) {
   const taker = view.trick_taker;
@@ -201,9 +199,7 @@ function renderTake(view) {
   const ours = (taker - view.seat + 4) % 4 % 2 === 0;
   el.trickTake.hidden = false;
   el.trickTake.className = `trick-take ${ours ? "us" : "them"}`;
-  el.trickTake.innerHTML =
-    `<span class="side">${ours ? t("team.us") : t("team.them")}</span>` +
-    `<span class="pts">${t("table.points", { n: view.trick_points ?? 0 })}</span>`;
+  el.trickTake.innerHTML = `<span class="side">${ours ? t("team.us") : t("team.them")}</span>`;
 }
 
 /** Trump still unaccounted for.
@@ -388,16 +384,6 @@ function render(view) {
   el.scoreThem.textContent = view.scores[1 - mine];
   renderContract(view.contract, view.multiplier);
   el.round.textContent = t("round.n", { n: view.round + 1 });
-
-  // Running card points. 157 is the whole round — tricks plus the five for the last one.
-  const playing = view.phase === "playing";
-  el.taken.hidden = !playing;
-  if (playing) {
-    const taken = view.round_points || [0, 0];
-    el.taken.textContent = t("hud.taken", {
-      us: taken[mine], them: taken[1 - mine], total: view.points_in_play,
-    });
-  }
 
   const bidding = view.phase === "bidding" && view.to_act === view.seat;
   el.bidding.hidden = !bidding;

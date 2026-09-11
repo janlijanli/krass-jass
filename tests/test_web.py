@@ -121,13 +121,12 @@ def test_scorecard_components_reconcile_with_the_round_total():
         assert raw * card["multiplier"] == sum(card["round_total"]), contract.name
 
 
-def test_running_points_are_public_and_sum_to_the_cards_played():
-    """Every played card is face up, so counting points taken is something any player at
-    the table does — it leaks nothing."""
+def test_the_view_keeps_no_running_point_count():
+    """Counting the points taken is what a player is at the table to do. The engine scores
+    the round at the end of it; nothing streams a running total to the screen."""
     from krass_jass.cards import card_list
     from krass_jass.game import Game
     from krass_jass.rules import HOUSE
-    from krass_jass.tables import CARD_VALUES
     from web.app import Table, view
 
     game = Game(cfg=HOUSE, seed=8)
@@ -140,10 +139,8 @@ def test_running_points_are_public_and_sum_to_the_cards_played():
     table.acked_tricks = table.completed_tricks()
 
     frame = view(table, 0)
-    assert frame["points_in_play"] == 157
-    values = CARD_VALUES[game.contract]
-    played = sum(values[c] for _leader, cards in game.round.tricks_played for c in cards)
-    assert sum(frame["round_points"]) == played
+    for field in ("round_points", "points_in_play", "trick_points"):
+        assert field not in frame, f"{field} is back in the view"
 
 
 def _weis_table():

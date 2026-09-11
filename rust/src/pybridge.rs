@@ -8,7 +8,7 @@
 
 use pyo3::prelude::*;
 
-use crate::awareness::{trick_points, trick_taker, trumps_out};
+use crate::awareness::{trick_taker, trumps_out};
 use crate::config::Rules;
 use crate::scoring::{claim_sequence, score_round, RoundScore};
 use crate::trump::{select_trump, SHOVE};
@@ -234,11 +234,6 @@ fn rs_trick_taker(cards: Vec<usize>, leader: usize, contract: usize) -> Option<u
     trick_taker(&cards, leader, contract)
 }
 
-#[pyfunction]
-fn rs_trick_points(cards: Vec<usize>, contract: usize) -> i32 {
-    trick_points(&cards, contract)
-}
-
 /// Trumps in the other three hands.
 #[pyfunction]
 fn rs_trumps_out(
@@ -437,7 +432,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_claim_sequence, m)?)?;
     m.add_function(wrap_pyfunction!(rs_infer_forbidden, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trick_taker, m)?)?;
-    m.add_function(wrap_pyfunction!(rs_trick_points, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trumps_out, m)?)?;
     m.add_function(wrap_pyfunction!(rs_select_trump, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trump_scores, m)?)?;

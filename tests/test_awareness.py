@@ -10,7 +10,7 @@ hand and nothing else, or the display would be a cheat rather than a help.
 import pytest
 
 from krass_jass.agent import GreedyAgent
-from krass_jass.awareness import trick_points, trick_taker, trumps_out
+from krass_jass.awareness import trick_taker, trumps_out
 from krass_jass.cards import SUIT_MASK, parse_card, parse_hand
 from krass_jass.game import Game
 from krass_jass.rules import HOUSE, Contract
@@ -101,7 +101,6 @@ def test_the_taker_predicts_the_trick_it_ends_up_winning(seed):
         if len(state.tricks_played) > before:
             _, cards = state.tricks_played[-1]
             assert trick_taker(cards, leader, game.contract) == state.last_trick_winner
-            assert trick_points(cards, game.contract) == state.trick_results[-1][1]
         else:
             # Mid-trick the claim is about the cards actually on the table, which is all a
             # player at the table can say either.
