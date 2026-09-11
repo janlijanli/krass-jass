@@ -26,6 +26,7 @@ EXPECTED_FIELDS = {
     "trick_leader",
     "tricks_played",
     "scores",
+    "weis_points",
     "weis_announced",
     "time_budget_ms",
     "decision_seed",
@@ -43,6 +44,30 @@ def test_observation_shape_is_frozen():
     """If this fails you added a field. Decide whether it is public, then update the list
     and the leak test below — do not just widen the set."""
     assert set(Observation.__dataclass_fields__) == EXPECTED_FIELDS
+
+
+def test_weis_points_are_public_and_stoeck_is_not():
+    """`weis_points` was added for the game-score objective and is the kind of field this
+    file exists to interrogate.
+
+    It is safe because it is a *scored* total, not a holding: by the time it is non-zero the
+    whole table has called and the result was announced to everyone. Stöck is the opposite —
+    held privately until the second honour is played — and has no field here on purpose.
+    """
+    assert "weis_points" in EXPECTED_FIELDS
+    assert not any("stoeck" in f for f in EXPECTED_FIELDS), (
+        "Stöck is private until announced; it must not be in an observation"
+    )
+
+    from krass_jass.game import Game
+    from krass_jass.rules import HOUSE
+
+    game = Game(cfg=HOUSE.variant(weis_manual=False), seed=4)
+    game.bid(game.to_act, "HEARTS")
+    obs = game.observation(game.to_act)
+    # Weis is resolved before the first card in automatic mode, so the totals it carries are
+    # exactly the ones the table heard announced.
+    assert tuple(obs.weis_points) == tuple(game._weis)
 
 
 @pytest.mark.parametrize("contract", list(Contract))

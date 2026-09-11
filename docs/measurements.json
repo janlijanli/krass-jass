@@ -41,6 +41,49 @@
     ]
   },
 
+  "game_objective": {
+    "note": "Projecting the round onto the game instead of maximising the round's share. Whole games, paired, HOUSE rules — arena/games.py, because the round-level instrument cannot see this and would score it backwards. Three versions; the first two lost, the third is harmless. See measurements.md §5d.",
+    "runs": [
+      { "version": "v1 fixed scale", "target": 1000, "wins": 50.75, "std": 21.23, "games": 400, "p": 0.48 },
+      { "version": "v1 fixed scale", "target": 2500, "wins": 44.62, "std": 22.99, "games": 400, "p": 0.0000029 },
+      { "version": "v2 sqrt(rounds left)", "target": 1000, "wins": 50.50, "std": 22.38, "games": 400, "p": 0.655 },
+      { "version": "v2 sqrt(rounds left)", "target": 2500, "wins": 46.88, "std": 21.45, "games": 400, "p": 0.0036 },
+      { "version": "v3 near the line only", "target": 1000, "wins": 49.38, "std": 22.52, "games": 400, "p": 0.579 },
+      { "version": "v3 near the line only", "target": 2500, "wins": 50.25, "std": 18.05, "games": 400, "p": 0.782 }
+    ]
+  },
+
+  "bidding_prior": {
+    "deals": 1000,
+    "share": 50.03,
+    "std": 6.54,
+    "p": 0.88,
+    "note": "Reading the bidding into the imagined hands — the strongest prior available, and null. measurements.md §5e has the mechanism: a prior only flips decisions the search already rates within 0.008 of each other."
+  },
+
+  "adversarial_search": {
+    "note": "Modelling the other team as opponents. The tree maximised the root team's value at every node, including theirs, so it valued lines by what happens when the opposition cooperates. A correctness fix; pooled +0.30% +/- 0.32 over n=1800, never significant.",
+    "runs": [
+      { "share": 50.61, "std": 6.94, "deals": 600, "p": 0.032 },
+      { "share": 50.15, "std": 6.90, "deals": 1200, "p": 0.445 }
+    ]
+  },
+
+  "split_sweep": {
+    "total": 2400,
+    "deals": 600,
+    "reference": "40x60",
+    "note": "How a fixed budget is split between determinizations and iterations, endgame solver off. An inverted U with a broad flat top: at least ~10 worlds and ~30 iterations each, and within that nothing matters. Closes the 'allocation guidance' explanation in measurements.md §3.",
+    "points": [
+      { "determinizations": 4, "iterations": 600, "share": 48.89, "std": 7.13, "p": 0.000134 },
+      { "determinizations": 10, "iterations": 240, "share": 49.65, "std": 6.74, "p": 0.20 },
+      { "determinizations": 20, "iterations": 120, "share": 50.39, "std": 6.79, "p": 0.16 },
+      { "determinizations": 80, "iterations": 30, "share": 50.27, "std": 6.41, "p": 0.30 },
+      { "determinizations": 240, "iterations": 10, "share": 47.56, "std": 7.71, "p": 0.0 },
+      { "determinizations": 600, "iterations": 4, "share": 41.41, "std": 8.33, "p": 0.0 }
+    ]
+  },
+
   "budget_sweep": {
     "deals": 500,
     "reference": 2400,

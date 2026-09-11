@@ -92,11 +92,35 @@ the sweep's low end is steep. Search works. It simply stops paying after ~2,400.
 under a heading saying not to rediscover it. It does not reproduce here. Remaining
 explanations, now that the cheap ones are gone:
 
-1. The published figure may be **budget allocation** guidance — how to split a fixed 800k
-   rollout budget between determinizations and iterations — rather than a claim that 800k is
-   required. Re-read the thesis before concluding anything.
+1. ~~The published figure may be **budget allocation** guidance — how to split a fixed 800k
+   rollout budget between determinizations and iterations.~~ **Ruled out, see §3a.** The split
+   is flat across an 8× range either side of ours.
 2. Their evaluation differed (no exact endgame solver, different opponents, Weis on).
 3. Our search converges to its ceiling faster than theirs for a reason not yet identified.
+
+### 3a. How the budget is split, at a fixed budget
+
+The saturation above was measured at one allocation — 40 worlds × 60 iterations — which
+leaves the obvious objection that what saturated was *that split*. It did not. A fixed 2,400
+iterations, endgame solver off, each split played 600 double rounds against the shipped one:
+
+| split | share | p |
+|---|---|---|
+| 4 × 600 | 48.89% ± 7.13 | 1.3e-04 |
+| 10 × 240 | 49.65% ± 6.74 | 0.20 |
+| 20 × 120 | 50.39% ± 6.79 | 0.16 |
+| **40 × 60** | reference | — |
+| 80 × 30 | 50.27% ± 6.41 | 0.30 |
+| 240 × 10 | 47.56% ± 7.71 | 1e-14 |
+| 600 × 4 | **41.41%** ± 8.33 | ~0 |
+
+An inverted U with a broad flat top and two hard floors. The search needs **at least ~10
+worlds and at least ~30 iterations in each**; given both, nothing in between matters, and
+depth varies 8× across the plateau with no measurable effect. Four worlds overfits the sample
+of hidden cards; four iterations barely solves a world at all and costs 8.6 points.
+
+So there is nothing to win by re-splitting, the shipped setting is already mid-plateau, and
+the allocation explanation for the discrepancy with the published figure is closed.
 
 Do not delete their figure. Do not adopt ours as universal.
 
@@ -214,6 +238,110 @@ including the five for the last trick and the match bonus. Nothing in that objec
 the game score or the target, so at 940 chasing 1000 the bot still maximises share when it
 needs exactly 60 points, and the Stöck-Weis-Stich ordering that decides a shared crossing is
 invisible to it. That is a bigger and more promising target than signal reading.
+
+---
+
+## 5d. Playing for the game, not the round — three tries to get to harmless
+
+The search maximised its **share of one round's card points**. That is the right objective for
+a round played alone and the wrong one for a game: at 940 chasing 1000 a team needs sixty
+points, not as many as possible, and a share objective is linear so it cannot tell a certain
+sixty from a gamble on ninety-or-twenty.
+
+Measuring it needed a new instrument. `arena.py` plays single double-rounds with
+`target_score=None` — there is no line to play to, so the objective under test does not exist
+there — and worse, a points metric scores the change *backwards*, because a bot that takes a
+safe sixty gives up points on purpose. `arena/games.py` plays whole games to the target,
+paired with the sides swapped, and counts games won.
+
+| version | target 1000 | target 2500 |
+|---|---|---|
+| v1 — logistic scaled to one round | 50.75% (p=0.48) | **44.62%** (p=3e-06) |
+| v2 — scale by √(rounds left) | 50.50% (p=0.66) | **46.88%** (p=0.004) |
+| v3 — projection only near the line | 49.38% (p=0.58) | 50.25% (p=0.78) |
+
+**v1** saturated. A fixed scale of one round's points put any real lead at ~0.99, so every
+move scored the same and the search had no gradient. The longer the game the more of it was
+spent in that dead zone, which is the 1000-against-2500 split.
+
+**v2** fixed the scale — a lead is worth what is left to happen to it, and points accumulate
+like a random walk, so the spread of the remainder grows with √(rounds remaining). Still lost.
+That second failure is what said the *shape* was wrong rather than the constants: with
+twenty-five rounds to play one round genuinely barely moves the win probability, so nearly
+every rollout comes back at ~0.5 and UCT has nothing to separate the moves with. **A correct
+objective with no variance is a worse search than a proxy with plenty.**
+
+**v3** only lets the projection take over as the line comes into reach — beyond four rounds
+out the reward is the round's share, bit for bit the old bot, which is why it cannot give
+ground where the first two did.
+
+Null, then, not a gain: it acts only in the last round or two of a game, and at n=400 games
+the interval is ±2.2%. It is kept because playing for the round when the game has a finishing
+line is wrong regardless of whether the wrongness is detectable, and because v3 provably
+reduces to the previous behaviour everywhere else. **No strength is claimed for it.**
+
+Two gaps left in it deliberately: both teams crossing at once is scored ½, because who wins
+depends on the Stöck-Weis-Stich ordering the search cannot see; and Stöck is left out of the
+projection, since it is private until the second honour is played and feeding it to the agent
+would hand it information the table does not have. Weis is public once called, and is in.
+
+---
+
+## 5e. Why a determinization prior cannot help — with the mechanism
+
+Five different priors have now been put on the world sampler. All five measured nothing:
+void constraints were already in and are exact, and on top of those came the discard
+convention (§5c, two nulls), and the bidding — which is the strongest signal available.
+
+| prior | share | n | p |
+|---|---|---|---|
+| reads the bidding vs ignores it | 50.03% ± 6.54 | 1000 | 0.88 |
+
+That last one should have worked. Unlike a convention it is *forced* — everybody bids — it is
+there from the first card rather than accumulating, and the effect in the hands is large.
+Measured over 40,000 hands put through the actual bidder:
+
+| bid | frequency | aces (average 1.00) | cards in the chosen suit (random 2.25) |
+|---|---|---|---|
+| Obenabe | 2.8% | **2.66** | — |
+| Undenufe | 7.1% | **0.53** | — |
+| Schieben | 26.7% | 0.72 | — (and flat: 3.22 longest vs 3.63) |
+| a suit | 63.5% | ~1.10 | **3.7** |
+
+It still measured zero, so the next question is why — because five nulls is a pattern and a
+pattern invites a sixth attempt.
+
+**The mechanism.** Instrument the decisions the prior changes:
+
+| | vote margin | |
+|---|---|---|
+| decisions the prior changed | **9.6 points** | 20% of decisions |
+| decisions it left alone | **48.0 points** | 80% |
+
+and the score gap between the two cards, as the *unprimed* search itself rated them, is
+**0.0081** on a 0–1 scale — around 1.3 card points in 162.
+
+A prior does not change what a world is worth. It changes which worlds get looked at, so it
+can only move a decision whose vote was nearly split — and a nearly split vote is, by
+definition, one where the search rated both cards the same. **It moves the answer exactly
+where the answer does not matter**, and the direction it moves is inside the search's own
+noise.
+
+That predicts all five nulls at once, and it predicts the sixth. The obvious next idea is
+reading the *lead* — a declarer who does not draw trumps is thinner in them, and our own bots
+do play it: leading trump they hold 3.43 trumps, leading a side suit 2.76. Real, and about
+half the strength of the bidding signal that already measured zero. It is not worth building.
+
+**What this leaves.** To gain points you have to change decisions that currently have
+48-point margins, and no prior can. Two places can:
+
+- **the evaluation** — what a leaf is worth. It is a *random playout*, which sets the value of
+  every world and is the crudest component in the engine.
+- **the aggregation** — how worlds become one choice. Voting discards the constraint that
+  makes the game hard: one card has to work across worlds you cannot tell apart.
+
+Both move large-margin decisions. Neither is a prior. That is the same conclusion §5c reached
+about partner play, arrived at from a different direction.
 
 ---
 

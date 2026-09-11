@@ -51,6 +51,11 @@ class Observation:
     trick_leader: int
     tricks_played: tuple[tuple[int, tuple[int, ...]], ...] = ()
     scores: tuple[int, int] = (0, 0)
+    #: Weis awarded this round, per team. Public: the table finished calling in the first
+    #: trick and the result was announced. Stöck has no counterpart here — it stays private
+    #: until the second honour is played, so it is not in an observation and not in the
+    #: search's projection either.
+    weis_points: tuple[int, int] = (0, 0)
     weis_announced: tuple = ()
     time_budget_ms: int = 1500
     decision_seed: int = 0
@@ -59,6 +64,18 @@ class Observation:
     @property
     def team(self) -> int:
         return team_of(self.seat)
+
+    @property
+    def forehand(self) -> int:
+        """Seat that led the round — the one that had first call in the bidding.
+
+        Derived rather than carried: it is the leader of the first trick, and before a card
+        is played it is simply the current leader. A property, so the frozen-shape test in
+        `test_observation.py` still guards the fields that cross the boundary.
+        """
+        if self.tricks_played:
+            return self.tricks_played[0][0]
+        return self.trick_leader
 
     @property
     def played(self) -> int:
@@ -88,6 +105,7 @@ def build_observation(
     *,
     declarer_seat: int = 0,
     scores: tuple[int, int] = (0, 0),
+    weis_points: tuple[int, int] = (0, 0),
     time_budget_ms: int = 1500,
     decision_seed: int = 0,
     round_index: int = 0,
@@ -108,6 +126,7 @@ def build_observation(
         trick_leader=state.leader,
         tricks_played=tuple(state.tricks_played),
         scores=scores,
+        weis_points=weis_points,
         time_budget_ms=time_budget_ms,
         decision_seed=decision_seed,
         round_index=round_index,

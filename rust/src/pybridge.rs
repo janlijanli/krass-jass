@@ -9,8 +9,10 @@
 use pyo3::prelude::*;
 
 use crate::awareness::trick_taker;
+use crate::bidding::infer_from_bid;
 use crate::convention;
 use crate::determinize::determinize;
+use crate::objective::{reward, Stakes};
 use crate::reading::infer_affinity;
 use crate::rng::Rng;
 use crate::search::Candidate;
@@ -239,6 +241,43 @@ fn rs_trick_taker(cards: Vec<usize>, leader: usize, contract: usize) -> Option<u
     trick_taker(&cards, leader, contract)
 }
 
+/// What the bidding says, exposed so the Python mirror can be held to the same answer.
+#[pyfunction]
+fn rs_infer_from_bid(
+    forehand: usize,
+    declarer: usize,
+    contract: usize,
+    seat: usize,
+) -> (Vec<Vec<i8>>, Vec<i8>) {
+    let (suits, ranks) = infer_from_bid(forehand, declarer, contract, seat);
+    (suits.iter().map(|r| r.to_vec()).collect(), ranks.to_vec())
+}
+
+/// The search's reward, exposed so the Python mirror can be held to the same numbers.
+#[pyfunction]
+#[pyo3(signature = (ours, theirs, team, scores, weis, target, multiplier))]
+fn rs_reward(
+    ours: i32,
+    theirs: i32,
+    team: usize,
+    scores: (i32, i32),
+    weis: (i32, i32),
+    target: i32,
+    multiplier: i32,
+) -> f64 {
+    reward(
+        ours,
+        theirs,
+        team,
+        &Stakes {
+            scores: [scores.0, scores.1],
+            bonus: [weis.0, weis.1],
+            target,
+            multiplier,
+        },
+    )
+}
+
 /// What the discards suggest, per seat and suit. Mirror of `krass_jass/reading.py`.
 #[pyfunction]
 fn rs_infer_affinity(
@@ -257,7 +296,7 @@ fn rs_infer_affinity(
 /// that the prior tilts the sampling and that it never removes a world — are statements about
 /// a *distribution*, so they need many draws rather than one search.
 #[pyfunction]
-#[pyo3(signature = (unseen, counts, forbidden, affinity, seed, samples))]
+#[pyo3(signature = (unseen, counts, forbidden, affinity, seed, samples, rank_bias=None))]
 fn rs_determinize(
     unseen: u64,
     counts: Vec<usize>,
@@ -265,6 +304,7 @@ fn rs_determinize(
     affinity: Vec<Vec<i8>>,
     seed: u64,
     samples: usize,
+    rank_bias: Option<Vec<i8>>,
 ) -> Vec<Vec<u64>> {
     let mut c = [0usize; 4];
     c.copy_from_slice(&counts[..4]);
@@ -276,11 +316,17 @@ fn rs_determinize(
             a[seat][suit] = n;
         }
     }
+    let mut rb = [0i8; 4];
+    if let Some(rows) = rank_bias {
+        for (i, &v) in rows.iter().enumerate().take(4) {
+            rb[i] = v;
+        }
+    }
     let mut rng = Rng::new(seed | 1);
     let mut out = Vec::with_capacity(samples);
     for _ in 0..samples {
         let mut dealt = [0u64; 4];
-        if determinize(unseen, &c, &f, &a, &mut dealt, &mut rng) {
+        if determinize(unseen, &c, &f, &a, &rb, &mut dealt, &mut rng) {
             out.push(dealt.to_vec());
         }
     }
@@ -512,6 +558,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_trick_taker, m)?)?;
     m.add_function(wrap_pyfunction!(rs_convention_choose, m)?)?;
     m.add_function(wrap_pyfunction!(rs_infer_affinity, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_reward, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_infer_from_bid, m)?)?;
     m.add_function(wrap_pyfunction!(rs_determinize, m)?)?;
     m.add_function(wrap_pyfunction!(rs_select_trump, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trump_scores, m)?)?;

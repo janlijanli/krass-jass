@@ -16,6 +16,7 @@ use crate::determinize::determinize;
 use crate::endgame::solve_root;
 use crate::legal::legal_moves;
 use crate::rng::Rng;
+use crate::objective::{reward, Stakes};
 use crate::rollout::{pick_random, play_out, Kernel};
 use crate::tables::{CARD_VALUES, STRENGTH};
 
@@ -32,8 +33,16 @@ pub struct Position {
     pub trick_leader: usize,
     /// Per seat, a mask of cards that seat provably cannot hold.
     pub forbidden: [u64; NUM_SEATS],
-    /// Per seat and suit, a soft prior from `reading.rs`. Zeroes mean uniform sampling.
+    /// Per seat and suit, a soft prior from `reading.rs` and `bidding.py`. Zeroes are uniform.
     pub affinity: [[i8; 4]; NUM_SEATS],
+    /// Per seat, a pull towards high cards (positive) or low ones — what a bid says about
+    /// ranks. See `krass_jass/bidding.py`.
+    pub rank_bias: [i8; NUM_SEATS],
+    /// The game around this round. `target: 0` falls back to the share of the round.
+    pub stakes: Stakes,
+    /// Model opponents as opponents. False reproduces the original search, which maximised
+    /// the root team's value at *every* node — see `Tree::uct_child`.
+    pub adversarial: bool,
 }
 
 impl Position {
@@ -92,6 +101,9 @@ struct Tree {
     nodes: Vec<Node>,
     k: Kernel,
     exploration: f64,
+    stakes: Stakes,
+    /// Model the opposition as playing against you rather than with you.
+    adversarial: bool,
 }
 
 /// Mutable game state carried down one descent.
@@ -105,7 +117,7 @@ struct Walk {
 }
 
 impl Tree {
-    fn new(k: Kernel, exploration: f64, untried: u64) -> Self {
+    fn new(k: Kernel, exploration: f64, untried: u64, stakes: Stakes, adversarial: bool) -> Self {
         Tree {
             nodes: vec![Node {
                 visits: 0,
@@ -116,6 +128,8 @@ impl Tree {
             }],
             k,
             exploration,
+            stakes,
+            adversarial,
         }
     }
 
@@ -176,9 +190,18 @@ impl Tree {
         }
     }
 
-    fn uct_child(&self, node_idx: usize) -> usize {
+    /// UCT, from the point of view of whoever is about to play at this node.
+    ///
+    /// `total` is banked in root-team units throughout, so a seat on the other team wants
+    /// `1 - mean` — the reward lives in [0, 1] and the two teams split a round between them.
+    /// Without that flip the tree picks, at an opponent's turn, whichever card is best *for
+    /// the root team*, and the value that comes back is what happens when the opposition
+    /// cooperates. Partners keep the root team's sign: a Jass team shares a score, so a
+    /// partner maximising the team value is modelling them correctly, not optimistically.
+    fn uct_child(&self, node_idx: usize, to_play: usize, root_team: usize) -> usize {
         let node = &self.nodes[node_idx];
         let log_v = ((node.visits + 1) as f64).ln();
+        let ours = !self.adversarial || (to_play & 1) == root_team;
         let mut best = usize::MAX;
         let mut best_score = f64::NEG_INFINITY;
         for &(_, ci) in &node.children {
@@ -186,7 +209,9 @@ impl Tree {
             let score = if c.visits == 0 {
                 f64::INFINITY
             } else {
-                c.total / c.visits as f64 + self.exploration * (log_v / c.visits as f64).sqrt()
+                let mean = c.total / c.visits as f64;
+                let mean = if ours { mean } else { 1.0 - mean };
+                mean + self.exploration * (log_v / c.visits as f64).sqrt()
             };
             if score > best_score {
                 best_score = score;
@@ -233,7 +258,7 @@ impl Tree {
                 break; // terminal
             }
 
-            let child = self.uct_child(node_idx);
+            let child = self.uct_child(node_idx, w.to_play, root_team);
             let card = self.nodes[node_idx]
                 .children
                 .iter()
@@ -262,9 +287,9 @@ impl Tree {
         w.pts[0] += a;
         w.pts[1] += b;
 
-        // Score from the searching team's point of view, normalised to [0, 1].
-        let total = (w.pts[0] + w.pts[1]).max(1) as f64;
-        let result = w.pts[root_team] as f64 / total;
+        // Score from the searching team's point of view, normalised to [0, 1]. Not a share
+        // of the round any more — where the round leaves the *game*. See objective.rs.
+        let result = reward(w.pts[root_team], w.pts[1 - root_team], root_team, &self.stakes);
         for &n in &path {
             self.nodes[n].visits += 1;
             self.nodes[n].total += result;
@@ -327,7 +352,8 @@ pub fn dmcts(
         for _ in 0..64 {
             let mut dealt = [0u64; NUM_SEATS];
             if determinize(
-                pos.unseen, &counts, &pos.forbidden, &pos.affinity, &mut dealt, &mut rng
+                pos.unseen, &counts, &pos.forbidden, &pos.affinity, &pos.rank_bias,
+                &mut dealt, &mut rng,
             ) {
                 for s in 0..NUM_SEATS {
                     if s != pos.seat {
@@ -381,7 +407,7 @@ pub fn dmcts(
             return (out, best_card);
         }
 
-        let mut tree = Tree::new(*k, exploration, root_legal);
+        let mut tree = Tree::new(*k, exploration, root_legal, pos.stakes, pos.adversarial);
         for _ in 0..iterations {
             let mut w = Walk {
                 hands,

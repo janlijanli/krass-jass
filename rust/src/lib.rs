@@ -15,6 +15,7 @@ use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 
 pub mod awareness;
+pub mod bidding;
 pub mod cards;
 pub mod config;
 pub mod convention;
@@ -24,6 +25,7 @@ pub mod game;
 pub mod determinize;
 pub mod endgame;
 pub mod legal;
+pub mod objective;
 pub mod reading;
 pub mod rng;
 pub mod rollout;
@@ -155,9 +157,10 @@ fn play_out_many(
 /// per legal move, best first — the shape the decision trace in `PLAN.md` §6 expects.
 #[pyfunction]
 #[pyo3(signature = (
-    seat, hand, unseen, trick, trick_leader, contract, forbidden=None, affinity=None,
+    seat, hand, unseen, trick, trick_leader, contract, forbidden=None, affinity=None, rank_bias=None,
     determinizations=1000, iterations=800, exploration=1.5, seed=0, threads=1,
-    endgame_cards=5, strict_undertrump=true, puur_exempt=true
+    endgame_cards=5, strict_undertrump=true, puur_exempt=true,
+    scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -170,6 +173,7 @@ fn dmcts(
     contract: usize,
     forbidden: Option<Vec<u64>>,
     affinity: Option<Vec<Vec<i8>>>,
+    rank_bias: Option<Vec<i8>>,
     determinizations: usize,
     iterations: usize,
     exploration: f64,
@@ -178,6 +182,11 @@ fn dmcts(
     endgame_cards: u32,
     strict_undertrump: bool,
     puur_exempt: bool,
+    scores: (i32, i32),
+    weis: (i32, i32),
+    target: i32,
+    multiplier: i32,
+    adversarial: bool,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -200,6 +209,13 @@ fn dmcts(
             }
         }
     }
+    let mut rb = [0i8; NUM_SEATS];
+    if let Some(rows) = rank_bias {
+        if rows.len() != NUM_SEATS {
+            return Err(PyValueError::new_err("rank_bias must have 4 entries"));
+        }
+        rb.copy_from_slice(&rows);
+    }
     let k = make_kernel(contract, strict_undertrump, puur_exempt, 5, 0)?;
     let pos = search::Position {
         seat: seat & 3,
@@ -209,6 +225,16 @@ fn dmcts(
         trick_leader: trick_leader & 3,
         forbidden: v,
         affinity: a,
+        rank_bias: rb,
+        // `target: 0` keeps the old behaviour — the share of this round — which is what the
+        // round-level arena measures and what every figure before measurements.md §5d used.
+        stakes: objective::Stakes {
+            scores: [scores.0, scores.1],
+            bonus: [weis.0, weis.1],
+            target,
+            multiplier,
+        },
+        adversarial,
     };
     // Long CPU-bound work: release the GIL so the caller stays responsive and rayon can
     // actually use the cores.

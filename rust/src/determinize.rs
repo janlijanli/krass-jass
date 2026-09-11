@@ -43,6 +43,26 @@ fn weight(affinity: i8) -> u32 {
     }
 }
 
+/// Ranks 0..4 are ace down to ten; 5..8 are the nine down to the six.
+///
+/// A bid says more about ranks than about suits — Obenabe means aces, Undenufe means the
+/// opposite, a shove means neither — so the sampler needs a pull along the rank axis as well
+/// as the suit one. Two bands rather than nine weights: the evidence is "this hand is full of
+/// tops" or "this hand has none", not a curve.
+const HIGH_BAND: u64 = {
+    let mut m = 0u64;
+    let mut suit = 0;
+    while suit < NUM_SUITS {
+        let mut rank = 0;
+        while rank < 5 {
+            m |= 1u64 << (suit * NUM_RANKS + rank);
+            rank += 1;
+        }
+        suit += 1;
+    }
+    m
+};
+
 /// Deal `unseen` into the seats needing cards, respecting proven constraints.
 ///
 /// `counts[seat]` is how many cards that seat holds; `forbidden[seat]` a mask of cards it
@@ -54,6 +74,7 @@ pub fn determinize(
     counts: &[usize; NUM_SEATS],
     forbidden: &[u64; NUM_SEATS],
     affinity: &[[i8; 4]; NUM_SEATS],
+    rank_bias: &[i8; NUM_SEATS],
     out: &mut [u64; NUM_SEATS],
     rng: &mut Rng,
 ) -> bool {
@@ -75,7 +96,9 @@ pub fn determinize(
         // runs vary by ±1.5% and any difference is inside that. It is here because doing
         // arithmetic to arrive at "uniform" in the hot loop is silly, not because a number
         // said so.
-        let flat = affinity[seat] == [0i8; 4];
+        let flat = affinity[seat] == [0i8; 4] && rank_bias[seat] == 0;
+        let high_w = weight(rank_bias[seat]);
+        let low_w = weight(-rank_bias[seat]);
 
         let mut hand = 0u64;
         for _ in 0..counts[seat] {
@@ -100,8 +123,11 @@ pub fn determinize(
             let mut total = 0u32;
             let mut per_suit = [0u32; NUM_SUITS];
             for suit in 0..NUM_SUITS {
-                let n = (allowed & SUIT_MASK[suit]).count_ones();
-                per_suit[suit] = n * weight(affinity[seat][suit]);
+                let in_suit = allowed & SUIT_MASK[suit];
+                let highs = (in_suit & HIGH_BAND).count_ones();
+                let lows = (in_suit & !HIGH_BAND).count_ones();
+                per_suit[suit] =
+                    (highs * high_w + lows * low_w) * weight(affinity[seat][suit]) / 16;
                 total += per_suit[suit];
             }
             let mut pick = rng.below(total);
@@ -114,7 +140,17 @@ pub fn determinize(
                 pick -= per_suit[suit];
             }
 
-            let mut m = allowed & SUIT_MASK[chosen];
+            // And the rank band inside it, on the same weights.
+            let in_suit = allowed & SUIT_MASK[chosen];
+            let highs = (in_suit & HIGH_BAND).count_ones();
+            let lows = (in_suit & !HIGH_BAND).count_ones();
+            let band = if rng.below(highs * high_w + lows * low_w) < highs * high_w {
+                in_suit & HIGH_BAND
+            } else {
+                in_suit & !HIGH_BAND
+            };
+
+            let mut m = band;
             let n = m.count_ones();
             for _ in 0..rng.below(n) {
                 m &= m - 1;

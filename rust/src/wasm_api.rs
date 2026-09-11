@@ -16,6 +16,8 @@ use crate::cards::{card_list, card_suit, format_card, NUM_SEATS};
 use crate::config::Rules;
 use crate::convention;
 use crate::game::{Game, Phase};
+use crate::objective::Stakes;
+use crate::bidding::infer_from_bid;
 use crate::reading::infer_affinity;
 use crate::rng::Rng;
 use crate::rollout::Kernel;
@@ -180,11 +182,19 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
         // rather than rebuild the machinery. Flipping this alone changes how the browser bot
         // plays, so it stays in step with the Python default in `agent.py`.
         const READ_SIGNALS: bool = false;
-        let affinity = if READ_SIGNALS {
+        let read = if READ_SIGNALS {
             infer_affinity(&round.tricks_played, &round.trick, round.leader, round.trump)
         } else {
             [[0i8; 4]; NUM_SEATS]
         };
+        let (bid_suits, bid_ranks) =
+            infer_from_bid(game.forehand, game.declarer, contract, seat);
+        let mut affinity = read;
+        for s in 0..NUM_SEATS {
+            for suit in 0..4 {
+                affinity[s][suit] = (affinity[s][suit] + bid_suits[s][suit]).clamp(-2, 2);
+            }
+        }
         let position = Position {
             seat,
             hand: round.hands[seat],
@@ -193,6 +203,18 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
             trick_leader: round.leader,
             forbidden,
             affinity,
+            // What the bidding said about the other hands — the loudest information in the
+            // round, and until now the search ignored all of it. See krass_jass/bidding.py.
+            rank_bias: bid_ranks,
+            // Where this round leaves the game, which is what the search is playing for.
+            // Weis is public once called; Stöck is not, and is left out. See objective.rs.
+            stakes: Stakes {
+                scores: [game.scores[0], game.scores[1]],
+                bonus: [game.weis_points_public(0), game.weis_points_public(1)],
+                target: game.rules.target_score,
+                multiplier: game.rules.multiplier(contract),
+            },
+            adversarial: true,
         };
         let out = dmcts(
             &position,

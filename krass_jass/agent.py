@@ -15,7 +15,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
-from . import convention, native, reading
+from . import bidding, convention, native, reading
 from .cards import card_list
 from .observation import Observation
 from .rules import HOUSE, SHOVE, Contract, RulesConfig
@@ -101,6 +101,14 @@ class DmctsAgent(Agent):
     #: signals deliberately (`docs/measurements.md` §5c). Kept switchable so the next person
     #: to have the idea can re-run the match instead of rebuilding it.
     signal_reading: bool = False
+    #: Model the other team as playing against you. False reproduces the original search,
+    #: which maximised the root team's value at every node in the tree — including the
+    #: opponents' — and so valued lines by what happens when they cooperate.
+    adversarial: bool = True
+    #: Read the bidding into the imagined hands: Obenabe means aces, a shove means neither,
+    #: choosing a suit means length in it. Unlike a discard convention this is forced — every
+    #: seat has to bid — so the signal is always there. See `krass_jass/bidding.py`.
+    read_bidding: bool = True
 
     @property
     def name(self) -> str:
@@ -120,7 +128,6 @@ class DmctsAgent(Agent):
         )
         # What the play proves, and separately what it suggests. The first removes worlds
         # from the search; the second only changes how often it visits them.
-        affinity = self._affinity(obs)
         candidates = native.dmcts(
             seat=obs.seat,
             hand=obs.hand,
@@ -130,13 +137,14 @@ class DmctsAgent(Agent):
             contract=obs.contract,
             cfg=self.cfg,
             forbidden=forbidden,
-            affinity=affinity,
+            **self._priors(obs),
             determinizations=self.determinizations,
             iterations=self.iterations,
             exploration=self.exploration,
             seed=obs.decision_seed,
             threads=self.threads,
             endgame_cards=self.endgame_cards,
+            **self._stakes(obs),
         )
         if not self.conventions:
             return candidates[0][0]
@@ -144,13 +152,43 @@ class DmctsAgent(Agent):
         # krass_jass/convention.py for why that restriction is the whole design.
         return convention.choose(candidates, obs, forbidden)
 
-    def _affinity(self, obs: Observation) -> list[list[int]] | None:
-        """The soft prior, or nothing at all when signal reading is switched off."""
-        if not self.signal_reading:
-            return None
-        return reading.infer_affinity(
-            list(obs.tricks_played), list(obs.trick), obs.trick_leader, obs.contract, self.cfg
-        )
+    def _stakes(self, obs: Observation) -> dict:
+        """What this round is for: the game score, the Weis already banked, the line.
+
+        `target_score` of `None` — which is what `EVAL` uses — leaves the search maximising
+        this round's share, the objective every figure before `docs/measurements.md` §5d was
+        measured with.
+        """
+        target = self.cfg.target_score or 0
+        return {
+            "scores": tuple(obs.scores),
+            "weis": tuple(obs.weis_points),
+            "target": target,
+            "multiplier": self.cfg.multiplier(obs.contract) if target else 1,
+            "adversarial": self.adversarial,
+        }
+
+    def _priors(self, obs: Observation) -> dict:
+        """Everything that tilts which worlds get imagined, and nothing that forbids one.
+
+        Two sources, both soft and both bounded: what the discards suggest (off by default,
+        measured at nothing) and what the bidding said (on).
+        """
+        suits = [[0] * 4 for _ in range(4)]
+        ranks = [0] * 4
+        if self.signal_reading:
+            suits = reading.infer_affinity(
+                list(obs.tricks_played), list(obs.trick), obs.trick_leader, obs.contract,
+                self.cfg,
+            )
+        if self.read_bidding:
+            bid_suits, ranks = bidding.infer_from_bid(
+                obs.forehand, obs.declarer_seat, obs.contract, obs.seat, self.cfg
+            )
+            suits = bidding.merge(suits, bid_suits)
+        if not any(any(r) for r in suits) and not any(ranks):
+            return {"affinity": None, "rank_bias": None}
+        return {"affinity": suits, "rank_bias": ranks}
 
     def trace(self, obs: Observation) -> list[tuple[int, int, float, int]]:
         """Per-candidate statistics for the decision record in `PLAN.md` §6."""
@@ -160,8 +198,9 @@ class DmctsAgent(Agent):
         return native.dmcts(
             seat=obs.seat, hand=obs.hand, unseen=obs.unseen, trick=list(obs.trick),
             trick_leader=obs.trick_leader, contract=obs.contract, cfg=self.cfg,
-            forbidden=forbidden, affinity=self._affinity(obs),
+            forbidden=forbidden, **self._priors(obs),
             determinizations=self.determinizations,
             iterations=self.iterations, exploration=self.exploration,
             seed=obs.decision_seed, threads=self.threads, endgame_cards=self.endgame_cards,
+            **self._stakes(obs),
         )

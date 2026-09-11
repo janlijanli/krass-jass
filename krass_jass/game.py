@@ -132,6 +132,7 @@ class Game:
             seat,
             declarer_seat=self.declarer,
             scores=(self.scores[0], self.scores[1]),
+            weis_points=(self._weis[0], self._weis[1]),
             time_budget_ms=time_budget_ms,
             decision_seed=self.decision_seed(seat),
             round_index=self.round_index,

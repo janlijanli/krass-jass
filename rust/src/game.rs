@@ -151,6 +151,15 @@ impl Game {
         }
     }
 
+    /// Weis awarded this round, per team.
+    ///
+    /// Public from the moment the table has finished calling — which is the only moment it
+    /// is non-zero, so handing it to the search leaks nothing. Stöck has no equivalent: it
+    /// is held privately until the second honour goes down, and stays out of the projection.
+    pub fn weis_points_public(&self, team: usize) -> i32 {
+        self.weis_points[team]
+    }
+
     pub fn to_act(&self) -> Option<usize> {
         match self.phase {
             // The question belongs to whoever is about to play: it is asked on their turn
