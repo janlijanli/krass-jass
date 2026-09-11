@@ -96,7 +96,7 @@ function renderTafel(view) {
   const legend = document.createElement("p");
   legend.className = "tafel-legend";
   legend.innerHTML =
-    "long stroke 100 &nbsp;·&nbsp; half stroke 50 &nbsp;·&nbsp; tick 20 &nbsp;·&nbsp; " +
+    "strokes by band &nbsp;·&nbsp; <b>X</b> 1000 &nbsp;·&nbsp; <b>V</b> 500 &nbsp;·&nbsp; " +
     "the rest written out";
   slate.append(legend);
 }

@@ -494,7 +494,13 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
   letter-spacing: .04em;
 }
 .chalk-head { font-size: 15px; }
-.chalk-number { font-size: 17px; }
+.chalk-number { font-size: 16px; }
+.chalk-symbol { fill: #f3f1ea; fill-opacity: .85; font-size: 19px; font-family: "Bradley Hand", "Segoe Print", "Comic Sans MS", ui-rounded, cursive; }
+/* The printed band labels on a real board, not chalk — faint and out of the way. */
+.chalk-band {
+  fill: #f3f1ea; fill-opacity: .28; font-size: 9px;
+  font-family: ui-rounded, system-ui, sans-serif; letter-spacing: .04em;
+}
 .slate-note {
   margin: 12px 10px 0; text-align: center;
   font-size: 11px; letter-spacing: .04em;
