@@ -15,7 +15,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
-from . import convention, native
+from . import convention, native, reading
 from .cards import card_list
 from .observation import Observation
 from .rules import HOUSE, SHOVE, Contract, RulesConfig
@@ -95,6 +95,12 @@ class DmctsAgent(Agent):
     #: subclass so the arena can A/B it — a convention that costs points is not one worth
     #: having, and that is a claim somebody has to be able to check.
     conventions: bool = True
+    #: Read the other seats' discards as signals and tilt the determinization towards the
+    #: worlds they suggest. **Off**, and the flag exists because that is a measured decision
+    #: rather than an opinion: it is worth nothing at this budget even against a partner who
+    #: signals deliberately (`docs/measurements.md` §5c). Kept switchable so the next person
+    #: to have the idea can re-run the match instead of rebuilding it.
+    signal_reading: bool = False
 
     @property
     def name(self) -> str:
@@ -112,6 +118,9 @@ class DmctsAgent(Agent):
             obs.contract,
             self.cfg,
         )
+        # What the play proves, and separately what it suggests. The first removes worlds
+        # from the search; the second only changes how often it visits them.
+        affinity = self._affinity(obs)
         candidates = native.dmcts(
             seat=obs.seat,
             hand=obs.hand,
@@ -121,6 +130,7 @@ class DmctsAgent(Agent):
             contract=obs.contract,
             cfg=self.cfg,
             forbidden=forbidden,
+            affinity=affinity,
             determinizations=self.determinizations,
             iterations=self.iterations,
             exploration=self.exploration,
@@ -134,6 +144,14 @@ class DmctsAgent(Agent):
         # krass_jass/convention.py for why that restriction is the whole design.
         return convention.choose(candidates, obs, forbidden)
 
+    def _affinity(self, obs: Observation) -> list[list[int]] | None:
+        """The soft prior, or nothing at all when signal reading is switched off."""
+        if not self.signal_reading:
+            return None
+        return reading.infer_affinity(
+            list(obs.tricks_played), list(obs.trick), obs.trick_leader, obs.contract, self.cfg
+        )
+
     def trace(self, obs: Observation) -> list[tuple[int, int, float, int]]:
         """Per-candidate statistics for the decision record in `PLAN.md` §6."""
         forbidden = infer_forbidden(
@@ -142,7 +160,8 @@ class DmctsAgent(Agent):
         return native.dmcts(
             seat=obs.seat, hand=obs.hand, unseen=obs.unseen, trick=list(obs.trick),
             trick_leader=obs.trick_leader, contract=obs.contract, cfg=self.cfg,
-            forbidden=forbidden, determinizations=self.determinizations,
+            forbidden=forbidden, affinity=self._affinity(obs),
+            determinizations=self.determinizations,
             iterations=self.iterations, exploration=self.exploration,
             seed=obs.decision_seed, threads=self.threads, endgame_cards=self.endgame_cards,
         )

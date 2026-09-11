@@ -44,6 +44,7 @@ def dmcts(
     contract: Contract,
     cfg: RulesConfig,
     forbidden: list[int] | None = None,
+    affinity: list[list[int]] | None = None,
     determinizations: int = 1000,
     iterations: int = 800,
     exploration: float = 1.5,
@@ -53,6 +54,9 @@ def dmcts(
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
+
+    `forbidden` is what the play *proves* (`voids.py`); `affinity` what it *suggests*
+    (`reading.py`). The first removes worlds, the second only makes some likelier.
 
     `seed` must be the engine's derived per-decision seed, never the game seed — see
     `CLAUDE.md` on the information boundary. Results are independent of `threads`.
@@ -66,6 +70,7 @@ def dmcts(
         trick_leader=trick_leader,
         contract=int(contract),
         forbidden=forbidden,
+        affinity=affinity,
         determinizations=determinizations,
         iterations=iterations,
         exploration=exploration,

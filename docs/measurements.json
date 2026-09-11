@@ -32,6 +32,15 @@
     "note": "Table conventions on against off, identical search budget both sides. They only re-order moves the search rated the same, so what is being tested is that they cost nothing — not that they gain."
   },
 
+  "signal_reading": {
+    "note": "Reading the discard convention into the determinization prior. Two nulls and one borderline p=0.049 that did not replicate; reported as a null and off by default. See measurements.md §5c.",
+    "runs": [
+      { "partner": "our bots (signal only on ties)", "share": 49.85, "std": 4.96, "deals": 600, "p": 0.46 },
+      { "partner": "disciplined signaller", "share": 50.47, "std": 5.87, "deals": 600, "p": 0.049 },
+      { "partner": "disciplined signaller, fresh seed", "share": 49.99, "std": 5.64, "deals": 1000, "p": 0.95 }
+    ]
+  },
+
   "budget_sweep": {
     "deals": 500,
     "reference": 2400,

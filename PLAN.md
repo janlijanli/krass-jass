@@ -202,6 +202,7 @@ The relevant work is Joel Niklaus's 2019 Fribourg master's thesis (*JassTheRippe
   - Sampling determinizations from a *learned card-distribution model* did **not** beat uniform random sampling. It mostly increased variance.
   - Replacing random rollouts with rule-based rollouts did **not** improve DMCTS.
   - Both are warnings against premature cleverness. Uniform sampling + more compute wins.
+  - **Reproduced, for a prior that is not a learned one.** We built the obvious objection to that first result: `krass_jass/reading.py` tilts the determinization by what the *discard convention* says rather than by a fitted corpus, bounded four-to-one so no world is removed. It is worth nothing — two nulls and one borderline p that did not replicate (`docs/measurements.md` §5c). Off by default, kept behind a flag. The warning against premature cleverness survives contact with a cleverer prior.
 - **Trump selection:** a learned network was best (and a good *ranked rule-based* selector came within ~0.7 points of it — 49.26% vs 50%). Random trump selection scored 34% — trump choice alone is worth ~16 points of win rate. A simple rule-based selector gets you nearly all of the available gain. **Do the rule-based one first.**
 - Search-based MCTS trump selection was *worse*, because it almost never learned to shove — and shoving is valuable, since it conveys information.
 

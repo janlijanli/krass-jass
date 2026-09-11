@@ -218,6 +218,11 @@ From the Fribourg/HSLU work on this exact variant (sources in `PLAN.md`):
   spend budget on flat Monte Carlo.
 - **Negative result:** sampling determinizations from a learned card-distribution model
   did *not* beat uniform random sampling. It mostly added variance.
+  **Reproduced with a non-learned prior.** `krass_jass/reading.py` reads the discard
+  convention the table is deliberately playing and tilts sampling by a bounded factor (no
+  world removed). Also worth nothing: two nulls and one p=0.049 that did not replicate
+  (`docs/measurements.md` §5c). Off by default, behind `DmctsAgent.signal_reading` and
+  `READ_SIGNALS` in `wasm_api.rs` — re-run the match before rebuilding it.
 - **Negative result:** rule-based rollouts did *not* beat random rollouts in DMCTS.
 - Trump selection is worth ~16 points of win rate over random, and a simple ranked
   rule-based selector captures nearly all of it. Build that before any network.

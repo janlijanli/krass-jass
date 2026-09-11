@@ -10,6 +10,9 @@ use pyo3::prelude::*;
 
 use crate::awareness::trick_taker;
 use crate::convention;
+use crate::determinize::determinize;
+use crate::reading::infer_affinity;
+use crate::rng::Rng;
 use crate::search::Candidate;
 use crate::config::Rules;
 use crate::scoring::{claim_sequence, score_round, RoundScore};
@@ -236,6 +239,54 @@ fn rs_trick_taker(cards: Vec<usize>, leader: usize, contract: usize) -> Option<u
     trick_taker(&cards, leader, contract)
 }
 
+/// What the discards suggest, per seat and suit. Mirror of `krass_jass/reading.py`.
+#[pyfunction]
+fn rs_infer_affinity(
+    tricks: Vec<(usize, Vec<usize>)>,
+    current_trick: Vec<usize>,
+    current_leader: usize,
+    trump: i32,
+) -> Vec<Vec<i8>> {
+    infer_affinity(&tricks, &current_trick, current_leader, trump)
+        .iter()
+        .map(|row| row.to_vec())
+        .collect()
+}
+
+/// Draw `samples` determinizations. Exposed for tests: the two properties worth pinning —
+/// that the prior tilts the sampling and that it never removes a world — are statements about
+/// a *distribution*, so they need many draws rather than one search.
+#[pyfunction]
+#[pyo3(signature = (unseen, counts, forbidden, affinity, seed, samples))]
+fn rs_determinize(
+    unseen: u64,
+    counts: Vec<usize>,
+    forbidden: Vec<u64>,
+    affinity: Vec<Vec<i8>>,
+    seed: u64,
+    samples: usize,
+) -> Vec<Vec<u64>> {
+    let mut c = [0usize; 4];
+    c.copy_from_slice(&counts[..4]);
+    let mut f = [0u64; 4];
+    f.copy_from_slice(&forbidden[..4]);
+    let mut a = [[0i8; 4]; 4];
+    for (seat, row) in affinity.iter().enumerate().take(4) {
+        for (suit, &n) in row.iter().enumerate().take(4) {
+            a[seat][suit] = n;
+        }
+    }
+    let mut rng = Rng::new(seed | 1);
+    let mut out = Vec::with_capacity(samples);
+    for _ in 0..samples {
+        let mut dealt = [0u64; 4];
+        if determinize(unseen, &c, &f, &a, &mut dealt, &mut rng) {
+            out.push(dealt.to_vec());
+        }
+    }
+    out
+}
+
 /// The convention tie-break, on a candidate list the caller already has.
 ///
 /// Exposed so `tests/test_convention.py` can hold both implementations to the same answer:
@@ -460,6 +511,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_infer_forbidden, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trick_taker, m)?)?;
     m.add_function(wrap_pyfunction!(rs_convention_choose, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_infer_affinity, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_determinize, m)?)?;
     m.add_function(wrap_pyfunction!(rs_select_trump, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trump_scores, m)?)?;
     Ok(())

@@ -24,6 +24,7 @@ pub mod game;
 pub mod determinize;
 pub mod endgame;
 pub mod legal;
+pub mod reading;
 pub mod rng;
 pub mod rollout;
 pub mod round;
@@ -154,7 +155,7 @@ fn play_out_many(
 /// per legal move, best first — the shape the decision trace in `PLAN.md` §6 expects.
 #[pyfunction]
 #[pyo3(signature = (
-    seat, hand, unseen, trick, trick_leader, contract, forbidden=None,
+    seat, hand, unseen, trick, trick_leader, contract, forbidden=None, affinity=None,
     determinizations=1000, iterations=800, exploration=1.5, seed=0, threads=1,
     endgame_cards=5, strict_undertrump=true, puur_exempt=true
 ))]
@@ -168,6 +169,7 @@ fn dmcts(
     trick_leader: usize,
     contract: usize,
     forbidden: Option<Vec<u64>>,
+    affinity: Option<Vec<Vec<i8>>>,
     determinizations: usize,
     iterations: usize,
     exploration: f64,
@@ -187,6 +189,17 @@ fn dmcts(
         }
         v.copy_from_slice(&vs);
     }
+    let mut a = [[0i8; 4]; NUM_SEATS];
+    if let Some(rows) = affinity {
+        if rows.len() != NUM_SEATS || rows.iter().any(|r| r.len() != 4) {
+            return Err(PyValueError::new_err("affinity must be 4 rows of 4"));
+        }
+        for (seat, row) in rows.iter().enumerate() {
+            for (suit, &n) in row.iter().enumerate() {
+                a[seat][suit] = n;
+            }
+        }
+    }
     let k = make_kernel(contract, strict_undertrump, puur_exempt, 5, 0)?;
     let pos = search::Position {
         seat: seat & 3,
@@ -195,6 +208,7 @@ fn dmcts(
         trick,
         trick_leader: trick_leader & 3,
         forbidden: v,
+        affinity: a,
     };
     // Long CPU-bound work: release the GIL so the caller stays responsive and rayon can
     // actually use the cores.

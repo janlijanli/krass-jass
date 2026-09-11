@@ -32,6 +32,8 @@ pub struct Position {
     pub trick_leader: usize,
     /// Per seat, a mask of cards that seat provably cannot hold.
     pub forbidden: [u64; NUM_SEATS],
+    /// Per seat and suit, a soft prior from `reading.rs`. Zeroes mean uniform sampling.
+    pub affinity: [[i8; 4]; NUM_SEATS],
 }
 
 impl Position {
@@ -324,7 +326,9 @@ pub fn dmcts(
         let mut ok = false;
         for _ in 0..64 {
             let mut dealt = [0u64; NUM_SEATS];
-            if determinize(pos.unseen, &counts, &pos.forbidden, &mut dealt, &mut rng) {
+            if determinize(
+                pos.unseen, &counts, &pos.forbidden, &pos.affinity, &mut dealt, &mut rng
+            ) {
                 for s in 0..NUM_SEATS {
                     if s != pos.seat {
                         hands[s] = dealt[s];

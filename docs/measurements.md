@@ -174,6 +174,49 @@ iteration is the interesting direction rather than more search.
 
 ---
 
+## 5c. Reading the signal is worth nothing — twice
+
+The other half of a convention is reading it. `krass_jass/reading.py` turns a seat's discards
+into a per-suit prior (threw Ecken → short in Ecken, asking for Herz) and `determinize.rs`
+samples the imagined worlds accordingly, weighted `2^affinity` and bounded four-to-one either
+way so that no world is ever removed. Against a partner who ignores the convention it costs
+sampling efficiency, never correctness — which is the property a hard constraint would not
+have, and the reason this is not the learned-distribution idea PLAN §3.1 warns about.
+
+It does not help.
+
+| | share | n | p |
+|---|---|---|---|
+| reading vs blind, our own bots as partner | 49.85% ± 4.96 | 600 | 0.46 |
+| reading vs blind, a *disciplined* signaller as partner | 50.47% ± 5.87 | 600 | **0.049** |
+| the same, fresh seed | 49.99% ± 5.64 | 1000 | 0.95 |
+
+The middle row is the interesting one, and it is why the third exists. The first null had an
+obvious candidate explanation — our bots only apply the convention among moves the search
+rated the same, so most of their discards carry no intent and there is nothing to read. So
+the sender was replaced with one that plays the convention on *every* discard, which is what
+a human who signals deliberately does. That came back at p = 0.049, in the predicted
+direction.
+
+It did not replicate. A borderline p found on the second look, after a null, is exactly the
+result most likely to be noise, and it was: the same match on a fresh seed and a larger
+sample is dead flat. **Reported as a null.** Had the replication been skipped, this section
+would be claiming a discovery.
+
+So the published negative result stands even for a prior built from a convention rather than
+fitted to a corpus. The reading is off by default and stays behind a flag
+(`DmctsAgent.signal_reading`, and `READ_SIGNALS` in `wasm_api.rs`) so the next person to have
+the idea re-runs the match instead of rebuilding the machinery.
+
+**Where this leaves partner play.** The gap is real and neither convention closed it. What
+the search optimises is one round's *share of card points* — `pts[team] / (pts[0] + pts[1])`,
+including the five for the last trick and the match bonus. Nothing in that objective knows
+the game score or the target, so at 940 chasing 1000 the bot still maximises share when it
+needs exactly 60 points, and the Stöck-Weis-Stich ordering that decides a shared crossing is
+invisible to it. That is a bigger and more promising target than signal reading.
+
+---
+
 ## 6. Open
 
 - Nothing measured against a human.

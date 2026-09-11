@@ -55,6 +55,7 @@ pub extern "C" fn bench_dmcts(determinizations: u32, iterations: u32, seed: u32)
         trick: Vec::new(),
         trick_leader: 0,
         forbidden: [0; NUM_SEATS],
+            affinity: [[0i8; 4]; NUM_SEATS],
     };
     let out = dmcts(
         &position,

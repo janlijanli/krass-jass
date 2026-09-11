@@ -16,6 +16,7 @@ use crate::cards::{card_list, card_suit, format_card, NUM_SEATS};
 use crate::config::Rules;
 use crate::convention;
 use crate::game::{Game, Phase};
+use crate::reading::infer_affinity;
 use crate::rng::Rng;
 use crate::rollout::Kernel;
 use crate::search::{dmcts, Position};
@@ -173,6 +174,17 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
             game.rules.last_trick_bonus,
             0,
         );
+        // What the discards suggest, alongside what they prove. Off, and the constant is
+        // here rather than the code being deleted because the decision is a measurement —
+        // `docs/measurements.md` §5c — and the next person to try it should re-run the match
+        // rather than rebuild the machinery. Flipping this alone changes how the browser bot
+        // plays, so it stays in step with the Python default in `agent.py`.
+        const READ_SIGNALS: bool = false;
+        let affinity = if READ_SIGNALS {
+            infer_affinity(&round.tricks_played, &round.trick, round.leader, round.trump)
+        } else {
+            [[0i8; 4]; NUM_SEATS]
+        };
         let position = Position {
             seat,
             hand: round.hands[seat],
@@ -180,6 +192,7 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
             trick: round.trick.clone(),
             trick_leader: round.leader,
             forbidden,
+            affinity,
         };
         let out = dmcts(
             &position,
