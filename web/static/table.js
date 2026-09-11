@@ -98,7 +98,8 @@ function renderTafel(view) {
   const legend = document.createElement("p");
   legend.className = "tafel-legend";
   legend.innerHTML =
-    "a stroke per band &nbsp;·&nbsp; every fifth crossed &nbsp;·&nbsp; the rest written out";
+    "<b>│</b> 100 &nbsp;·&nbsp; <b>✕</b> 50 &nbsp;·&nbsp; <b>╷</b> 20 &nbsp;·&nbsp; " +
+    "a full row struck &nbsp;·&nbsp; the rest written out";
   slate.append(legend);
 }
 

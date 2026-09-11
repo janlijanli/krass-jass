@@ -5,10 +5,10 @@
  * or what a trick is worth — it asks, and it renders the answer (docs/webapp-plan.md §1).
  */
 
-import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js?v=98d4c734";
+import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js?v=b1195712";
 
 export { render };
-import { drawTafel } from "./tafel.js?v=98d4c734";
+import { drawTafel } from "./tafel.js?v=b1195712";
 
 const MEASUREMENTS_URL = "/static/measurements.json";
 
@@ -101,7 +101,8 @@ function renderTafel(view) {
   const legend = document.createElement("p");
   legend.className = "tafel-legend";
   legend.innerHTML =
-    "a stroke per band &nbsp;·&nbsp; every fifth crossed &nbsp;·&nbsp; the rest written out";
+    "<b>│</b> 100 &nbsp;·&nbsp; <b>✕</b> 50 &nbsp;·&nbsp; <b>╷</b> 20 &nbsp;·&nbsp; " +
+    "a full row struck &nbsp;·&nbsp; the rest written out";
   slate.append(legend);
 }
 

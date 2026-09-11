@@ -35,13 +35,21 @@ const svg = (tag, attrs = {}) => {
 /**
  * The marks, largest first.
  *
- * `glyph` is how each is drawn: a double upright for 100, a cross for 50, a single upright
- * for 20. Changing the notation is changing this table, not the drawing code.
+ * The glyphs have to be unmistakable at a glance, which is the whole job: a first attempt
+ * used a double upright for 100 and a single for 20, and on a real board they read as four
+ * identical vertical lines with no way to tell 140 from 400. Height and shape now carry the
+ * value, not stroke count:
+ *
+ *   100  a full-height upright
+ *    50  a cross
+ *    20  a short tick on the baseline
+ *
+ * Changing the notation is changing this table, not the drawing code.
  */
 export const MARKS = [
-  { value: 100, glyph: "double" },
+  { value: 100, glyph: "tall" },
   { value: 50, glyph: "cross" },
-  { value: 20, glyph: "single" },
+  { value: 20, glyph: "tick" },
 ];
 
 /** Marks per row before it is struck through. */
@@ -142,20 +150,21 @@ function text(x, y, content, cls, seed = 0) {
   return t;
 }
 
-const MARK_W = 15;
-const MARK_H = 22;
-const ROW_H = 34;
+const MARK_W = 16;
+const MARK_H = 24;
+const ROW_H = 36;
+/** Space left between runs of different marks, so the groups read apart. */
+const GROUP_GAP = 10;
 
-/** One mark. A hundred is a double upright, a fifty a cross, a twenty a single upright. */
+/** One mark: full-height upright for 100, a cross for 50, a short tick for 20. */
 function drawMark(g, glyph, x, y, seed) {
   const top = y;
   const bottom = y + MARK_H;
-  if (glyph === "double") {
-    g.append(line(x - 3, top, x - 3, bottom, seed));
-    g.append(line(x + 3, top, x + 3, bottom, seed + 40));
-  } else if (glyph === "cross") {
-    g.append(line(x - 5, top, x + 5, bottom, seed));
-    g.append(line(x + 5, top, x - 5, bottom, seed + 40));
+  if (glyph === "cross") {
+    g.append(line(x - 6, top, x + 6, bottom, seed));
+    g.append(line(x + 6, top, x - 6, bottom, seed + 40));
+  } else if (glyph === "tick") {
+    g.append(line(x, bottom - MARK_H * 0.45, x, bottom, seed));
   } else {
     g.append(line(x, top, x, bottom, seed));
   }
@@ -174,10 +183,15 @@ function drawHalf(root, x0, y0, width, marks, rows, flip, seedBase) {
   const glyphs = sequence(marks);
   const left = x0 + 16;
 
+  // A run of one kind of mark is followed by a gap, so 100s, 50s and 20s read as groups
+  // rather than as one undifferentiated line of strokes.
+  let offset = 0;
   for (let i = 0; i < glyphs.length; i++) {
     const row = Math.floor(i / PER_ROW);
     const col = i % PER_ROW;
-    drawMark(g, glyphs[i], left + col * MARK_W + 8, y0 + 6 + row * ROW_H, seedBase + i * 17);
+    if (col === 0) offset = 0;
+    else if (glyphs[i] !== glyphs[i - 1]) offset += GROUP_GAP;
+    drawMark(g, glyphs[i], left + col * MARK_W + offset + 8, y0 + 6 + row * ROW_H, seedBase + i * 17);
   }
 
   // A full row is struck through — the bundling rule, at row scale.

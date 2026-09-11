@@ -203,9 +203,14 @@ from their seat. The strip carries both totals and the target.
 
 | Mark | Worth |
 |---|---|
-| double upright | 100 |
+| full-height upright | 100 |
 | cross | 50 |
-| single upright | 20 |
+| short tick on the baseline | 20 |
+
+Height and shape carry the value, not stroke count. A first attempt used a double upright for
+100 and a single for 20; on the board they read as four identical vertical lines with no way
+to tell 140 from 400. A run of one kind of mark is followed by a gap so the groups read
+apart.
 
 Five marks fill a row, and a completed row is struck through — the bundling the notation calls
 for, drawn at row scale. Whatever is left under 20 is **written out as a number**; real scores
