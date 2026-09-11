@@ -1,5 +1,11 @@
 # krass-jass
 
+### ▶ [Play it](https://janlijanli.github.io/krass-jass/)
+
+Runs entirely in the browser — the engine compiled to WebAssembly, no server, works offline.
+
+---
+
 Web app to play **Schieber Jass** (Swiss, 4 players, French deck): one human against three
 bot services. The substantial goal is training an algorithm that plays the game well.
 
@@ -10,13 +16,19 @@ bot services. The substantial goal is training an algorithm that plays the game 
 
 ## Status
 
-**M1 (engine + tests) complete, and the Rust search core is in.** No web, no bots yet — that is M2.
+**Playable.** Against DMCTS bots, in the browser or as a container stack. The rules and the
+search exist in Python and Rust; the Rust build also targets WebAssembly, which is what makes
+the hosted page work with nothing behind it.
 
 ```
-                      Python          Rust        speedup
-rollouts/sec          71,000       2,500,000          35x
-DMCTS iterations/sec  35,000       1,482,000          42x   (6,187,000 on 8 cores)
+                      Python          Rust         wasm      speedup vs Python
+rollouts/sec          71,000       2,500,000          —              35x
+DMCTS iterations/sec  35,000       1,664,000    1,194,000       48x / 34x
+ms per move @ 2,400        69           1.44         2.01
 ```
+
+The serve budget is 2,400 iterations, which `docs/measurements.md` §3 shows is
+indistinguishable from 800,000 — that measurement is why a browser tab is fast enough.
 
 | | |
 |---|---|
@@ -27,6 +39,7 @@ DMCTS iterations/sec  35,000       1,482,000          42x   (6,187,000 on 8 core
 | M4 | ✅ DMCTS: void tracking, determinization, UCT, exact endgame solver, agents, arena |
 | M5 | ⬜ Distillation — **gated on throughput**, see `docs/plan-review.md` §1 |
 | M6 | ⬜ Polish: replay UI, security pass, difficulty levels |
+| — | ✅ Serverless build: whole engine in wasm, [live on Pages](https://janlijanli.github.io/krass-jass/) |
 
 ## Layout
 
