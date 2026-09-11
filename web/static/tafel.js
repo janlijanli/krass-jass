@@ -1,27 +1,27 @@
-/* The Jasstafel — chalk on stone, written the way a Swiss board is written.
+/* The Jasstafel.
  *
- * Layout, per team (jassverzeichnis.ch/schreiben-jassen-uebersicht):
+ * Layout follows the board a Jass app actually draws: the two teams face each other across a
+ * horizontal centre strip rather than sitting side by side, and the far team's half is turned
+ * upside down so each player reads their own marks the right way up from their seat. The
+ * strip carries both totals and the target.
  *
- *   ┌──────────────────┬──────┐
- *   │ 100s  ||||/ ||    │      │
- *   ├──────────────────┤      │
- *   │  50s  |          │      │
- *   ├──────────────────┼──────┤
- *   │  20s  | |        │   13 │   ← the remainder, as a number
- *   └──────────────────┴──────┘
+ *   ┌───────────────────────────┐
+ *   │  ‖   X   ‖‖‖              │   ← their half, rotated 180°
+ *   │  ────────────╱────────    │      (a full row is struck through)
+ *   │                        0  │   ← the remainder, written out
+ *   ├─── 790 ──── 2500 ─── 1119 ┤   ← totals either side, target in the middle
+ *   │  9                        │
+ *   │  ────╱───────────────     │
+ *   │  ‖‖‖   XXX                │   ← your half
+ *   └───────────────────────────┘
  *
- * Portrait, the two teams either side of a line down the middle, strokes running left to
- * right within their band.
+ * Marks accumulate round by round and are never redrawn — see `accumulate`. A row holds five
+ * marks; completing one strikes it through, which is the bundling rule the notation calls for
+ * (jassverzeichnis.ch/schreiben-jassen-uebersicht) drawn at row scale rather than per group.
  *
- * Everything above 20 is strokes — no X or V shorthand — so a large score is a lot of marks,
- * which is what makes the bundling rule matter rather than being decoration: the fifth
- * stroke of a 100 or 20 band is drawn crosswise over the four before it, and in the 50 band
- * two strokes are crossed, two fifties being a hundred. Bands wrap when they run out of
- * width and the board grows downward, the way a real one fills up over an evening.
- *
- * Chalk is an SVG filter — turbulence displaces the stroke edges so they wobble, and a
- * second turbulence layer knocks dust holes through the fill so it reads as chalk rather
- * than paint. Every mark takes a seed from its own position, so the board is stable across
+ * Strokes are roughed with an SVG filter — turbulence displaces the edges so they wobble, and
+ * a second turbulence layer knocks holes through the fill so they read as drawn rather than
+ * printed. Every mark takes a seed from its own position, so the board is stable across
  * re-renders instead of shimmering whenever something else on it changes.
  */
 
@@ -33,65 +33,70 @@ const svg = (tag, attrs = {}) => {
 };
 
 /**
- * The bands, top to bottom.
+ * The marks, largest first.
  *
- * `rows` is the height each band is ruled to, not how much it currently needs. A slate is a
- * fixed object: the lines are drawn once and the marks fill them up over the evening. Sizing
- * bands to the current score made the board change shape every round, which no board does.
- * A band grows past its ruling only if a score genuinely overflows it.
+ * `glyph` is how each is drawn: a double upright for 100, a cross for 50, a single upright
+ * for 20. Changing the notation is changing this table, not the drawing code.
  */
-export const BANDS = [
-  { value: 100, label: "100", crossAt: 5, rows: 5 },
-  { value: 50, label: "50", crossAt: 2, rows: 2 },
-  { value: 20, label: "20", crossAt: 5, rows: 2 },
+export const MARKS = [
+  { value: 100, glyph: "double" },
+  { value: 50, glyph: "cross" },
+  { value: 20, glyph: "single" },
 ];
-/**
- * Break one amount into marks, largest band first.
- *
- * The remainder is whatever is left under 20 and is written out as a number — real scores
- * are not multiples of twenty, and rounding them would put the wrong total on the board.
- */
+
+/** Marks per row before it is struck through. */
+export const PER_ROW = 5;
+
+/** Break one amount into marks, largest first. The leftover under 20 is written as a number. */
 export function decompose(score) {
   let left = Math.max(0, Math.round(score));
-  const bands = BANDS.map(({ value }) => {
+  const counts = MARKS.map(({ value }) => {
     const n = Math.floor(left / value);
     left -= n * value;
     return n;
   });
-  return { bands, remainder: left };
+  return { counts, remainder: left };
 }
 
 /**
  * The board as it actually gets written: round by round, marks accumulating.
  *
- * Chalk is not rubbed out and rewritten each round — strokes stay where they were put. Only
- * the remainder is a number in the corner, and that is the one thing that does get wiped and
- * written again, because each round's leftover joins it and may turn into a new stroke.
+ * Chalk is not rubbed out and rewritten each round — marks stay where they were put. Only the
+ * remainder is a number in the corner, and that is the one thing that does get wiped and
+ * written again, because each round's leftover joins it and may become a new mark.
  *
- * So a team can end up with three strokes in the 50 band where a redrawn total would show a
- * hundred and a fifty. That is not an error, it is what the board looks like — and the
- * bundling rule exists precisely because marks pile up this way.
+ * So a team can end with three 50-marks where a redrawn total would show a hundred and a
+ * fifty. That is not an error, it is what a board that has been written on looks like.
  *
- * The invariant that matters: marks plus remainder always equal the cumulative score.
+ * The invariant: marks plus remainder always equal the cumulative score.
  */
 export function accumulate(roundPoints) {
-  const bands = BANDS.map(() => 0);
+  const counts = MARKS.map(() => 0);
   let remainder = 0;
   for (const points of roundPoints) {
     let pending = remainder + Math.max(0, Math.round(points));
-    BANDS.forEach(({ value }, i) => {
+    MARKS.forEach(({ value }, i) => {
       const n = Math.floor(pending / value);
-      bands[i] += n;
+      counts[i] += n;
       pending -= n * value;
     });
     remainder = pending;
   }
-  return { bands, remainder };
+  return { counts, remainder };
 }
 
-/** What the marks on the board add up to — used to check the board against the real score. */
-export function markedTotal({ bands, remainder }) {
-  return bands.reduce((sum, n, i) => sum + n * BANDS[i].value, 0) + remainder;
+/** What the marks add up to — used to check the board against the real score. */
+export function markedTotal({ counts, remainder }) {
+  return counts.reduce((sum, n, i) => sum + n * MARKS[i].value, 0) + remainder;
+}
+
+/** The marks in the order they are written: hundreds, then fifties, then twenties. */
+function sequence({ counts }) {
+  const out = [];
+  MARKS.forEach((m, i) => {
+    for (let n = 0; n < counts[i]; n++) out.push(m.glyph);
+  });
+  return out;
 }
 
 /* Deterministic jitter, so a mark wobbles the same way every time it is drawn. */
@@ -100,165 +105,152 @@ function wobble(seed, amount = 1) {
   return (x - Math.floor(x) - 0.5) * 2 * amount;
 }
 
-function chalkDefs() {
-  const defs = svg("defs");
-  defs.innerHTML = `
+function defs() {
+  const d = svg("defs");
+  d.innerHTML = `
     <filter id="chalk" x="-25%" y="-25%" width="150%" height="150%">
       <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" seed="7" result="n"/>
-      <feDisplacementMap in="SourceGraphic" in2="n" scale="2.2"
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="1.8"
         xChannelSelector="R" yChannelSelector="G" result="rough"/>
-      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="grain"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3" result="grain"/>
       <feColorMatrix in="grain" type="matrix"
-        values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.1 1.05" result="mask"/>
+        values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.15 1.08" result="mask"/>
       <feComposite in="rough" in2="mask" operator="in"/>
     </filter>`;
-  return defs;
+  return d;
 }
 
-/** One chalk stroke: slightly off-straight, slightly uneven, like a hand drew it. */
-function stroke(x1, y1, x2, y2, seed, width = 3) {
+function line(x1, y1, x2, y2, seed, width = 2.6, cls = "chalk-stroke") {
   const p = svg("path", {
     d:
-      `M${(x1 + wobble(seed, 0.9)).toFixed(2)},${(y1 + wobble(seed + 1, 0.9)).toFixed(2)} ` +
-      `Q${((x1 + x2) / 2 + wobble(seed + 2, 1.4)).toFixed(2)},` +
-      `${((y1 + y2) / 2 + wobble(seed + 3, 1.4)).toFixed(2)} ` +
-      `${(x2 + wobble(seed + 4, 0.9)).toFixed(2)},${(y2 + wobble(seed + 5, 0.9)).toFixed(2)}`,
-    class: "chalk-stroke",
+      `M${(x1 + wobble(seed, 0.8)).toFixed(2)},${(y1 + wobble(seed + 1, 0.8)).toFixed(2)} ` +
+      `Q${((x1 + x2) / 2 + wobble(seed + 2, 1.3)).toFixed(2)},` +
+      `${((y1 + y2) / 2 + wobble(seed + 3, 1.3)).toFixed(2)} ` +
+      `${(x2 + wobble(seed + 4, 0.8)).toFixed(2)},${(y2 + wobble(seed + 5, 0.8)).toFixed(2)}`,
+    class: cls,
   });
-  p.setAttribute("stroke-width", (width + wobble(seed + 6, 0.3)).toFixed(2));
+  p.setAttribute("stroke-width", (width + wobble(seed + 6, 0.25)).toFixed(2));
   return p;
 }
 
-function chalkText(x, y, text, cls, seed) {
+function text(x, y, content, cls, seed = 0) {
   const t = svg("text", {
     x, y, class: cls, "text-anchor": "middle",
-    transform: `rotate(${wobble(seed, 2).toFixed(2)} ${x} ${y})`,
+    transform: `rotate(${wobble(seed, 1.6).toFixed(2)} ${x} ${y})`,
   });
-  t.textContent = text;
+  t.textContent = content;
   return t;
 }
 
-const GAP = 9;
-const ROW_H = 30;
-/** Portrait: a Jasstafel is a tall slate, not a wide one. */
-const WIDTH = 264;
+const MARK_W = 15;
+const MARK_H = 22;
+const ROW_H = 34;
 
-/** How many stroke-groups fit across one band. */
-function groupsPerRow(width, crossAt) {
-  return Math.max(1, Math.floor(width / ((crossAt - 1) * GAP + 10)));
-}
-
-/**
- * One band of strokes, bundling every `crossAt` with a crossing stroke and wrapping when it
- * runs out of width. Returns the height it used.
- */
-function drawBand(g, x0, y, width, count, crossAt, seedBase) {
-  const groupWidth = (crossAt - 1) * GAP + 10;
-  const perRow = groupsPerRow(width, crossAt);
-  const groups = Math.ceil(count / crossAt);
-
-  for (let i = 0; i < count; i++) {
-    const group = Math.floor(i / crossAt);
-    const place = i % crossAt;
-    const gx = x0 + (group % perRow) * groupWidth;
-    const top = y + Math.floor(group / perRow) * ROW_H;
-    const bottom = top + 17;
-    if (place === crossAt - 1) {
-      g.append(stroke(gx - 3, bottom, gx + (crossAt - 2) * GAP + 3, top, seedBase + i * 13));
-    } else {
-      g.append(stroke(gx + place * GAP, top, gx + place * GAP, bottom, seedBase + i * 13));
-    }
+/** One mark. A hundred is a double upright, a fifty a cross, a twenty a single upright. */
+function drawMark(g, glyph, x, y, seed) {
+  const top = y;
+  const bottom = y + MARK_H;
+  if (glyph === "double") {
+    g.append(line(x - 3, top, x - 3, bottom, seed));
+    g.append(line(x + 3, top, x + 3, bottom, seed + 40));
+  } else if (glyph === "cross") {
+    g.append(line(x - 5, top, x + 5, bottom, seed));
+    g.append(line(x + 5, top, x - 5, bottom, seed + 40));
+  } else {
+    g.append(line(x, top, x, bottom, seed));
   }
-  return Math.max(1, Math.ceil(groups / perRow)) * ROW_H;
 }
 
 /**
- * Draw one team's strokes into bands whose positions are fixed for the whole board.
+ * One team's half: rows of marks, each completed row struck through.
  *
- * The bands are ruled across the slate, so both teams' 50s sit on the same line. Sizing each
- * half independently let them drift apart, which no real board does.
+ * `flip` turns the half upside down for the team sitting opposite, so both read their own
+ * side the right way up.
  */
-function halfStrokes(root, x0, width, marks, rows, seedBase) {
-  const { bands, remainder } = marks;
+function drawHalf(root, x0, y0, width, marks, rows, flip, seedBase) {
   const g = svg("g");
-  const columnX = x0 + width - 34;
-  const strokeX = x0 + 26;
-  const strokeWidth = columnX - strokeX - 6;
+  if (flip) g.setAttribute("transform", `rotate(180 ${x0 + width / 2} ${y0 + rows * ROW_H / 2})`);
 
-  let y = BAND_TOP;
-  BANDS.forEach((b, i) => {
-    drawBand(g, strokeX, y, strokeWidth, bands[i], b.crossAt, seedBase + i * 200 + 5);
-    y += rows[i] * ROW_H + 6;
-  });
+  const glyphs = sequence(marks);
+  const left = x0 + 16;
 
-  g.append(chalkText(x0 + width - 16, y - 14, String(remainder), "chalk-number", seedBase + 400));
-  g.append(stroke(columnX, 8, columnX, y - 6, seedBase + 500, 1.3));
+  for (let i = 0; i < glyphs.length; i++) {
+    const row = Math.floor(i / PER_ROW);
+    const col = i % PER_ROW;
+    drawMark(g, glyphs[i], left + col * MARK_W + 8, y0 + 6 + row * ROW_H, seedBase + i * 17);
+  }
+
+  // A full row is struck through — the bundling rule, at row scale.
+  const fullRows = Math.floor(glyphs.length / PER_ROW);
+  for (let r = 0; r < fullRows; r++) {
+    const y = y0 + 6 + r * ROW_H;
+    g.append(
+      line(left - 4, y + MARK_H + 3, left + PER_ROW * MARK_W + 6, y - 3, seedBase + 900 + r, 2.2)
+    );
+  }
+
+  // The remainder, written where the marks are not.
+  g.append(
+    text(x0 + width - 20, y0 + 6 + Math.max(1, fullRows) * ROW_H - 6,
+      String(marks.remainder), "chalk-number", seedBase + 500)
+  );
   root.append(g);
 }
 
-/** Rows each band needs — its ruled height, unless the marks overflow it. */
-function rowsFor(marks, width) {
-  const { bands } = marks;
-  return BANDS.map((b, i) => {
-    const groups = Math.ceil(bands[i] / b.crossAt);
-    return Math.max(b.rows, Math.ceil(groups / groupsPerRow(width, b.crossAt)));
-  });
+/** Rows a half needs, at least `min` so the board keeps a stable shape. */
+function rowsFor(marks, min) {
+  return Math.max(min, Math.ceil(sequence(marks).length / PER_ROW) + 1);
 }
-
-const BAND_TOP = 22;
 
 /**
  * Render the board.
  *
- * `history` is `[[us per round], [them per round]]` — the rounds as they were scored, not
- * the totals, because the board is written up one round at a time.
+ * `history` is `[[us per round], [them per round]]` — the rounds as they were scored, not the
+ * totals, because the board is written up one round at a time.
  */
 export function drawTafel(container, history, { target = null } = {}) {
+  const W = 264;
+  const PAD = 8;
   const marks = history.map(accumulate);
   const scores = marks.map(markedTotal);
-  const W = WIDTH;
-  const mid = W / 2;
-  const root = svg("svg", { class: "slate-svg" });
-  root.append(chalkDefs());
+
+  const rowsThem = rowsFor(marks[1], 3);
+  const rowsUs = rowsFor(marks[0], 3);
+  const topH = rowsThem * ROW_H;
+  const bottomH = rowsUs * ROW_H;
+  const stripY = PAD + topH + 14;
+  const H = stripY + 14 + bottomH + PAD;
+
+  const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, class: "slate-svg" });
+  root.append(defs());
   const body = svg("g", { filter: "url(#chalk)" });
   root.append(body);
 
-  body.append(chalkText(mid / 2, 13, "Wir", "chalk-head", 1));
-  body.append(chalkText(mid + mid / 2, 13, "Sie", "chalk-head", 2));
+  // Their half on top, turned round; yours below, the right way up.
+  drawHalf(body, PAD, PAD, W - PAD * 2, marks[1], rowsThem, true, 91);
+  drawHalf(body, PAD, stripY + 14, W - PAD * 2, marks[0], rowsUs, false, 11);
 
-  // Bands are ruled across the whole slate, so each one is as tall as the fuller side needs.
-  const halfWidth = mid - 8;
-  const strokeWidth = halfWidth - 66;
-  const rowsA = rowsFor(marks[0], strokeWidth);
-  const rowsB = rowsFor(marks[1], strokeWidth);
-  const rows = BANDS.map((_, i) => Math.max(rowsA[i], rowsB[i]));
+  // The centre strip: the rule runs across with gaps left for the numbers, so nothing is
+  // written over a line. Their total to the left, yours to the right, the target between.
+  const themX = PAD + 24;
+  const usX = W - PAD - 24;
+  const gap = (x, w) => [x - w, x + w];
+  const cuts = [gap(themX, 22), gap(W / 2, 22), gap(usX, 22)];
+  // Segments shorter than this are stubs left either side of a number — not worth drawing.
+  const MIN_SEGMENT = 8;
+  let from = PAD;
+  for (const [a, b] of cuts) {
+    if (a - from >= MIN_SEGMENT) body.append(line(from, stripY, a, stripY, 3 + from, 2.4));
+    from = b;
+  }
+  if (W - PAD - from >= MIN_SEGMENT) {
+    body.append(line(from, stripY, W - PAD, stripY, 3 + from, 2.4));
+  }
 
-  // Band labels and the rules between them, drawn once across the board.
-  let y = BAND_TOP;
-  BANDS.forEach((b, i) => {
-    body.append(chalkText(15, y + 13, b.label, "chalk-band", 700 + i));
-    body.append(chalkText(mid + 15, y + 13, b.label, "chalk-band", 750 + i));
-    y += rows[i] * ROW_H + 6;
-    if (i < BANDS.length - 1) {
-      body.append(stroke(5, y - 3, W - 5, y - 3, 900 + i, 1));
-    }
-  });
-  const h = y;
-
-  halfStrokes(body, 4, halfWidth, marks[0], rows, 11);
-  halfStrokes(body, mid + 4, halfWidth, marks[1], rows, 91);
-
-  // The line down the middle, drawn last so it spans whatever the bands needed.
-  body.append(stroke(mid, 4, mid, h - 4, 3, 2.6));
-  root.setAttribute("viewBox", `0 0 ${W} ${h + 4}`);
+  const onLine = stripY + 5;
+  body.append(text(themX, onLine, String(scores[1]), "chalk-total", 7));
+  body.append(text(usX, onLine, String(scores[0]), "chalk-total", 8));
+  if (target) body.append(text(W / 2, onLine, String(target), "chalk-target", 9));
 
   container.replaceChildren(root);
-
-  // Always written: the running total is what a player actually wants off a board, and
-  // making it conditional on knowing the target meant it vanished when that did not arrive.
-  const note = document.createElement("p");
-  note.className = "slate-note";
-  note.textContent =
-    `${scores[0]} – ${scores[1]}` + (target ? `  ·  playing to ${target}` : "");
-  container.append(note);
 }

@@ -475,7 +475,11 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
   color: rgba(255,255,255,.75);
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
+/* The board a Jass app draws is red on black; the chalk white is kept behind a variable so
+   it is a one-line change back. */
+.tafel { --chalk: #e2483f; }
 .tafel-slate {
+  background: #0a0a0a;
   padding: 10px 6px 12px;
   /* A tall board on a short phone still has to be reachable. */
   max-height: 62dvh; overflow-y: auto;
@@ -485,13 +489,22 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
 
 .slate-svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chalk-stroke {
-  stroke: #f3f1ea;
-  stroke-opacity: .88;
+  stroke: var(--chalk, #f3f1ea);
+  stroke-opacity: .9;
   stroke-linecap: round;
   fill: none;
 }
+.chalk-total, .chalk-target { fill: var(--chalk, #f3f1ea); fill-opacity: .9; }
+.chalk-total {
+  font-size: 15px; font-weight: 700;
+  font-family: ui-rounded, system-ui, sans-serif; font-variant-numeric: tabular-nums;
+}
+.chalk-target {
+  font-size: 12px; fill-opacity: .5;
+  font-family: ui-rounded, system-ui, sans-serif; font-variant-numeric: tabular-nums;
+}
 .chalk-head, .chalk-number {
-  fill: #f3f1ea; fill-opacity: .85;
+  fill: var(--chalk, #f3f1ea); fill-opacity: .85;
   /* Hand-written feel without shipping a font: a humanist face, loosened and slightly
      irregular, over the chalk filter. */
   font-family: "Bradley Hand", "Segoe Print", "Comic Sans MS", ui-rounded, cursive;
@@ -499,10 +512,10 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
 }
 .chalk-head { font-size: 15px; }
 .chalk-number { font-size: 16px; }
-.chalk-symbol { fill: #f3f1ea; fill-opacity: .85; font-size: 19px; font-family: "Bradley Hand", "Segoe Print", "Comic Sans MS", ui-rounded, cursive; }
+.chalk-symbol { fill: var(--chalk, #f3f1ea); fill-opacity: .85; font-size: 19px; font-family: "Bradley Hand", "Segoe Print", "Comic Sans MS", ui-rounded, cursive; }
 /* The printed band labels on a real board, not chalk — faint and out of the way. */
 .chalk-band {
-  fill: #f3f1ea; fill-opacity: .28; font-size: 9px;
+  fill: var(--chalk, #f3f1ea); fill-opacity: .28; font-size: 9px;
   font-family: ui-rounded, system-ui, sans-serif; letter-spacing: .04em;
 }
 .slate-note {

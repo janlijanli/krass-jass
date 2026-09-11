@@ -193,42 +193,34 @@ award it in no-trump contracts.
 
 ## The Jasstafel
 
-How the score is written on the board, rather than how it is calculated. Follows
-<https://jassverzeichnis.ch/schreiben-jassen-uebersicht>.
+How the score is written on the board, rather than how it is calculated. Notation follows
+<https://jassverzeichnis.ch/schreiben-jassen-uebersicht>; the layout follows the board a Jass
+app draws.
 
-Portrait, the two teams either side of a line down the middle. Within each half, three bands
-stacked top to bottom with strokes running left to right:
+**The two teams face each other across a horizontal centre strip**, not side by side, and the
+far team's half is turned upside down so each player reads their own marks the right way up
+from their seat. The strip carries both totals and the target.
 
-| Band | Each stroke |
+| Mark | Worth |
 |---|---|
-| top | 100 |
-| middle | 50 |
-| bottom | 20 |
+| double upright | 100 |
+| cross | 50 |
+| single upright | 20 |
 
-The right-hand column carries the **remainder, written as a number**. Real scores are not
-multiples of twenty, so the remainder is not optional — rounding it would put the wrong total
-on the board.
-
-**No X or V shorthand**: everything above 20 is strokes. That makes a large score a lot of
-marks, which is exactly what the bundling rule is for.
-
-Bundling: the fifth stroke of a 100 or 20 band is drawn crosswise over the four before it;
-in the 50 band two strokes are crossed, two fifties being a hundred.
-
-The slate is **portrait** and its bands are ruled to a fixed height rather than sized to the
-current score — a board is a fixed object whose lines are drawn once and filled up over the
-evening, so one that changed shape every round would be wrong. A band grows past its ruling
-only if a score genuinely overflows it.
+Five marks fill a row, and a completed row is struck through — the bundling the notation calls
+for, drawn at row scale. Whatever is left under 20 is **written out as a number**; real scores
+are not multiples of twenty, and rounding them would put the wrong total on the board.
 
 **Marks accumulate; they are not redrawn.** Each round is written up as it is scored and the
-strokes stay where they were put. Only the remainder is wiped and rewritten, because the next
-round's leftover joins it and may become a new stroke. So a team can end with three strokes
-in the 50 band where a redrawn total would show a hundred and a fifty — that is not an error,
-it is what a board that has been written on looks like, and it is why the bundling rule
-exists at all. The invariant is that marks plus remainder always equal the cumulative score.
+marks stay where they were put. Only the remainder is wiped and rewritten, because the next
+round's leftover joins it and may become a new mark. So a team can end with three 50-marks
+where a redrawn total would show a hundred and a fifty — that is not an error, it is what a
+board that has been written on looks like, and it is why the bundling rule exists at all. The
+invariant is that marks plus remainder always equal the cumulative score.
 
-`BANDS` in `web/static/tafel.js` is the table; changing the notation is editing that rather
-than the drawing code.
+Red on black, as the app's board is. `MARKS` and `PER_ROW` in `web/static/tafel.js` are the
+table, and `--chalk` in the stylesheet is the colour; changing any of them is a one-line
+change rather than a rewrite.
 
 ## Game length and end conditions
 
