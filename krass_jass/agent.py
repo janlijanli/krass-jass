@@ -136,6 +136,10 @@ class DmctsAgent(Agent):
     #: *searched* and never what a position is *worth* — which is why it escapes §5g, where a
     #: fitted evaluator carrying the same knowledge lost nine points.
     prior_weight: float = 0.0
+    #: A prior *learned from play* rather than written from prose — §5i measured the latter at
+    #: nothing. Row-major 36 x 127. Cached per node, because a prior over the information set
+    #: is a function of the node alone.
+    policy_weights: tuple | None = None
 
     @property
     def name(self) -> str:
@@ -199,6 +203,7 @@ class DmctsAgent(Agent):
             "resample_every": self.resample_every,
             "order_moves": self.order_moves,
             "prior_weight": self.prior_weight,
+            "policy_weights": list(self.policy_weights) if self.policy_weights else None,
         }
 
     def _priors(self, obs: Observation) -> dict:

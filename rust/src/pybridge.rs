@@ -12,6 +12,7 @@ use crate::awareness::trick_taker;
 use crate::bidding::infer_from_bid;
 use crate::convention;
 use crate::leafeval::{features, N_FEATURES};
+use crate::policy::{card_features, N_POLICY_FEATURES};
 use crate::rollout::{pick_random, Kernel};
 use crate::round::Round;
 use crate::determinize::determinize;
@@ -305,6 +306,26 @@ fn rs_leaf_samples(
         }
     }
     (xs, ys)
+}
+
+/// Features of one candidate card, for building a policy-training set in Python.
+#[pyfunction]
+#[pyo3(signature = (card, hand, live, trick, contract, trump, partner_winning, opponent_winning))]
+#[allow(clippy::too_many_arguments)]
+fn rs_card_features(
+    card: usize,
+    hand: u64,
+    live: u64,
+    trick: Vec<usize>,
+    contract: usize,
+    trump: i32,
+    partner_winning: bool,
+    opponent_winning: bool,
+) -> Vec<f32> {
+    let mut out = [0.0f32; N_POLICY_FEATURES];
+    card_features(card, hand, live, &trick, contract, trump,
+                  partner_winning, opponent_winning, &mut out);
+    out.to_vec()
 }
 
 /// What the bidding says, exposed so the Python mirror can be held to the same answer.
@@ -628,6 +649,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_reward, m)?)?;
     m.add_function(wrap_pyfunction!(rs_infer_from_bid, m)?)?;
     m.add_function(wrap_pyfunction!(rs_leaf_samples, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_card_features, m)?)?;
     m.add_function(wrap_pyfunction!(rs_determinize, m)?)?;
     m.add_function(wrap_pyfunction!(rs_select_trump, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trump_scores, m)?)?;

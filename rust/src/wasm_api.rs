@@ -222,7 +222,7 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
         // the endgame threshold, the exact solve below it — see measurements.md §5h.
         let total = (determinizations * iterations) as usize;
         if round.hands[seat].count_ones() > 5 {
-            let out = crate::ismcts::ismcts(&position, &kernel, total, 1.5, seed as u64 | 1, 4, false, 0.0);
+            let out = crate::ismcts::ismcts(&position, &kernel, total, 1.5, seed as u64 | 1, 4, false, 0.0, &[]);
             return convention::choose(
                 &out,
                 round.hands[seat],

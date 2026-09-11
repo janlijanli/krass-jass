@@ -63,6 +63,7 @@ def dmcts(
     resample_every: int = 1,
     order_moves: bool = False,
     prior_weight: float = 0.0,
+    policy_weights: list[float] | None = None,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -107,4 +108,5 @@ def dmcts(
         resample_every=resample_every,
         order_moves=order_moves,
         prior_weight=prior_weight,
+        policy_weights=policy_weights,
     )

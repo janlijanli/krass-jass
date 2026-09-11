@@ -151,6 +151,25 @@
     ]
   },
 
+  "learned_prior": {
+    "deals": 1200,
+    "note": "A policy distilled from 40,190 of the search's own decisions, in the same slot as the hand-written prior of §5i. 48% top-1 agreement, and it recovers the Swiss conventions from self-play — but null in play, did not replicate, and a uniform-prior control is null too. Structural reason: 4.2 legal moves and 2,400 iterations means ~571 visits per candidate, so there is nothing for a prior to prune. See measurements.md §5j.",
+    "top1_agreement": 48.0,
+    "top1_random": 30.7,
+    "points": [
+      { "c": 0.5, "share": 50.06, "std": 6.76, "p": 0.76 },
+      { "c": 1.0, "share": 50.44, "std": 6.53, "p": 0.021 },
+      { "c": 2.0, "share": 50.15, "std": 6.50, "p": 0.43 },
+      { "c": 4.0, "share": 49.96, "std": 6.59, "p": 0.83 }
+    ],
+    "control": [
+      { "mode": "uniform prior c=1", "share": 50.09, "std": 6.65, "deals": 1600, "p": 0.60 },
+      { "mode": "learned c=1 replication", "share": 50.23, "std": 6.35, "deals": 1600, "p": 0.14 },
+      { "mode": "learned c=1 fresh seed", "share": 50.02, "std": 6.27, "deals": 1600, "p": 0.89 }
+    ],
+    "branching": { "legal_moves": 4.20, "visits_per_candidate": 571 }
+  },
+
   "budget_sweep": {
     "deals": 500,
     "reference": 2400,

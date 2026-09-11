@@ -6,6 +6,16 @@
 > while any static evaluator's error is bias and survives the averaging untouched. A drop-in
 > replacement would need RMSE below ~0.02 on a quantity whose standard deviation is ~0.3.
 >
+> **And the policy half is measured too (§5j).** A policy distilled from the search reaches 48%
+> top-1 agreement and recovers the Swiss conventions from self-play, and it is worth nothing in
+> play — because at 4.2 legal moves and 2,400 iterations every candidate is already visited
+> ~571 times. A prior allocates attention; this search has none to allocate. A network would be
+> a better model of the same thing nobody needs a model of.
+>
+> What remains of the idea: a learned policy is for *replacing* this search, or for guiding one
+> at a budget far below 2,400 where the moves are not all visited anyway. Neither is what was
+> planned here.
+>
 > The plan below is kept because the constraint analysis in it is still correct and still
 > useful — a network is affordable at play time, and the cost is training throughput. What is
 > wrong is the *shape*: a value network cannot be swapped into a voting search. It belongs

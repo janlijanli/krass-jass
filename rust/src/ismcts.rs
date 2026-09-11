@@ -28,7 +28,9 @@
 //! algorithms is cleaner with it off on both sides.
 
 use crate::cards::{card_suit, NUM_SEATS, SUIT_MASK};
+use crate::cards::NUM_CARDS;
 use crate::leafeval::top_live;
+use crate::policy::{learned_prior, N_POLICY_FEATURES};
 use crate::determinize::determinize;
 use crate::legal::legal_moves;
 use crate::objective::reward;
@@ -131,6 +133,7 @@ pub fn ismcts(
     resample_every: usize,
     order_moves: bool,
     prior_weight: f64,
+    policy_weights: &[f32],
 ) -> Vec<Candidate> {
     let root_legal = pos.legal(k);
     let root_team = pos.seat & 1;
@@ -153,6 +156,7 @@ pub fn ismcts(
     }
 
     let mut rng = Rng::new(seed | 1);
+    let learned = policy_weights.len() == N_POLICY_FEATURES;
     let mut nodes: Vec<Node> = vec![Node {
         visits: 0,
         available: 0,
@@ -221,11 +225,27 @@ pub fn ismcts(
                 untried &= !(1u64 << card);
             }
 
-            // The heuristic, computed only when something will use it.
+            // The prior. A learned one is a function of the information set, so it is
+            // computed once for the node and cached; the hand-written one reads the imagined
+            // hand and has to be recomputed every visit.
             let mut prior = [0.0f64; 36];
             let use_prior = order_moves || prior_weight > 0.0;
             if use_prior {
-                policy_prior(&w, legal, k, &mut prior);
+                if learned {
+                    let live = w.hands.iter().fold(0u64, |a, h| a | h)
+                        | w.trick.iter().fold(0u64, |a, &c| a | 1u64 << c);
+                    let (partner, opp) = trick_owner(&w, k);
+                    let mut p = [0.0f32; NUM_CARDS];
+                    learned_prior(
+                        policy_weights, w.hands[w.to_play], live, &w.trick, k.contract,
+                        k.trump, partner, opp, legal, &mut p,
+                    );
+                    for c in 0..NUM_CARDS {
+                        prior[c] = p[c] as f64;
+                    }
+                } else {
+                    policy_prior(&w, legal, k, &mut prior);
+                }
             }
 
             let card = if untried != 0 {
@@ -460,4 +480,20 @@ fn policy_prior(w: &Walk, legal: u64, k: &Kernel, prior: &mut [f64; 36]) {
             prior[c] /= sum;
         }
     }
+}
+
+
+/// Who is taking the trick as it stands, relative to the player about to act.
+fn trick_owner(w: &Walk, k: &Kernel) -> (bool, bool) {
+    let Some(&first) = w.trick.first() else { return (false, false) };
+    let strength = &STRENGTH[k.contract][card_suit(first)];
+    let mut best = 0usize;
+    for (i, &c) in w.trick.iter().enumerate() {
+        if strength[c] > strength[w.trick[best]] {
+            best = i;
+        }
+    }
+    let winner = (w.trick_leader + best) & 3;
+    let me = w.to_play;
+    ((winner & 1) == (me & 1) && winner != me, (winner & 1) != (me & 1))
 }

@@ -564,6 +564,84 @@ correctly.
 
 ---
 
+## 5j. A prior learned from play — and why no prior can help here
+
+§5i measured hand-written best-play knowledge in the selection rule at nothing, which left the
+obvious excuse: the weights were guessed from prose. So the same slot was filled with weights
+**fitted from 40,190 decisions of the search's own play** — distillation, expert iteration's
+inner loop. Features of the (state, card) pair with one shared weight vector, because a first
+attempt with per-card weight rows over one-hot features reached 1.2819 cross-entropy against
+uniform's 1.2861: a linear model cannot represent "this seven is the best card left *because*
+the six has gone", which is a product of two features.
+
+The fitted policy is a good model of the search — **48.0% top-1 agreement against a 30.7%
+baseline** — and it independently recovers the Swiss conventions nobody encoded into it:
+
+| weight | | |
+|---|---|---|
+| `takes` | +0.631 | take the trick when you can |
+| `over_partner` | **−0.575** | do not trump your own partner's trick |
+| `lead_boss` | +0.414 | lead the best card left in a suit |
+| `is_trump` | **−0.230** | a general reluctance to play trump — *"du trumpfst zu viel"* |
+| `feed` | −0.220 | do not pay into a trick an opponent is taking |
+| `lead_trump` | **+0.109** | and drawing trumps is *mild* |
+
+That last row is a disagreement with every source consulted, which all make drawing trumps the
+declarer's first job. The hand-written prior encoded it at `0.8 + 0.2 × trumps_held` — about
+eight times what the search's own play supports — and that is very likely why §5i's version
+actively **hurt** at high weight while this one does not.
+
+| c | learned | hand-written (§5i) |
+|---|---|---|
+| 0.5 | 50.06% (p=0.76) | 49.96% (p=0.86) |
+| 1.0 | 50.44% (p=0.021) | 50.40% (p=0.049) |
+| 2.0 | 50.15% (p=0.43) | 50.25% (p=0.20) |
+| 4.0 | 49.96% (p=0.83) | **49.16% (p=5e-05)** |
+
+Learning bought **safety, not strength**: correctly calibrated weights do no damage when
+trusted, mis-calibrated ones do.
+
+### The control that closes it
+
+Two priors disagreeing 8× on the largest convention both scored ~50.4% at c=1 and nothing
+elsewhere. That is the signature of the *content* being irrelevant and the *form* doing the
+work — PUCT replaces UCT's `√(ln A / n)` with `P(a)·√A/(1+n)`, a different exploration schedule
+whatever `P` holds. All-zero weights softmax to exactly uniform, so the control was free:
+
+| | share | n | p |
+|---|---|---|---|
+| uniform prior, c=1 | 50.09% ± 6.65 | 1600 | 0.60 |
+| learned prior, c=1 | 50.23% ± 6.35 | 1600 | 0.14 |
+| learned prior, c=1, fresh seed | 50.02% ± 6.27 | 1600 | 0.89 |
+
+The learned prior did not replicate — 50.44, then 50.23, then 50.02 — the sixth borderline p in
+this file to die on a second look. And the uniform control is null too, so it is not the
+exploration shape either. **Hand-written prior, learned prior, and PUCT's form: all three
+nothing.**
+
+### Why, structurally
+
+A prior exists to allocate attention when a search cannot try everything. Measured over 817
+real decisions:
+
+| | |
+|---|---|
+| average legal moves | **4.20** |
+| iterations per move | 2,400 |
+| visits per candidate | **~571** |
+
+Every legal move is already examined about five hundred times. Chess has ~35 moves and Go
+~250, which is where a prior earns its keep by pruning what the search will otherwise never
+reach; Jass has four. **There is nothing to prune.** That one fact explains all three nulls,
+and it predicts the same of any future prior, learned or not — including a neural one, which
+would be a better model of the same thing nobody needs a model of.
+
+It also says what a policy network *would* still be for: not guiding this search, but replacing
+it, or guiding one run at a budget far below 2,400 where the moves are not all visited anyway.
+Neither is the thing that was being proposed.
+
+---
+
 ## 6. Open
 
 - Nothing measured against a human.
