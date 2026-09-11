@@ -53,7 +53,15 @@ def asset_version() -> str:
     bugs in the code — which cost time here before it cost a user anything.
     """
     digest = hashlib.sha256()
-    for name in sorted(("table.css", "cards.js", "about.js", "menu.js", "render.js", "solo.js")):
+    # The wasm is in the hash *and* gets a versioned URL. Leaving the engine unversioned is
+    # the worst version of this bug: new JavaScript against an old engine is a view that is
+    # missing fields the page expects, which looks like a code bug rather than a stale file.
+    for name in sorted(
+        (
+            "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
+            "render.js", "solo.js", "engine.js", "krass_jass_core.wasm",
+        )
+    ):
         path = SITE / name
         if path.exists():
             digest.update(path.read_bytes())
@@ -129,23 +137,31 @@ def build_index() -> None:
 
     # The modules import each other by bare name, so version those too — otherwise solo.js
     # is fresh and everything it pulls in is not.
-    for name in ("solo.js", "render.js", "menu.js"):
+    for name in ("solo.js", "render.js", "menu.js", "engine.js"):
         path = SITE / name
         text = path.read_text()
-        for dep in ("engine.js", "render.js", "menu.js", "cards.js", "about.js"):
+        for dep in ("engine.js", "render.js", "menu.js", "cards.js", "about.js", "tafel.js"):
             text = text.replace(f'"./{dep}"', f'"./{dep}?v={version}"')
         text = text.replace('"measurements.json"', f'"measurements.json?v={version}"')
+        text = text.replace('"krass_jass_core.wasm"', f'"krass_jass_core.wasm?v={version}"')
         path.write_text(text)
 
 
 def copy_assets() -> None:
-    """Assets shared with the hosted build, plus the measurements artifact.
+    """Everything in `site/` is generated. Nothing is edited there.
 
-    Copied rather than duplicated: `docs/measurements.json` is the single source for every
-    number either build shows a reader.
+    That is not tidiness — the versioning step below rewrites asset URLs, and when the
+    sources lived in the output directory it rewrote *them*, so the second build found
+    `"engine.js?v=<first build>"` instead of `"engine.js"` and the first version froze in
+    permanently. Sources live in `site-src/` and `web/static/`; `site/` is output.
+
+    `docs/measurements.json` is copied for the same reason it is copied into `web/static/`:
+    it is the single source for every number either build shows a reader.
     """
-    for name in ("table.css", "cards.js", "about.js", "menu.js"):
+    for name in ("table.css", "cards.js", "about.js", "menu.js", "tafel.js"):
         (SITE / name).write_text((ROOT / "web/static" / name).read_text())
+    for name in ("engine.js", "solo.js", "README.md"):
+        (SITE / name).write_text((ROOT / "site-src" / name).read_text())
     (SITE / "measurements.json").write_text((ROOT / "docs/measurements.json").read_text())
 
 

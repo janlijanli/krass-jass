@@ -6,6 +6,7 @@
  */
 
 import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js";
+import { drawTafel } from "./tafel.js";
 
 const MEASUREMENTS_URL = "/static/measurements.json";
 
@@ -83,62 +84,21 @@ function recordRound(view) {
 
 function renderTafel(view) {
   const mine = view.seat % 2;
-  const pick = (pair) => [pair[mine], pair[1 - mine]];
+  const scores = [view.scores[mine], view.scores[1 - mine]];
   const slate = el.tafelSlate;
   slate.replaceChildren();
 
-  if (!board.rounds.length) {
-    slate.append(
-      html("p", "tafel-empty", "Nothing on the board yet — it fills in as rounds finish.")
-    );
-    return;
-  }
+  // Read the target off the view rather than a remembered copy — one less piece of state to
+  // be stale, and the view always has it.
+  drawTafel(slate, scores, { target: view.target ?? board.target, rounds: board.rounds });
 
-  const grid = document.createElement("div");
-  grid.className = "tafel-grid";
-  const cell = (text, cls) => {
-    const d = document.createElement("div");
-    d.className = cls;
-    d.textContent = text;
-    return d;
-  };
-  const rule = () => cell("", "tafel-rule");
-
-  grid.append(cell("Wir", "tafel-head"), rule(), cell("Sie", "tafel-head"));
-
-  for (const entry of board.rounds) {
-    const [us, them] = pick(entry.points);
-    const label = entry.contract
-      ? `${entry.round + 1} · ${entry.contract[0]}${entry.contract.slice(1).toLowerCase()}` +
-        (entry.multiplier > 1 ? ` ×${entry.multiplier}` : "")
-      : `${entry.round + 1}`;
-    grid.append(cell(label, "tafel-round"));
-    grid.append(
-      cell(us || "—", `tafel-cell${us ? "" : " dim"}`),
-      rule(),
-      cell(them || "—", `tafel-cell${them ? "" : " dim"}`)
-    );
-  }
-
-  const [tu, tt] = pick(board.rounds[board.rounds.length - 1].totals);
-  grid.append(
-    cell(String(tu), `tafel-cell tafel-total${tu >= tt ? " leading" : ""}`),
-    rule(),
-    cell(String(tt), `tafel-cell tafel-total${tt > tu ? " leading" : ""}`)
-  );
-  slate.append(grid);
-
-  if (board.target) {
-    slate.append(html("p", "tafel-target", `Playing to ${board.target}`));
-    for (const [value, cls] of [[tu, ""], [tt, "them"]]) {
-      const bar = html("div", "tafel-bar");
-      const fill = document.createElement("i");
-      fill.className = cls;
-      fill.style.width = `${Math.min(100, (value / board.target) * 100)}%`;
-      bar.append(fill);
-      slate.append(bar);
-    }
-  }
+  // What the marks mean, because a notation nobody can read is decoration.
+  const legend = document.createElement("p");
+  legend.className = "tafel-legend";
+  legend.innerHTML =
+    "long stroke 100 &nbsp;·&nbsp; half stroke 50 &nbsp;·&nbsp; tick 20 &nbsp;·&nbsp; " +
+    "the rest written out";
+  slate.append(legend);
 }
 
 const openTafel = () => {
