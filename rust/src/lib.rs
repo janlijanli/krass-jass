@@ -14,6 +14,7 @@ use pyo3::prelude::*;
 #[cfg(feature = "python")]
 use pyo3::exceptions::PyValueError;
 
+pub mod awareness;
 pub mod cards;
 pub mod config;
 pub mod deal;

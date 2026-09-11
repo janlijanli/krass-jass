@@ -8,6 +8,7 @@
 
 use pyo3::prelude::*;
 
+use crate::awareness::{trick_points, trick_taker, trump_read};
 use crate::config::Rules;
 use crate::scoring::{claim_sequence, score_round, RoundScore};
 use crate::trump::{select_trump, SHOVE};
@@ -227,6 +228,36 @@ fn rs_infer_forbidden(
     infer_forbidden(&tricks, &current_trick, current_leader, trump, &rules).to_vec()
 }
 
+/// The table read that feeds the display. Public information only — see awareness.rs.
+#[pyfunction]
+fn rs_trick_taker(cards: Vec<usize>, leader: usize, contract: usize) -> Option<usize> {
+    trick_taker(&cards, leader, contract)
+}
+
+#[pyfunction]
+fn rs_trick_points(cards: Vec<usize>, contract: usize) -> i32 {
+    trick_points(&cards, contract)
+}
+
+/// `(trumps still out, per-seat void codes)` — 0 unknown, 1 only-possibly-Puur, 2 none.
+#[pyfunction]
+#[pyo3(signature = (tricks, current_trick, current_leader, seat, hand, trump, puur_exempt=true))]
+fn rs_trump_read(
+    tricks: Vec<(usize, Vec<usize>)>,
+    current_trick: Vec<usize>,
+    current_leader: usize,
+    seat: usize,
+    hand: u64,
+    trump: i32,
+    puur_exempt: bool,
+) -> (Option<u32>, Vec<u8>) {
+    let rules = Rules { puur_exempt, ..Rules::default() };
+    let read = trump_read(
+        &tricks, &current_trick, current_leader, seat, hand, trump, &rules,
+    );
+    (read.out, read.voids.to_vec())
+}
+
 /// Returns the contract index, or -1 for a shove.
 #[pyfunction]
 #[pyo3(signature = (hand, is_forehand, multipliers=None))]
@@ -413,6 +444,9 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_score_round, m)?)?;
     m.add_function(wrap_pyfunction!(rs_claim_sequence, m)?)?;
     m.add_function(wrap_pyfunction!(rs_infer_forbidden, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_trick_taker, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_trick_points, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_trump_read, m)?)?;
     m.add_function(wrap_pyfunction!(rs_select_trump, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trump_scores, m)?)?;
     Ok(())

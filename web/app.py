@@ -32,6 +32,7 @@ from starlette.responses import Response
 from fastapi.templating import Jinja2Templates
 
 from krass_jass.agent import Agent, DmctsAgent
+from krass_jass.awareness import trick_points, trick_taker, trump_read
 from krass_jass.cards import card_list, card_rank, card_suit, format_card, parse_card
 from krass_jass.game import Game, Phase
 from krass_jass.rules import DEFAULT_MULTIPLIERS, HOUSE, Contract
@@ -359,15 +360,37 @@ def view(table: Table, seat: int) -> dict:
     # new one. The client stays dumb: it renders whatever is in `trick`.
     trick = []
     winner = None
+    shown: list[int] = []
+    shown_leader = 0
     complete = table.awaiting_ack()
     if game.round is not None and complete:
         leader, cards = game.round.tricks_played[-1]
         for i, card in enumerate(cards):
             trick.append({"seat": (leader + i) % NUM_SEATS, "card": format_card(card)})
         winner = game.round.last_trick_winner
+        shown, shown_leader = list(cards), leader
     elif game.round is not None:
         for i, card in enumerate(game.round.trick):
             trick.append({"seat": (game.round.leader + i) % NUM_SEATS, "card": format_card(card)})
+        shown, shown_leader = list(game.round.trick), game.round.leader
+
+    # Which way the cards on the table are going, and what the other three still hold in
+    # trump. Public both ways — see krass_jass/awareness.py.
+    taker = None
+    at_stake = 0
+    read = {"out": None, "voids": [None] * NUM_SEATS}
+    if game.round is not None and game.contract is not None:
+        taker = trick_taker(shown, shown_leader, game.contract)
+        at_stake = trick_points(shown, game.contract)
+        read = trump_read(
+            game.round.tricks_played,
+            game.round.trick,
+            game.round.leader,
+            seat,
+            game.round.hands[seat],
+            game.contract,
+            game.cfg,
+        )
 
     return {
         "type": "view",
@@ -379,6 +402,11 @@ def view(table: Table, seat: int) -> dict:
         "trick": trick,
         "trick_complete": complete,
         "trick_winner": winner,
+        # Who the cards on the table go to as it stands, and what they are worth.
+        "trick_taker": taker,
+        "trick_points": at_stake,
+        "trumps_out": read["out"],
+        "trump_voids": read["voids"],
         # `is not None`: Contract.DIAMONDS == 0 is falsy
         "contract": game.contract.name if game.contract is not None else None,
         "multiplier": game.cfg.multiplier(game.contract) if game.contract is not None else None,

@@ -78,6 +78,9 @@ body {
   font-size: 11px; opacity: .55; margin-top: 1px;
   font-variant-numeric: tabular-nums;
 }
+.trumps-out { font-size: 11px; opacity: .55; font-variant-numeric: tabular-nums; }
+.trumps-out .pip { font-size: 12px; }
+.trumps-out .pip.red { color: #ff8a90; }
 
 /* ---------- felt ---------- */
 
@@ -119,6 +122,34 @@ body {
 
 .trick.complete { cursor: pointer; }
 .trick .card.winner { box-shadow: 0 0 0 2px var(--gold), 0 6px 16px rgba(0,0,0,.45); }
+/* The card currently taking the trick, while the trick is still being played. Deliberately
+   quieter than `.winner`: one is a running total, the other is the result. */
+.trick .card.leading { box-shadow: 0 0 0 2px rgba(216, 180, 90, .45), 0 4px 12px rgba(0,0,0,.4); }
+
+.trick-take {
+  /* Anchored to the trick, not to the felt: it is a caption on those four cards, and at the
+     bottom of a tall felt it reads as a caption on the hand instead. */
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, 104px);
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 2px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  background: rgba(0, 0, 0, .3);
+  font-variant-numeric: tabular-nums;
+}
+.trick-take .side { text-transform: uppercase; font-size: 11px; }
+.trick-take.us { color: var(--gold); }
+.trick-take.them { color: #ff8a90; }
+.trick-take .pts { opacity: .8; font-weight: 600; }
+
+/* Proven out of trump. Public information — everyone at the table saw the discard. */
+.seat-marker .void {
+  font-size: 10px; font-weight: 700; letter-spacing: .02em;
+  padding: 0 4px; border-radius: 4px;
+  background: rgba(0, 0, 0, .35);
+}
+.seat-marker .void.hard { color: #ff8a90; }
+.seat-marker .void.soft { color: #ffd9a0; opacity: .85; }
 
 .banner {
   position: absolute; inset: auto 12px 12px;

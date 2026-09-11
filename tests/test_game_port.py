@@ -62,6 +62,53 @@ def test_the_deal_is_a_real_deal():
 # --- whole games ------------------------------------------------------------
 
 
+VOID_CODES = {None: 0, "puur": 1, "none": 2}
+
+
+def assert_table_read_matches(py):
+    """The display's table read, both implementations, at every ply of every game.
+
+    It is shown to a player, so a disagreement between the two builds is a disagreement
+    about what the cards on the table mean — the sort of thing a player would notice and
+    nothing else would catch.
+    """
+    from krass_jass.awareness import trick_points, trick_taker, trump_read
+
+    round_state = py.round
+    trump = py.contract.trump_suit if py.contract.is_trump else -1
+    contract = int(py.contract)
+
+    assert trick_taker(round_state.trick, round_state.leader, py.contract) == core.rs_trick_taker(
+        round_state.trick, round_state.leader, contract
+    ), "trick taker diverged"
+    assert trick_points(round_state.trick, py.contract) == core.rs_trick_points(
+        round_state.trick, contract
+    ), "points on the table diverged"
+
+    for seat in range(4):
+        mine = trump_read(
+            round_state.tricks_played,
+            round_state.trick,
+            round_state.leader,
+            seat,
+            round_state.hands[seat],
+            py.contract,
+            py.cfg,
+        )
+        theirs_out, theirs_voids = core.rs_trump_read(
+            round_state.tricks_played,
+            round_state.trick,
+            round_state.leader,
+            seat,
+            round_state.hands[seat],
+            trump,
+        )
+        assert mine["out"] == theirs_out, f"trumps out diverged for seat {seat}"
+        assert [VOID_CODES[v] for v in mine["voids"]] == list(theirs_voids), (
+            f"trump voids diverged for seat {seat}"
+        )
+
+
 def drive_both(seed, target=1000, weis_manual=False, decide=None):
     """Run both engines through the same decisions and return their event streams."""
     py = Game(cfg=HOUSE.variant(target_score=target, weis_manual=weis_manual), seed=seed)
@@ -93,6 +140,7 @@ def drive_both(seed, target=1000, weis_manual=False, decide=None):
         else:
             legal = py.round.legal_moves(seat)
             assert legal == rs.legal_moves(seat), "legal moves diverged"
+            assert_table_read_matches(py)
             cards = card_list(legal)
             card = cards[rng.randrange(len(cards))]
             py.play(seat, card)

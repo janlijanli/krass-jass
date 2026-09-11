@@ -90,6 +90,7 @@
       <div id="contract" class="contract none">—</div>
       <div id="round" class="round"></div>
       <div id="taken" class="taken" hidden></div>
+      <div id="trumps-out" class="trumps-out" hidden></div>
     </div>
     <div class="score them"><span class="label" data-i18n="team.them">Them</span><span class="value" id="score-them">0</span></div>
   </header>
@@ -105,11 +106,14 @@
   </div>
 
   <section class="felt">
-    <div class="seat-marker north" data-seat="2"><span data-i18n="seat.partner">Partner</span><i class="turn"></i></div>
-    <div class="seat-marker east"  data-seat="1"><span data-i18n="seat.right">Right</span><i class="turn"></i></div>
-    <div class="seat-marker west"  data-seat="3"><span data-i18n="seat.left">Left</span><i class="turn"></i></div>
+    <div class="seat-marker north" data-seat="2"><span data-i18n="seat.partner">Partner</span><i class="turn"></i><b class="void" hidden></b></div>
+    <div class="seat-marker east"  data-seat="1"><span data-i18n="seat.right">Right</span><i class="turn"></i><b class="void" hidden></b></div>
+    <div class="seat-marker west"  data-seat="3"><span data-i18n="seat.left">Left</span><i class="turn"></i><b class="void" hidden></b></div>
 
     <div class="trick" id="trick"></div>
+    <!-- Who the cards on the table go to as it stands. A player at the table redoes this
+         comparison every time a card lands; on a screen it is easy to lose. -->
+    <div class="trick-take" id="trick-take" hidden></div>
 
     <div class="weis-layer" id="weis"></div>
     <div class="banner" id="banner" hidden></div>

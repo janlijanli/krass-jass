@@ -32,6 +32,8 @@ const el = {
   scoreUs: document.getElementById("score-us"),
   scoreThem: document.getElementById("score-them"),
   taken: document.getElementById("taken"),
+  trumpsOut: document.getElementById("trumps-out"),
+  trickTake: document.getElementById("trick-take"),
   tafel: document.getElementById("tafel"),
   tafelSlate: document.getElementById("tafel-slate"),
 };
@@ -174,11 +176,76 @@ function renderTrick(view) {
     const node = cardNode(card);
     node.dataset.rel = String((seat - view.seat + 4) % 4);
     if (view.trick_complete && seat === view.trick_winner) node.classList.add("winner");
+    else if (!view.trick_complete && seat === view.trick_taker) node.classList.add("leading");
     el.trick.appendChild(node);
   }
   // A finished trick stays on the table until it is tapped — otherwise four cards appear
   // and vanish faster than they can be read.
   el.trick.classList.toggle("complete", !!view.trick_complete);
+  renderTake(view);
+}
+
+/** Which team the cards on the table go to as it stands, and what they are worth.
+ *
+ * The comparison a player at the table makes every time a card lands, and the one thing a
+ * screen hides: three cards down, one of them an ace worth eleven, and whether that is a
+ * gift or a loss is a re-reckoning nobody should have to redo in their head each turn. It
+ * says nothing a player could not work out from the cards face up.
+ */
+function renderTake(view) {
+  const taker = view.trick_taker;
+  if (taker === null || taker === undefined || !view.trick.length) {
+    el.trickTake.hidden = true;
+    return;
+  }
+  const ours = (taker - view.seat + 4) % 4 % 2 === 0;
+  el.trickTake.hidden = false;
+  el.trickTake.className = `trick-take ${ours ? "us" : "them"}`;
+  el.trickTake.innerHTML =
+    `<span class="side">${ours ? t("team.us") : t("team.them")}</span>` +
+    `<span class="pts">${t("table.points", { n: view.trick_points ?? 0 })}</span>`;
+}
+
+/** Trump still unaccounted for, and who is proven not to hold any.
+ *
+ * Counting trump is half of playing well and all of it is public — every card is face up
+ * and the discards are there to be read. A player at the table does this from memory; the
+ * screen has no reason to make them.
+ */
+function renderTrumpRead(view) {
+  const out = view.trumps_out;
+  if (out === null || out === undefined || view.phase === "bidding") {
+    el.trumpsOut.hidden = true;
+  } else {
+    const pip = CONTRACT_PIPS[view.contract] || "";
+    const red = view.contract === "HEARTS" || view.contract === "DIAMONDS";
+    el.trumpsOut.hidden = false;
+    el.trumpsOut.innerHTML =
+      `<span class="pip${red ? " red" : ""}">${pip}</span> ` + t("table.trumpsOut", { n: out });
+  }
+
+  const voids = view.trump_voids || [];
+  document.querySelectorAll(".seat-marker").forEach((marker) => {
+    const seat = (view.seat + Number(marker.dataset.seat)) % 4;
+    const badge = marker.querySelector(".void");
+    if (!badge) return;
+    const claim = voids[seat];
+    const pip = CONTRACT_PIPS[view.contract] || "";
+    if (claim === "none") {
+      badge.hidden = false;
+      badge.className = "void hard";
+      badge.textContent = `${pip}✕`;
+      badge.title = t("table.voidNone");
+    } else if (claim === "puur") {
+      // Not a void yet: the one card a discard on a trump lead does not rule out.
+      badge.hidden = false;
+      badge.className = "void soft";
+      badge.textContent = `${pip}J?`;
+      badge.title = t("table.voidPuur");
+    } else {
+      badge.hidden = true;
+    }
+  });
 }
 
 const weisLabel = (points) =>
@@ -334,6 +401,7 @@ function render(view) {
   renderHand(view);
   renderTrick(view);
   renderSeats(view);
+  renderTrumpRead(view);
   renderWeis(view);
   renderScorecard(view);
 

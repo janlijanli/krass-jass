@@ -11,6 +11,9 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use crate::awareness::{
+    trick_points, trick_taker, trump_read, TrumpRead, NO_TRUMP, ONLY_PUUR, UNKNOWN,
+};
 use crate::cards::{card_list, card_suit, format_card, NUM_SEATS};
 use crate::config::Rules;
 use crate::game::{Game, Phase};
@@ -236,6 +239,8 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
         // Current trick, or the finished one still being shown.
         let mut trick = String::from("[");
         let mut winner = String::from("null");
+        let mut shown: Vec<usize> = Vec::new();
+        let mut shown_leader = 0usize;
         if let Some(round) = &game.round {
             let (leader, cards) = if awaiting {
                 let (l, c) = round.tricks_played.last().unwrap();
@@ -244,6 +249,8 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
             } else {
                 (round.leader, round.trick.clone())
             };
+            shown = cards.clone();
+            shown_leader = leader;
             let parts: Vec<String> = cards
                 .iter()
                 .enumerate()
@@ -262,6 +269,42 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
             ",\"trick\":{trick},\"trick_complete\":{},\"trick_winner\":{winner}",
             awaiting
         ));
+
+        // Which way the cards on the table are going, and what the other three still hold in
+        // trump. Public both ways — see krass_jass/awareness.py and its Rust mirror.
+        let contract = game.contract.unwrap_or(0);
+        match game.round.as_ref().and_then(|_| trick_taker(&shown, shown_leader, contract)) {
+            Some(s) => out.push_str(&format!(",\"trick_taker\":{s}")),
+            None => out.push_str(",\"trick_taker\":null"),
+        }
+        out.push_str(&format!(",\"trick_points\":{}", trick_points(&shown, contract)));
+
+        let read = match (&game.round, game.contract) {
+            (Some(round), Some(c)) => trump_read(
+                &round.tricks_played,
+                &round.trick,
+                round.leader,
+                seat,
+                round.hands[seat],
+                if c < 4 { c as i32 } else { -1 },
+                &game.rules,
+            ),
+            _ => TrumpRead { out: None, voids: [UNKNOWN; NUM_SEATS] },
+        };
+        match read.out {
+            Some(n) => out.push_str(&format!(",\"trumps_out\":{n}")),
+            None => out.push_str(",\"trumps_out\":null"),
+        }
+        let voids: Vec<String> = read
+            .voids
+            .iter()
+            .map(|&v| match v {
+                NO_TRUMP => "\"none\"".to_string(),
+                ONLY_PUUR => "\"puur\"".to_string(),
+                _ => "null".to_string(),
+            })
+            .collect();
+        out.push_str(&format!(",\"trump_voids\":[{}]", voids.join(",")));
 
         match game.contract {
             Some(c) => out.push_str(&format!(
