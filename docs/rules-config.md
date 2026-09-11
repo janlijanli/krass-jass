@@ -201,6 +201,11 @@ app draws.
 far team's half is turned upside down so each player reads their own marks the right way up
 from their seat. The strip carries both totals and the target.
 
+**Each total sits on the side its own marks are on.** Rotating the far half flips its marks
+to the other side of the board, so a "them on the left, us on the right" reading puts every
+total beside the *other* team's marks — which is unreadable, and was wrong here until someone
+looked at a board and said so.
+
 | Mark | Worth |
 |---|---|
 | full-height upright | 100 |

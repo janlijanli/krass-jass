@@ -245,11 +245,16 @@ export function drawTafel(container, history, { target = null } = {}) {
   drawHalf(body, PAD, stripY + 14, W - PAD * 2, marks[0], rowsUs, false, 11);
 
   // The centre strip: the rule runs across with gaps left for the numbers, so nothing is
-  // written over a line. Their total to the left, yours to the right, the target between.
-  const themX = PAD + 24;
-  const usX = W - PAD - 24;
+  // written over a line.
+  //
+  // Each total sits on the side its own marks are on. Rotating the top half flips its marks
+  // to the right, so the top team's total belongs on the right — putting it on the left, as
+  // a "them on the left, us on the right" reading suggests, sets every total beside the
+  // *other* team's marks and makes the board unreadable.
+  const themX = W - PAD - 24;
+  const usX = PAD + 24;
   const gap = (x, w) => [x - w, x + w];
-  const cuts = [gap(themX, 22), gap(W / 2, 22), gap(usX, 22)];
+  const cuts = [gap(usX, 22), gap(W / 2, 22), gap(themX, 22)];
   // Segments shorter than this are stubs left either side of a number — not worth drawing.
   const MIN_SEGMENT = 8;
   let from = PAD;
