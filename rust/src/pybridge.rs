@@ -11,6 +11,9 @@ use pyo3::prelude::*;
 use crate::awareness::trick_taker;
 use crate::bidding::infer_from_bid;
 use crate::convention;
+use crate::leafeval::{features, N_FEATURES};
+use crate::rollout::{pick_random, Kernel};
+use crate::round::Round;
 use crate::determinize::determinize;
 use crate::objective::{reward, Stakes};
 use crate::reading::infer_affinity;
@@ -239,6 +242,69 @@ fn rs_infer_forbidden(
 #[pyfunction]
 fn rs_trick_taker(cards: Vec<usize>, leader: usize, contract: usize) -> Option<usize> {
     trick_taker(&cards, leader, contract)
+}
+
+/// Leaf positions with the *mean* of many random playouts as the label.
+///
+/// The label is deliberately the playout's own expectation rather than the true value of the
+/// position: fitting to it makes the evaluator a zero-variance version of the thing it
+/// replaces, so a measured difference is variance and nothing else. See leafeval.rs.
+///
+/// Positions come from random play, one per ply — roughly the distribution the tree's leaves
+/// are drawn from, since a leaf is a short tree descent followed by random continuation.
+#[pyfunction]
+#[pyo3(signature = (seed, rounds, playouts, contract=None))]
+fn rs_leaf_samples(
+    seed: u64,
+    rounds: usize,
+    playouts: usize,
+    contract: Option<usize>,
+) -> (Vec<Vec<f64>>, Vec<f64>) {
+    let rules = Rules::default();
+    let mut rng = Rng::new(seed | 1);
+    let mut xs: Vec<Vec<f64>> = Vec::new();
+    let mut ys: Vec<f64> = Vec::new();
+    const ROOT: usize = 0;
+
+    for r in 0..rounds {
+        let c = contract.unwrap_or(rng.below(6) as usize);
+        let k = Kernel::new(c, rules.strict_undertrump, rules.puur_exempt, 5, 0);
+        let hands = crate::deal::deal(seed.wrapping_add(r as u64).wrapping_mul(0x9E37_79B9), 0);
+        let mut round = Round::new(c, hands, rng.below(4) as usize, rules);
+
+        while !round.done() {
+            let mut feats = [0.0f64; N_FEATURES];
+            features(
+                &round.hands, &round.trick, round.leader, round.to_play(),
+                &round.tricks_won, &k, ROOT, &mut feats,
+            );
+
+            // The label: many random completions of this exact position, averaged. The
+            // baseline evaluator is one draw from this distribution; the fit is its mean.
+            let banked = round.trick_points;
+            let mut acc = 0.0f64;
+            for _ in 0..playouts {
+                let mut sim = round.clone();
+                while !sim.done() {
+                    let card = pick_random(sim.legal_moves(sim.to_play()), &mut rng);
+                    let _ = sim.play(card);
+                }
+                let a = sim.trick_points[ROOT] - banked[ROOT] + k.last_trick_bonus
+                    * if sim.last_trick_winner as usize & 1 == ROOT { 1 } else { 0 };
+                let b = sim.trick_points[1 - ROOT] - banked[1 - ROOT] + k.last_trick_bonus
+                    * if sim.last_trick_winner as usize & 1 == ROOT { 0 } else { 1 };
+                acc += a as f64 / ((a + b).max(1)) as f64;
+            }
+            xs.push(feats.to_vec());
+            ys.push(acc / playouts as f64);
+
+            let card = pick_random(round.legal_moves(round.to_play()), &mut rng);
+            if round.play(card).is_err() {
+                break;
+            }
+        }
+    }
+    (xs, ys)
 }
 
 /// What the bidding says, exposed so the Python mirror can be held to the same answer.
@@ -561,6 +627,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_infer_affinity, m)?)?;
     m.add_function(wrap_pyfunction!(rs_reward, m)?)?;
     m.add_function(wrap_pyfunction!(rs_infer_from_bid, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_leaf_samples, m)?)?;
     m.add_function(wrap_pyfunction!(rs_determinize, m)?)?;
     m.add_function(wrap_pyfunction!(rs_select_trump, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trump_scores, m)?)?;

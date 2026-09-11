@@ -24,6 +24,7 @@ pub mod events;
 pub mod game;
 pub mod determinize;
 pub mod endgame;
+pub mod leafeval;
 pub mod legal;
 pub mod objective;
 pub mod reading;
@@ -160,7 +161,7 @@ fn play_out_many(
     seat, hand, unseen, trick, trick_leader, contract, forbidden=None, affinity=None, rank_bias=None,
     determinizations=1000, iterations=800, exploration=1.5, seed=0, threads=1,
     endgame_cards=5, strict_undertrump=true, puur_exempt=true,
-    scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true, risk_lambda=0.0
+    scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true, risk_lambda=0.0, leaf_weights=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -188,6 +189,7 @@ fn dmcts(
     multiplier: i32,
     adversarial: bool,
     risk_lambda: f64,
+    leaf_weights: Option<Vec<f64>>,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -237,6 +239,7 @@ fn dmcts(
             risk_lambda,
         },
         adversarial,
+        leaf_weights: leaf_weights.unwrap_or_default(),
     };
     // Long CPU-bound work: release the GIL so the caller stays responsive and rayon can
     // actually use the cores.

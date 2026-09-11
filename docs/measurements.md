@@ -393,6 +393,58 @@ argues for ISMCTS alongside the value work rather than after it.
 
 ---
 
+## 5g. The leaf evaluator: the kill criterion fired, and said something bigger
+
+`docs/value-net-plan.md` Phase 0 fitted a 14-feature linear evaluator to replace the random
+playout, deliberately targeting **the playout's own mean** so the experiment would isolate
+variance and nothing else. It carried a prediction: §3a's collapse below ~30 iterations per
+world should lift, if that floor is rollout noise.
+
+| split | share | p |
+|---|---|---|
+| 40 × 60 | 40.87% ± 7.70 | ~0 |
+| 240 × 10 | 41.07% ± 8.26 | ~0 |
+| 600 × 4 | 43.47% ± 8.54 | ~0 |
+
+Nine points worse, at every split, and the floor did not lift. The kill criterion fired.
+
+**Why, quantitatively.** A single playout has RMSE 0.4299 against its own mean; the fitted
+evaluator reaches 0.2315 — nearly twice as accurate *per call*, which is what made this look
+promising. But the search does not use one call:
+
+| split | per-world error | votes | after voting | evaluator |
+|---|---|---|---|---|
+| 40 × 60 | 0.118 | 40 | **0.019** | 0.232 |
+| 240 × 10 | 0.288 | 240 | **0.019** | 0.232 |
+| 600 × 4 | 0.430 | 600 | **0.018** | 0.232 |
+
+The playout's error is **zero-mean**, so it washes out twice — averaging inside a world, and
+again across every determinization's vote. The evaluator's error is **bias**: the same
+position returns the same number in every world, so voting never removes any of it. Twelve
+times worse in effect, and identical at all three splits, which is why the loss is the same
+nine points at all three. (Votes are not perfectly independent, so 0.019 is optimistic — but
+not by the order of magnitude that would change the conclusion.)
+
+**This also re-reads §3a.** If estimator error after voting is flat across the splits, the
+floor at ~30 iterations is not noise. It is that four iterations cannot build a tree: the
+world is evaluated fine and never *searched*. Prediction made, prediction falsified, and the
+mechanism turns out to be a different one.
+
+**The architectural consequence, which outlives this experiment.** For a learned value to be a
+drop-in replacement here it would need RMSE below ~0.02 against the true value. That is not a
+hard target, it is an absurd one — the quantity being estimated has a standard deviation
+around 0.3. **No value network will beat a 2,400-sample unbiased Monte Carlo estimator at
+being that estimator.**
+
+So "replace the playout with a learned value" is the wrong shape, and
+`docs/value-net-plan.md` is wrong as written. A value network earns its place the way it does
+in AlphaZero-style systems: with *far fewer* simulations, a policy prior carrying the load,
+and an aggregation that is not a vote over perfect-information worlds. It is not a component
+that can be swapped into this search — it comes with the aggregation change or not at all.
+Which puts ISMCTS first, and the value with it rather than before it.
+
+---
+
 ## 6. Open
 
 - Nothing measured against a human.

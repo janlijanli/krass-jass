@@ -16,6 +16,7 @@ use crate::determinize::determinize;
 use crate::endgame::solve_root;
 use crate::legal::legal_moves;
 use crate::rng::Rng;
+use crate::leafeval::{evaluate, features, N_FEATURES};
 use crate::objective::{reward, Stakes};
 use crate::rollout::{pick_random, play_out, Kernel};
 use crate::tables::{CARD_VALUES, STRENGTH};
@@ -40,6 +41,8 @@ pub struct Position {
     pub rank_bias: [i8; NUM_SEATS],
     /// The game around this round. `target: 0` falls back to the share of the round.
     pub stakes: Stakes,
+    /// Linear leaf evaluator. Empty means the random playout, which is the baseline.
+    pub leaf_weights: Vec<f64>,
     /// Model opponents as opponents. False reproduces the original search, which maximised
     /// the root team's value at *every* node — see `Tree::uct_child`.
     pub adversarial: bool,
@@ -99,6 +102,7 @@ struct Node {
 /// A perfect-information UCT search over one determinization.
 struct Tree {
     nodes: Vec<Node>,
+    leaf_weights: Vec<f64>,
     k: Kernel,
     exploration: f64,
     stakes: Stakes,
@@ -117,8 +121,16 @@ struct Walk {
 }
 
 impl Tree {
-    fn new(k: Kernel, exploration: f64, untried: u64, stakes: Stakes, adversarial: bool) -> Self {
+    fn new(
+        k: Kernel,
+        exploration: f64,
+        untried: u64,
+        stakes: Stakes,
+        adversarial: bool,
+        leaf_weights: Vec<f64>,
+    ) -> Self {
         Tree {
+            leaf_weights,
             nodes: vec![Node {
                 visits: 0,
                 total: 0.0,
@@ -273,23 +285,33 @@ impl Tree {
             node_idx = child;
         }
 
-        // --- rollout: finish any partial trick, then hand off to the kernel ---
+        // --- evaluate the leaf ---
         //
         // Note there is deliberately no exact solve here. See `endgame::solve_root`: at
         // ~3ms a five-card solve is far too expensive to run per leaf, and the endgame is
         // handled by replacing the whole search instead.
-        while !w.trick.is_empty() {
-            let legal = self.legal_at(w);
-            let card = pick_random(legal, rng);
-            self.advance(w, card);
-        }
-        let (a, b) = play_out(&mut w.hands, w.to_play, &self.k, rng);
-        w.pts[0] += a;
-        w.pts[1] += b;
-
-        // Score from the searching team's point of view, normalised to [0, 1]. Not a share
-        // of the round any more — where the round leaves the *game*. See objective.rs.
-        let result = reward(w.pts[root_team], w.pts[1 - root_team], root_team, &self.stakes);
+        let result = if self.leaf_weights.is_empty() {
+            // The baseline: finish any partial trick, then hand off to the kernel and play
+            // the round out at random. One sample of a very noisy quantity.
+            while !w.trick.is_empty() {
+                let legal = self.legal_at(w);
+                let card = pick_random(legal, rng);
+                self.advance(w, card);
+            }
+            let (a, b) = play_out(&mut w.hands, w.to_play, &self.k, rng);
+            w.pts[0] += a;
+            w.pts[1] += b;
+            reward(w.pts[root_team], w.pts[1 - root_team], root_team, &self.stakes)
+        } else {
+            // The static estimate. Fitted to the *mean* of the playout above, so this is a
+            // variance-reduction experiment and not a change of target. See leafeval.rs.
+            let mut feats = [0.0f64; N_FEATURES];
+            features(
+                &w.hands, &w.trick, w.trick_leader, w.to_play, &w.tricks, &self.k,
+                root_team, &mut feats,
+            );
+            evaluate(&self.leaf_weights, &feats)
+        };
         for &n in &path {
             self.nodes[n].visits += 1;
             self.nodes[n].total += result;
@@ -407,7 +429,9 @@ pub fn dmcts(
             return (out, best_card);
         }
 
-        let mut tree = Tree::new(*k, exploration, root_legal, pos.stakes, pos.adversarial);
+        let mut tree =
+            Tree::new(*k, exploration, root_legal, pos.stakes, pos.adversarial,
+                      pos.leaf_weights.clone());
         for _ in 0..iterations {
             let mut w = Walk {
                 hands,

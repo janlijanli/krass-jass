@@ -216,6 +216,7 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
                 risk_lambda: 0.0,
             },
             adversarial: true,
+            leaf_weights: Vec::new(),
         };
         let out = dmcts(
             &position,

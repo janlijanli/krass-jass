@@ -96,6 +96,18 @@
     ]
   },
 
+  "leaf_evaluator": {
+    "deals": 600,
+    "note": "Phase 0 of value-net-plan.md: a linear evaluator fitted to the random playout's own mean. Nine points worse at every split. The playout's error is zero-mean and washes out across 2400 samples to ~0.019; the evaluator's is bias at 0.232 and never washes out. Kill criterion fired. See measurements.md §5g.",
+    "rmse_one_playout": 0.4299,
+    "rmse_evaluator": 0.2315,
+    "points": [
+      { "determinizations": 40, "iterations": 60, "share": 40.87, "std": 7.70, "p": 0.0 },
+      { "determinizations": 240, "iterations": 10, "share": 41.07, "std": 8.26, "p": 0.0 },
+      { "determinizations": 600, "iterations": 4, "share": 43.47, "std": 8.54, "p": 0.0 }
+    ]
+  },
+
   "budget_sweep": {
     "deals": 500,
     "reference": 2400,

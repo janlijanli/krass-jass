@@ -112,6 +112,11 @@ class DmctsAgent(Agent):
     #: Risk aversion in the reward, offsetting the over-optimism determinized search has by
     #: construction. 0 is off; see `krass_jass/objective.py` for why it must be non-linear.
     risk_lambda: float = 0.0
+    #: Linear leaf evaluator in place of the random playout — `docs/value-net-plan.md`
+    #: Phase 0. `None` keeps the playout, which is the baseline every figure was measured
+    #: against. Fitted to the playout's own *mean*, so this is variance reduction and not a
+    #: change of target.
+    leaf_weights: tuple | None = None
 
     @property
     def name(self) -> str:
@@ -170,6 +175,7 @@ class DmctsAgent(Agent):
             "multiplier": self.cfg.multiplier(obs.contract) if target else 1,
             "adversarial": self.adversarial,
             "risk_lambda": self.risk_lambda,
+            "leaf_weights": list(self.leaf_weights) if self.leaf_weights else None,
         }
 
     def _priors(self, obs: Observation) -> dict:

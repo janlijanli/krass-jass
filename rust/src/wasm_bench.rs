@@ -59,6 +59,7 @@ pub extern "C" fn bench_dmcts(determinizations: u32, iterations: u32, seed: u32)
         rank_bias: [0i8; NUM_SEATS],
         stakes: Default::default(),
         adversarial: true,
+        leaf_weights: Vec::new(),
     };
     let out = dmcts(
         &position,

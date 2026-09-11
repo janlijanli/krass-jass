@@ -1,5 +1,17 @@
 # Plan: a learned value at the leaves
 
+> **Superseded by its own Phase 0.** The probe ran and lost nine points at every split
+> (`docs/measurements.md` §5g). The reason is architectural, not a detail of the fit: the
+> playout's error is zero-mean and the search averages it over 2,400 samples down to ~0.019,
+> while any static evaluator's error is bias and survives the averaging untouched. A drop-in
+> replacement would need RMSE below ~0.02 on a quantity whose standard deviation is ~0.3.
+>
+> The plan below is kept because the constraint analysis in it is still correct and still
+> useful — a network is affordable at play time, and the cost is training throughput. What is
+> wrong is the *shape*: a value network cannot be swapped into a voting search. It belongs
+> with a policy prior and an aggregation that is not a vote over perfect-information worlds,
+> which means it comes after ISMCTS, not before it.
+
 ## Why this one
 
 Today's measurements closed every cheaper door. The search is not compute-bound (saturates at
