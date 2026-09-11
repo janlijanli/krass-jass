@@ -218,6 +218,25 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
             adversarial: true,
             leaf_weights: Vec::new(),
         };
+        // The browser plays the same search the measurements were taken with. ISMCTS above
+        // the endgame threshold, the exact solve below it — see measurements.md §5h.
+        let total = (determinizations * iterations) as usize;
+        if round.hands[seat].count_ones() > 5 {
+            let out = crate::ismcts::ismcts(&position, &kernel, total, 1.5, seed as u64 | 1, 4);
+            return convention::choose(
+                &out,
+                round.hands[seat],
+                unseen,
+                seen | round.hands[seat],
+                &round.trick,
+                seat,
+                round.trump,
+                contract,
+                &position.forbidden,
+            )
+            .map(|c| c as i32)
+            .unwrap_or(-1);
+        }
         let out = dmcts(
             &position,
             &kernel,

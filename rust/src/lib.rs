@@ -24,6 +24,7 @@ pub mod events;
 pub mod game;
 pub mod determinize;
 pub mod endgame;
+pub mod ismcts;
 pub mod leafeval;
 pub mod legal;
 pub mod objective;
@@ -161,7 +162,7 @@ fn play_out_many(
     seat, hand, unseen, trick, trick_leader, contract, forbidden=None, affinity=None, rank_bias=None,
     determinizations=1000, iterations=800, exploration=1.5, seed=0, threads=1,
     endgame_cards=5, strict_undertrump=true, puur_exempt=true,
-    scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true, risk_lambda=0.0, leaf_weights=None
+    scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true, risk_lambda=0.0, leaf_weights=None, ismcts=false, resample_every=1
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -190,6 +191,8 @@ fn dmcts(
     adversarial: bool,
     risk_lambda: f64,
     leaf_weights: Option<Vec<f64>>,
+    ismcts: bool,
+    resample_every: usize,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -244,6 +247,21 @@ fn dmcts(
     // Long CPU-bound work: release the GIL so the caller stays responsive and rayon can
     // actually use the cores.
     let out = py.allow_threads(|| {
+        // The endgame is an exact double-dummy solve that replaces the search entirely, and
+        // it is identical under either algorithm — so endgame positions go to `dmcts`, which
+        // already owns that branch, rather than being duplicated here.
+        let max_hand = (0..NUM_SEATS)
+            .map(|s| if s == pos.seat & 3 { pos.hand.count_ones() } else { 0 })
+            .max()
+            .unwrap_or(0);
+        let in_endgame = endgame_cards > 0 && max_hand <= endgame_cards && max_hand > 0;
+        if ismcts && !in_endgame {
+            // Equal total budget: one shared tree gets what the determinized search spends
+            // across all of its separate ones.
+            return crate::ismcts::ismcts(
+                &pos, &k, determinizations * iterations, exploration, seed, resample_every,
+            );
+        }
         search::dmcts(
             &pos,
             &k,

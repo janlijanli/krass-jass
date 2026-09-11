@@ -117,6 +117,19 @@ class DmctsAgent(Agent):
     #: against. Fitted to the playout's own *mean*, so this is variance reduction and not a
     #: change of target.
     leaf_weights: tuple | None = None
+    #: Information Set MCTS: one tree shared across every imagined world, instead of a tree
+    #: per world and a vote. The node *is* the information set, so one policy has to serve
+    #: every world consistent with it — which is the constraint strategy fusion breaks.
+    #:
+    #: **On**, and the first thing in `docs/measurements.md` to earn that on strength rather
+    #: than on correctness: +1.15 points at equal iterations and +0.53 at equal wall-clock,
+    #: both replicated (§5h). The flag stays so the comparison stays runnable.
+    ismcts: bool = True
+    #: Iterations sharing one imagined world before a new one is drawn. 1 is textbook ISMCTS
+    #: and is dominated by the cost of dealing worlds. **4** keeps the full gain at 1.41x the
+    #: determinized search rather than 1.95x; at 8 the gain is gone (§5h). The cliff between
+    #: 4 and 8 is why this is a measured constant and not a tuning knob.
+    resample_every: int = 4
 
     @property
     def name(self) -> str:
@@ -176,6 +189,8 @@ class DmctsAgent(Agent):
             "adversarial": self.adversarial,
             "risk_lambda": self.risk_lambda,
             "leaf_weights": list(self.leaf_weights) if self.leaf_weights else None,
+            "ismcts": self.ismcts,
+            "resample_every": self.resample_every,
         }
 
     def _priors(self, obs: Observation) -> dict:

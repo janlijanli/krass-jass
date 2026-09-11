@@ -108,6 +108,35 @@
     ]
   },
 
+  "ismcts": {
+    "note": "Information Set MCTS: one tree shared across every imagined world instead of a tree per world and a vote. The first change in this file to make the bot stronger. Replicated three times. See measurements.md §5h.",
+    "vs_dmcts": [
+      { "basis": "equal iterations", "share": 50.72, "std": 6.24, "deals": 1000, "p": 0.00024 },
+      { "basis": "equal iterations, fresh seed", "share": 51.23, "std": 6.49, "deals": 1400, "p": 1.3e-12 },
+      { "basis": "equal iterations, third seed", "share": 51.15, "std": 6.74, "deals": 1400, "p": 2.0e-10 },
+      { "basis": "equal wall-clock", "share": 50.53, "std": 6.77, "deals": 1400, "p": 0.0034 }
+    ],
+    "ladder": [
+      { "b": "random", "share": 76.39, "std": 12.64, "deals": 300 },
+      { "b": "greedy", "share": 68.76, "std": 7.31, "deals": 300 }
+    ],
+    "resample_every": {
+      "note": "Iterations sharing one imagined world. The gain is intact at 4 and gone at 8 — a cliff, not a slope. Shipped default 4: full advantage at 1.41x the determinized search rather than 1.95x.",
+      "deals": 1000,
+      "points": [
+        { "k": 1, "cost_vs_dmcts": 1.95, "share": 50.59, "std": 6.55, "p": 0.0045 },
+        { "k": 4, "cost_vs_dmcts": 1.41, "share": 50.64, "std": 6.77, "p": 0.0029 },
+        { "k": 8, "cost_vs_dmcts": 1.34, "share": 50.07, "std": 6.62, "p": 0.74 },
+        { "k": 16, "cost_vs_dmcts": 1.30, "share": 49.82, "std": 6.57, "p": 0.39 }
+      ]
+    },
+    "fusion": {
+      "note": "The gap to a bot that sees all four hands, endgame solver off. It narrows by 0.74 of ~9 points, so strategy fusion is real and is about 8% of what hidden information costs.",
+      "cheating_vs_dmcts": 59.13,
+      "cheating_vs_ismcts": 58.39
+    }
+  },
+
   "budget_sweep": {
     "deals": 500,
     "reference": 2400,

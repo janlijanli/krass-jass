@@ -136,3 +136,36 @@ def test_parallel_matches_are_identical_to_serial():
     parallel = match(a, b, deals=8, seed=5, workers=4)
     assert serial.a_share == parallel.a_share
     assert serial.std == parallel.std
+
+
+def test_the_endgame_solve_is_reached_whichever_search_is_selected():
+    """ISMCTS does not own an endgame branch — positions below the threshold are routed to
+    the exact double-dummy solve that `dmcts` already has.
+
+    The solve is exact, so both searches must return *identical* candidates there. If this
+    ever diverges, ISMCTS has grown its own endgame by accident.
+    """
+    from krass_jass.agent import DmctsAgent
+    from krass_jass.game import Game, Phase
+    from krass_jass.rules import EVAL
+
+    ism = DmctsAgent(determinizations=20, iterations=20, cfg=EVAL, endgame_cards=5, ismcts=True)
+    dmc = DmctsAgent(determinizations=20, iterations=20, cfg=EVAL, endgame_cards=5, ismcts=False)
+
+    game = Game(cfg=EVAL.variant(target_score=None), seed=11)
+    guard = 0
+    while game.phase is Phase.BIDDING and guard < 6:
+        seat = game.to_act
+        game.bid(seat, ism.select_trump(game.hand_of(seat), seat == game.forehand))
+        guard += 1
+    assert game.phase is Phase.PLAYING
+
+    checked = 0
+    while game.round is not None and not game.round.done:
+        seat = game.to_act
+        obs = game.observation(seat)
+        if bin(obs.hand).count("1") <= 5:
+            assert ism.trace(obs) == dmc.trace(obs), "the endgame solve must not depend on it"
+            checked += 1
+        game.play(seat, ism.decide(obs))
+    assert checked > 0, "the round never reached the endgame threshold"

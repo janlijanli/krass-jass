@@ -445,6 +445,79 @@ Which puts ISMCTS first, and the value with it rather than before it.
 
 ---
 
+## 5h. Information Set MCTS — the first thing that made the bot stronger
+
+Everything above this is a null or a correctness fix. This one moves.
+
+`search.rs` builds a fresh tree per imagined deal, solves each as a perfect-information game,
+and votes. That is PIMC, and the searching player effectively picks a different card for every
+world it imagines and then holds an election. A real player cannot: they must choose one card
+that serves every world they cannot tell apart. ISMCTS puts that in the data structure — **one
+tree**, shared across every determinization, where a node is reached by a sequence of played
+cards. Those are public, so a node *is* an information set, and it carries one set of
+statistics and therefore one policy.
+
+The correctness detail that makes it work: different worlds make different cards legal, so a
+child counts how often it was **available** rather than dividing by the parent's visits. Get
+that wrong and rarely-dealt cards look unpopular instead of untested.
+
+| | share | n | p |
+|---|---|---|---|
+| ismcts vs random | 76.39% ± 12.64 | 300 | ~0 |
+| ismcts vs greedy | 68.76% ± 7.31 | 300 | ~0 |
+| **ismcts vs dmcts, equal iterations** | **50.72% ± 6.24** | 1000 | 2.4e-04 |
+| *replication, fresh seed* | **51.23% ± 6.49** | 1400 | 1.3e-12 |
+| *and again* | 51.15% ± 6.74 | 1400 | 2.0e-10 |
+| **ismcts vs dmcts, equal wall-clock** | **50.53% ± 6.77** | 1400 | 3.4e-03 |
+
+**+1.15 points at equal iterations, +0.53 at equal wall-clock**, replicated three times. The
+equal-time figure is the one that matters and is the smaller one, because ISMCTS costs ~2x per
+iteration: it draws a world every iteration where the determinized search draws forty in total.
+
+### The mechanism, checked rather than assumed
+
+If this wins by removing strategy fusion, the gap to a bot that sees all four hands should
+narrow — that gap is what fusion costs. Same matchup, same seed, endgame solver off on both:
+
+| | share |
+|---|---|
+| cheating vs dmcts | 59.13% ± 6.74 |
+| cheating vs ismcts | 58.39% ± 6.21 |
+
+It narrows by 0.74, consistent with the head-to-head gain. **So fusion is real and costs
+points — and it is only about 8% of the hidden-information penalty.** It had been treated
+here as *the* explanation for the ceiling on the strength of being the textbook answer; it is
+a contributor. The other eight points remain unexplained, and non-locality is a hypothesis
+rather than a measurement.
+
+### Cost, and one wrong diagnosis
+
+Under wasm the first implementation cost 80 ms a move against a native 3.6 ms — a far worse
+ratio than the 1.4x wasm normally pays. The first hypothesis was allocation: ~20,000 `Vec`s
+per move at node scope. Replacing them with a stack array improved *native* by 18% and moved
+wasm not at all. The cost is `determinize` being called 2,400 times instead of 40, and being
+much dearer under wasm's 64-bit arithmetic.
+
+Sharing a world across several iterations recovers most of it. Whether that costs strength is
+its own measurement, and it has a cliff in it:
+
+| worlds shared | cost vs dmcts | share vs dmcts | p |
+|---|---|---|---|
+| 1 (textbook) | 1.95x | 50.59% ± 6.55 | 0.0045 |
+| **4** | **1.41x** | **50.64% ± 6.77** | **0.0029** |
+| 8 | 1.34x | 50.07% ± 6.62 | 0.74 |
+| 16 | 1.30x | 49.82% ± 6.57 | 0.39 |
+
+n=1000 each. The gain survives intact at 4 and is **gone** at 8 — not degraded, gone. So the
+shipped default is `resample_every=4`: the full advantage at 1.41x instead of 1.95x, with 600
+distinct worlds against the determinized search's 40.
+
+That cliff is worth respecting rather than tuning around. Whatever ISMCTS is buying depends on
+seeing many distinct worlds through one tree, and it stops buying it somewhere between 600 and
+300 worlds — which is a fact about the mechanism, not about the constant.
+
+---
+
 ## 6. Open
 
 - Nothing measured against a human.
