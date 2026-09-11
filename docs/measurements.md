@@ -337,7 +337,12 @@ definition, one where the search rated both cards the same. **It moves the answe
 where the answer does not matter**, and the direction it moves is inside the search's own
 noise.
 
-That predicts all five nulls at once, and it predicts the sixth. The obvious next idea is
+That predicts all five nulls at once, and it predicts the sixth.
+
+**Qualified by §5k.** What this shows is that a *weak* belief correction can only reach
+near-ties. It does not show that belief work is futile: replacing a fifth of the imagined
+worlds with the truth is worth 2.52 points, far more than anything else measured here. The
+priors above failed because they were small, not because beliefs do not matter. The obvious next idea is
 reading the *lead* — a declarer who does not draw trumps is thinner in them, and our own bots
 do play it: leading trump they hold 3.43 trumps, leading a side suit 2.76. Real, and about
 half the strength of the bidding signal that already measured zero. It is not worth building.
@@ -639,6 +644,58 @@ would be a better model of the same thing nobody needs a model of.
 It also says what a policy network *would* still be for: not guiding this search, but replacing
 it, or guiding one run at a budget far below 2,400 where the moves are not all visited anyway.
 Neither is the thing that was being proposed.
+
+---
+
+## 5k. What better beliefs are worth — the first direction with a large payoff
+
+Strategy fusion turned out to be ~8% of the hidden-information cost (§5h), which left the
+remaining ~8 points unexplained and **non-locality** as a hypothesis this file had carried all
+day without evidence. Non-locality is a claim about the *belief distribution*: an opponent's
+earlier plays were choices, so the deals surviving them are not uniformly likely among the
+deals that merely survive the hard voids in `voids.py`.
+
+So measure what the belief distribution is worth. With probability `p` the search imagines the
+**true** deal instead of a sampled one, walking it from its own beliefs to perfect ones
+(`arena/oracle.py`, which takes the true deal and therefore lives in `arena/` like
+`cheating.py`). p=1 reproduces the cheating agent — 57.81% here against 58.39% there, which is
+the sanity check.
+
+| p | share | gain | vs linear | per 1% of oracle |
+|---|---|---|---|---|
+| 0.05 | 50.36% ± 6.45 | +0.36 | 0.39 | 0.072 |
+| 0.10 | 51.34% ± 6.21 | +1.34 | 0.78 | **0.134** |
+| 0.20 | 52.52% ± 6.50 | **+2.52** | 1.56 | 0.126 |
+| 0.35 | 54.14% ± 6.39 | +4.14 | 2.73 | 0.118 |
+| 0.50 | 55.24% ± 6.51 | +5.24 | 3.91 | 0.105 |
+| 0.75 | 56.75% ± 6.75 | +6.75 | 5.86 | 0.090 |
+| 1.00 | 57.81% ± 6.38 | +7.81 | — | 0.078 |
+
+n=800 each. **The curve is concave**: a fifth of the information buys a third of the gap, and
+the return per unit peaks around p=0.1–0.2 rather than at the top. Beliefs pay, and they pay
+hardest at the margin — which is the opposite of what was expected when this was run.
+
+### What it does and does not license
+
+It measures the value of **injecting exact truth**, which is a much stronger intervention than
+any inference can perform. A real inference nudges the distribution; the oracle inserts
+certainty into a fraction of the worlds. So this is an upper bound on what better beliefs can
+buy, not a forecast.
+
+Read as a bar, it is a demanding one. Each 1% of oracle-equivalent belief accuracy is worth
+roughly **0.07–0.13 points**, so beating ISMCTS's +1.15 needs inference worth about **10% of
+an oracle**. The priors in §5e and §5j were worth a small fraction of one percent by this
+scale, which is why they measured as nothing — and reconciles the two results rather than
+setting them against each other.
+
+It also corrects the overreach in §5e. That section's mechanism — a prior only flips decisions
+the search rates within 0.008 of each other — is true of weak corrections and was stated as if
+it were true of all belief work. It is not. Belief accuracy is the largest lever measured
+anywhere in this file; what was missing from the priors was magnitude, not relevance.
+
+**This does not isolate non-locality.** Nothing here separates "the sampling distribution is
+wrong" from "not knowing is inherently costly", because even a perfect imperfect-information
+player loses to a cheat. The honest statement is about belief accuracy in total.
 
 ---
 

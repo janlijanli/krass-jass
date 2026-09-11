@@ -163,7 +163,7 @@ fn play_out_many(
     seat, hand, unseen, trick, trick_leader, contract, forbidden=None, affinity=None, rank_bias=None,
     determinizations=1000, iterations=800, exploration=1.5, seed=0, threads=1,
     endgame_cards=5, strict_undertrump=true, puur_exempt=true,
-    scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true, risk_lambda=0.0, leaf_weights=None, ismcts=false, resample_every=1, order_moves=false, prior_weight=0.0, policy_weights=None
+    scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true, risk_lambda=0.0, leaf_weights=None, ismcts=false, resample_every=1, order_moves=false, prior_weight=0.0, policy_weights=None, oracle_hands=None, oracle_p=0.0
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -197,6 +197,8 @@ fn dmcts(
     order_moves: bool,
     prior_weight: f64,
     policy_weights: Option<Vec<f32>>,
+    oracle_hands: Option<Vec<u64>>,
+    oracle_p: f64,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -266,6 +268,14 @@ fn dmcts(
                 &pos, &k, determinizations * iterations, exploration, seed, resample_every,
                 order_moves, prior_weight,
                 policy_weights.as_deref().unwrap_or(&[]),
+                &{
+                    let mut h = [0u64; NUM_SEATS];
+                    if let Some(v) = &oracle_hands {
+                        h.copy_from_slice(&v[..NUM_SEATS.min(v.len())]);
+                    }
+                    h
+                },
+                oracle_p,
             );
         }
         search::dmcts(

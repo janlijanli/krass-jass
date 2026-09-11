@@ -134,6 +134,8 @@ pub fn ismcts(
     order_moves: bool,
     prior_weight: f64,
     policy_weights: &[f32],
+    oracle_hands: &[u64; NUM_SEATS],
+    oracle_p: f64,
 ) -> Vec<Candidate> {
     let root_legal = pos.legal(k);
     let root_team = pos.seat & 1;
@@ -172,7 +174,14 @@ pub fn ismcts(
         // A fresh world every `every` iterations, and always the *same* tree. The shared tree
         // is the difference from a determinized search; the resampling rate is only a cost.
         if iter % every == 0 || !have_world {
-            if !determinize(
+            // Measurement only: with probability `oracle_p` the imagined world is the real
+            // one. Sweeping p from 0 to 1 walks the search from its own beliefs to perfect
+            // ones, and the *shape* of that curve says how much better beliefs are worth.
+            // Only `arena/` ever supplies a non-zero p; see the note in arena/oracle.py.
+            let use_oracle = oracle_p > 0.0 && (rng.below(10_000) as f64) < oracle_p * 10_000.0;
+            if use_oracle {
+                dealt = *oracle_hands;
+            } else if !determinize(
                 pos.unseen, &counts, &pos.forbidden, &pos.affinity, &pos.rank_bias,
                 &mut dealt, &mut rng,
             ) {

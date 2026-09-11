@@ -64,6 +64,8 @@ def dmcts(
     order_moves: bool = False,
     prior_weight: float = 0.0,
     policy_weights: list[float] | None = None,
+    oracle_hands: list[int] | None = None,
+    oracle_p: float = 0.0,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -109,4 +111,6 @@ def dmcts(
         order_moves=order_moves,
         prior_weight=prior_weight,
         policy_weights=policy_weights,
+        oracle_hands=oracle_hands,
+        oracle_p=oracle_p,
     )
