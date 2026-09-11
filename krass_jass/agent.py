@@ -124,6 +124,9 @@ class DmctsAgent(Agent):
     #: **On**, and the first thing in `docs/measurements.md` to earn that on strength rather
     #: than on correctness: +1.15 points at equal iterations and +0.53 at equal wall-clock,
     #: both replicated (§5h). The flag stays so the comparison stays runnable.
+    #: Use the cards the table was *shown* as hard constraints. A flag only so the A/B can
+    #: run: it is exact public information and there is no case for ignoring it.
+    use_known_cards: bool = True
     ismcts: bool = True
     #: Iterations sharing one imagined world before a new one is drawn. 1 is textbook ISMCTS
     #: and is dominated by the cost of dealing worlds. **4** keeps the full gain at 1.41x the
@@ -159,6 +162,16 @@ class DmctsAgent(Agent):
         )
         # What the play proves, and separately what it suggests. The first removes worlds
         # from the search; the second only changes how often it visits them.
+        #
+        # A Weis that was shown is proof of the strongest kind — the table saw those cards in
+        # that hand — so it joins the void masks rather than the soft priors. Nobody else can
+        # be holding them. `docs/measurements.md` §5k measured belief accuracy as the largest
+        # lever in the file; this is the one piece of it that is exact and free.
+        if self.use_known_cards:
+            for seat, card in obs.known_cards:
+                for other in range(4):
+                    if other != seat:
+                        forbidden[other] |= 1 << card
         candidates = native.dmcts(
             seat=obs.seat,
             hand=obs.hand,
@@ -233,6 +246,11 @@ class DmctsAgent(Agent):
         forbidden = infer_forbidden(
             list(obs.tricks_played), list(obs.trick), obs.trick_leader, obs.contract, self.cfg
         )
+        if self.use_known_cards:
+            for seat, card in obs.known_cards:
+                for other in range(4):
+                    if other != seat:
+                        forbidden[other] |= 1 << card
         return native.dmcts(
             seat=obs.seat, hand=obs.hand, unseen=obs.unseen, trick=list(obs.trick),
             trick_leader=obs.trick_leader, contract=obs.contract, cfg=self.cfg,

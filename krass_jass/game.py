@@ -14,7 +14,7 @@ import random
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .cards import card_list, format_card
+from .cards import parse_card, card_list, format_card
 from .deal import deal as deal_hands
 from .events import EventLog, EventType
 from .observation import build_observation, derive_decision_seed
@@ -120,6 +120,31 @@ class Game:
             return self.round.hands[seat]
         return self._dealt[seat]
 
+    def _shown_cards(self) -> tuple:
+        """`(seat, card)` for every card the table has been shown and that is still unplayed.
+
+        Only the single best Weis shows its cards — that is what has to be proved — so this is
+        three to five cards in the rounds where anyone announces. Everyone at the table saw
+        them, and a search that deals them to random seats is throwing away the one piece of
+        exact information the announcement protocol exists to publish.
+        """
+        if self.round is None or not self.weis_summary:
+            return ()
+        played = 0
+        for _leader, cards in self.round.tricks_played:
+            for card in cards:
+                played |= 1 << card
+        for card in self.round.trick:
+            played |= 1 << card
+
+        out = []
+        for entry in self.weis_summary:
+            for code in entry.get("cards") or ():
+                card = parse_card(code)
+                if not played & (1 << card):
+                    out.append((entry["seat"], card))
+        return tuple(out)
+
     def decision_seed(self, seat: int) -> int:
         trick = len(self.round.tricks_played) if self.round else 0
         return derive_decision_seed(self.seed, self.game_id, seat, self.round_index, trick)
@@ -133,6 +158,7 @@ class Game:
             declarer_seat=self.declarer,
             scores=(self.scores[0], self.scores[1]),
             weis_points=(self._weis[0], self._weis[1]),
+            known_cards=self._shown_cards(),
             time_budget_ms=time_budget_ms,
             decision_seed=self.decision_seed(seat),
             round_index=self.round_index,

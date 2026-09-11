@@ -185,6 +185,13 @@
     "bar": "~0.07-0.13 points per 1% of oracle-equivalent accuracy, so beating ISMCTS's +1.15 needs inference worth ~10% of an oracle."
   },
 
+  "shown_weis": {
+    "note": "The winning Weis is turned face up to prove it, and the search was dealing those cards to random seats. Now pinned as hard constraints. Invisible to every other figure in this file because EVAL switches Weis off. See measurements.md §5l.",
+    "rounds_with_a_shown_weis": 0.66,
+    "cards_pinned_mean": 2.26,
+    "share_of_unknown_pinned": 0.173
+  },
+
   "budget_sweep": {
     "deals": 500,
     "reference": 2400,

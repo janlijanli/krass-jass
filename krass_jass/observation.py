@@ -57,6 +57,14 @@ class Observation:
     #: search's projection either.
     weis_points: tuple[int, int] = (0, 0)
     weis_announced: tuple = ()
+    #: `(seat, card)` pairs that the table has been *shown*. The winning Weis is turned face
+    #: up to prove it, so those cards are public knowledge about a specific hand — and the
+    #: search was dealing them to random seats in every imagined world. Only cards still
+    #: unplayed appear here; once played they are public through `played` like any other.
+    #:
+    #: Stöck has no equivalent and deliberately contributes nothing: it is announced when the
+    #: *second* of King and Queen is played, by which point both are already face up.
+    known_cards: tuple = ()
     time_budget_ms: int = 1500
     decision_seed: int = 0
     round_index: int = 0
@@ -106,6 +114,7 @@ def build_observation(
     declarer_seat: int = 0,
     scores: tuple[int, int] = (0, 0),
     weis_points: tuple[int, int] = (0, 0),
+    known_cards: tuple = (),
     time_budget_ms: int = 1500,
     decision_seed: int = 0,
     round_index: int = 0,
@@ -127,6 +136,7 @@ def build_observation(
         tricks_played=tuple(state.tricks_played),
         scores=scores,
         weis_points=weis_points,
+        known_cards=known_cards,
         time_budget_ms=time_budget_ms,
         decision_seed=decision_seed,
         round_index=round_index,

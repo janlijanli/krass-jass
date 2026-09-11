@@ -699,6 +699,43 @@ player loses to a cheat. The honest statement is about belief accuracy in total.
 
 ---
 
+## 5l. The exact belief information that was being thrown away
+
+§5k found belief accuracy to be the largest lever measured anywhere in this file. The first
+place to spend that finding is not inference — it is the information the table has already
+been *shown*.
+
+When the best Weis is declared its cards are turned face up to prove it. Everyone at the table
+sees them. The search was dealing those cards to random seats in every imagined world.
+
+| | |
+|---|---|
+| rounds where a Weis is shown | **66%** |
+| cards pinned, at those decisions | 2.26 |
+| **share of the unknown cards pinned** | **17.3%** |
+
+That is proof of the strongest kind — not an inference about a holding, a sighting of it — so
+it joins the void masks in `forbidden` rather than the soft priors that §5e and §5j measured at
+nothing. `Observation.known_cards` carries `(seat, card)` for shown cards still unplayed; once
+played they are public through `played` like anything else.
+
+**Why this hid for so long.** `EVAL` switches Weis off, so every figure in this file before
+this section was measured in a world where the information does not exist. The round-level
+arena never runs Weis at all. It is invisible to the entire instrument and live in every real
+game — which is why measuring it needs `HOUSE` and whole games (`arena/games.py`).
+
+**Two things that are not here.** Stöck contributes nothing: it is announced only when the
+*second* of King and Queen is played, by which point both are face up through the ordinary
+channel. And the announced *values* from hands that never showed their cards — "I have 100",
+unproven — remain unused. That is a real constraint (a seat calling 100 holds four of a kind
+or a four-sequence) but it is not a per-card mask, so it needs machinery this does not have.
+
+Unlike everything else measured today, this one does not need to beat a baseline to be
+justified. Discarding facts the table was shown is simply wrong; the measurement says what it
+was costing, not whether to stop.
+
+---
+
 ## 6. Open
 
 - Nothing measured against a human.

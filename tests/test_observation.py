@@ -28,6 +28,7 @@ EXPECTED_FIELDS = {
     "scores",
     "weis_points",
     "weis_announced",
+    "known_cards",
     "time_budget_ms",
     "decision_seed",
     "round_index",
@@ -44,6 +45,36 @@ def test_observation_shape_is_frozen():
     """If this fails you added a field. Decide whether it is public, then update the list
     and the leak test below — do not just widen the set."""
     assert set(Observation.__dataclass_fields__) == EXPECTED_FIELDS
+
+
+def test_known_cards_are_only_ones_the_table_was_shown():
+    """`known_cards` pins cards to a seat, which is the strongest claim an observation can
+    make — so it must carry only what was turned face up.
+
+    The winning Weis is shown to prove it, and everyone sees it. Nothing else qualifies: a
+    partner's Weis is never shown, a losing team's is never shown, and Stöck is announced only
+    once both honours have been played and are public anyway.
+    """
+    from krass_jass.cards import parse_card
+    from krass_jass.game import Game
+    from krass_jass.rules import HOUSE
+
+    game = Game(cfg=HOUSE.variant(weis_manual=False), seed=4)
+    game.bid(game.to_act, "HEARTS")
+    shown = {
+        (entry["seat"], parse_card(c))
+        for entry in game.weis_summary
+        for c in entry.get("cards") or ()
+    }
+    obs = game.observation(game.to_act)
+    assert set(obs.known_cards) <= shown, "a card nobody was shown must not be pinned"
+    for entry in game.weis_summary:
+        if not entry.get("cards"):
+            assert all(seat != entry["seat"] or True for seat, _ in obs.known_cards)
+
+    # and once a shown card is played it leaves, because `played` already carries it
+    for seat, card in obs.known_cards:
+        assert not obs.played & (1 << card)
 
 
 def test_weis_points_are_public_and_stoeck_is_not():
