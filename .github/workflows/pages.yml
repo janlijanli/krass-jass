@@ -1,0 +1,60 @@
+# Build the serverless site and publish it to GitHub Pages.
+#
+# The wasm is built here rather than committed — a binary in git goes stale silently the
+# moment someone changes a rule, and the whole point of the port is that there is one
+# implementation. `site/krass_jass_core.wasm` is gitignored for the same reason.
+
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; don't cancel a running one, so a half-published site is impossible.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Build the site
+        run: ./scripts/build-site.sh
+
+      - name: Check the page has no unresolved template tags
+        run: |
+          if grep -qE '\{%|\{\{' site/index.html; then
+            echo "unresolved template tags in site/index.html"; exit 1
+          fi
+          test -s site/krass_jass_core.wasm
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
