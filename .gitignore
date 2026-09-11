@@ -8,3 +8,4 @@ dist/
 target/
 Cargo.lock
 .env
+site/krass_jass_core.wasm

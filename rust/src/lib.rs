@@ -35,6 +35,8 @@ pub mod voids;
 pub mod weis;
 
 #[cfg(feature = "wasm")]
+mod wasm_api;
+#[cfg(feature = "wasm")]
 mod wasm_bench;
 
 #[cfg(feature = "python")]

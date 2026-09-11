@@ -58,6 +58,8 @@ web/
   session.py  signed guest-session cookie, stdlib HMAC
   static/     card fan (CSS + vanilla JS), mobile first
               cards.js — card faces generated as SVG, real pip layouts
+site/
+  the serverless build — whole game in one tab, no network after load. See site/README.md
 bot/
   service.py  the bot service — a thin wrapper; the agent stays a library
   models.py   Pydantic wire contract between engine and bots
@@ -76,7 +78,9 @@ uv venv --python 3.12
 uv pip install -e '.[dev,web]'
 .venv/bin/python -m pytest
 .venv/bin/python bench/benchmark.py
-.venv/bin/python bot/
+.venv/bin/python site/
+  the serverless build — whole game in one tab, no network after load. See site/README.md
+bot/
   service.py  the bot service — a thin wrapper; the agent stays a library
   models.py   Pydantic wire contract between engine and bots
 arena/ladder.py --deals 100
@@ -87,6 +91,10 @@ arena/ladder.py --deals 100
 # or the real stack: web + three bot containers on isolated internal networks
 echo "KRASS_JASS_SECRET=$(openssl rand -hex 32)" > .env
 docker compose up -d --build      # http://localhost:8099
+
+# or with no server at all — the engine compiled to wasm, playable offline
+./scripts/build-site.sh
+python3 -m http.server 8124 --directory site   # http://127.0.0.1:8124
 ```
 
 ## The three rules that make Jass different
