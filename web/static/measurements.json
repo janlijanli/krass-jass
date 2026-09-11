@@ -189,7 +189,17 @@
     "note": "The winning Weis is turned face up to prove it, and the search was dealing those cards to random seats. Now pinned as hard constraints. Invisible to every other figure in this file because EVAL switches Weis off. See measurements.md §5l.",
     "rounds_with_a_shown_weis": 0.66,
     "cards_pinned_mean": 2.26,
-    "share_of_unknown_pinned": 0.173
+    "share_of_unknown_pinned": 0.173,
+    "rounds": [
+      { "seed": 91, "share": 50.57, "std": 4.82, "deals": 1500, "p": 4.8e-06 },
+      { "seed": 8802, "share": 50.66, "std": 5.08, "deals": 1500, "p": 5.6e-07 }
+    ],
+    "games": [
+      { "target": 1000, "wins": 51.38, "std": 20.44, "games": 400, "p": 0.18 },
+      { "target": 2500, "wins": 51.25, "std": 21.79, "games": 400, "p": 0.25 },
+      { "target": 1000, "wins": 51.78, "std": 23.16, "games": 1600, "p": 0.0021 }
+    ],
+    "verdict": "+0.62 +/- 0.18 of a round's card points, +1.78 +/- 1.13 of games. The second measured gain in the file, and larger than ISMCTS's +1.15."
   },
 
   "budget_sweep": {

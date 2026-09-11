@@ -169,3 +169,56 @@ def test_the_endgame_solve_is_reached_whichever_search_is_selected():
             checked += 1
         game.play(seat, ism.decide(obs))
     assert checked > 0, "the round never reached the endgame threshold"
+
+
+def test_the_round_arena_is_unchanged_when_weis_is_off():
+    """Weis came to the round-level arena late, and every figure in `docs/measurements.md`
+    predates it. `EVAL` switches Weis off, so the whole existing instrument has to be provably
+    inert under the new code — not merely similar.
+    """
+    import random
+
+    from arena.arena import resolve_weis
+    from krass_jass.cards import card_list
+    from krass_jass.rules import EVAL, Contract
+    from krass_jass.state import RoundState
+
+    rng = random.Random(3)
+    for _ in range(80):
+        deck = list(range(36))
+        rng.shuffle(deck)
+        hands = [sum(1 << c for c in deck[i * 9 : (i + 1) * 9]) for i in range(4)]
+        contract = Contract(rng.randrange(6))
+        leader = rng.randrange(4)
+
+        assert resolve_weis(hands, contract, leader, EVAL) == ((0, 0), (0, 0), ())
+
+        a = RoundState(contract=contract, hands=list(hands), cfg=EVAL, leader=leader)
+        b = RoundState(contract=contract, hands=list(hands), cfg=EVAL, leader=leader)
+        while not a.done:
+            card = card_list(a.legal_moves())[0]
+            a.play(card)
+            b.play(card)
+        assert a.score().total == b.score(weis=(0, 0), stoeck=(0, 0)).total
+
+
+def test_a_shown_weis_is_really_in_the_hand_that_showed_it():
+    """`known_cards` pins cards to a seat, so a wrong one would have the search reasoning
+    about worlds that cannot exist — the exact failure `voids.py` is careful to avoid."""
+    import random
+
+    from arena.arena import resolve_weis
+    from krass_jass.rules import HOUSE, Contract
+
+    rng = random.Random(11)
+    checked = 0
+    for _ in range(120):
+        deck = list(range(36))
+        rng.shuffle(deck)
+        hands = [sum(1 << c for c in deck[i * 9 : (i + 1) * 9]) for i in range(4)]
+        contract = Contract(rng.randrange(6))
+        _weis, _stoeck, shown = resolve_weis(hands, contract, rng.randrange(4), HOUSE)
+        for seat, card in shown:
+            assert hands[seat] & (1 << card), "shown a card that seat does not hold"
+            checked += 1
+    assert checked > 0, "no Weis was ever shown; the fixture proves nothing"

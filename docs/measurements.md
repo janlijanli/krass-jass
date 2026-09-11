@@ -730,9 +730,50 @@ channel. And the announced *values* from hands that never showed their cards —
 unproven — remain unused. That is a real constraint (a seat calling 100 holds four of a kind
 or a four-sequence) but it is not a per-card mask, so it needs machinery this does not have.
 
-Unlike everything else measured today, this one does not need to beat a baseline to be
-justified. Discarding facts the table was shown is simply wrong; the measurement says what it
-was costing, not whether to stop.
+### What it was costing
+
+| instrument | | share | n | p |
+|---|---|---|---|---|
+| whole games, target 1000 | | 51.38% ± 20.44 | 400 | 0.18 |
+| whole games, target 2500 | | 51.25% ± 21.79 | 400 | 0.25 |
+| **whole games, target 1000, fresh seed** | | **51.78% ± 23.16** | 1600 | **0.0021** |
+| **rounds, HOUSE** | seed 91 | **50.57% ± 4.82** | 1500 | **4.8e-06** |
+| | seed 8802 | **50.66% ± 5.08** | 1500 | **5.6e-07** |
+
+**+0.62 ± 0.18 of a round's card points, and +1.78 ± 1.13 of games.** The two are consistent
+rather than contradictory: a persistent per-round edge compounds over the ~10 rounds of a
+1000-point game, so the game figure is the larger one and is also the one that answers the
+question anybody cares about.
+
+This is the second change in the file to make the bot measurably stronger, and it is worth
+more than ISMCTS's +1.15. It came from using public information that was being thrown away,
+not from a better algorithm.
+
+It is also the one result today that survived, where six borderline p-values did not, and the
+difference is in the order of operations: the mechanism was identified first (17.3% of the
+unknown cards, in 66% of rounds), the direction was predicted before measuring, and four
+independent arms agreed before the confirmation run. The failures all had the opposite shape —
+a bump noticed inside a sweep, then defended.
+
+### The instrument had to be built first
+
+The first two rows are underpowered because game win rate carries a ~23% standard deviation
+against the round metric's ~5%: roughly twenty times the samples for the same resolution. The
+round-level arena could not measure this at all, because `play_round` drives a `RoundState`
+directly and never scored Weis — so `EVAL` was the only setting it could run.
+
+`arena/arena.py` now resolves Weis and Stöck for a round and passes the shown cards into the
+observation. Every existing figure in this file came through that code path, so the change is
+inert by proof rather than by inspection: with `weis_enabled` off, `resolve_weis` returns
+zeros and `score(weis=(0,0), stoeck=(0,0))` is identical to `score()`, checked over 300 random
+rounds and pinned as a test. A second test checks the dangerous direction — that a pinned card
+is genuinely in the hand that showed it — because a wrong pin would have the search reasoning
+about worlds that cannot exist, which is the failure `voids.py` exists to prevent.
+
+One duplication comes with it: `resolve_weis` mirrors `Game._resolve_weis`'s automatic path,
+so "who shows what" now has two implementations. The arena needs its own because it plays
+rounds with injected hands, but it is a drift risk, and the fix is for the arena to route
+rounds through `Game`.
 
 ---
 

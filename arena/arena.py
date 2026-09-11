@@ -29,6 +29,7 @@ from krass_jass.cards import card_list
 from krass_jass.observation import build_observation, derive_decision_seed
 from krass_jass.rules import EVAL, SHOVE, Contract, RulesConfig
 from krass_jass.state import RoundState
+from krass_jass.weis import best_weis, find_weis, score_stoeck, score_weis
 
 POINTS_PER_ROUND = 157
 
@@ -63,6 +64,34 @@ def choose_contract(
     return Contract(action), declarer
 
 
+def resolve_weis(hands: list[int], contract: Contract, leader: int, cfg: RulesConfig):
+    """Weis and Stöck for a round, and the cards the winner has to show.
+
+    Mirrors the automatic path in `Game._resolve_weis`: everyone announces, the single best
+    Weis is turned face up to prove it, and the winning *team* scores all of its Weis.
+
+    It exists here because the round-level arena plays a `RoundState` directly and so never
+    had Weis at all — which meant `EVAL` (Weis off) was the only setting it could measure, and
+    anything touching Weis was invisible to the cheap instrument. See `docs/measurements.md`
+    §5l, where exactly that blind spot hid a piece of exact public information for the whole
+    project.
+    """
+    if not cfg.weis_enabled:
+        return (0, 0), (0, 0), ()
+
+    # `is_trump`, not truthiness: Contract.DIAMONDS is 0 and therefore falsy.
+    trump = contract.trump_suit if contract.is_trump else -1
+    points, winner = score_weis(list(hands), trump, cfg, leader)
+    stoeck = score_stoeck(list(hands), trump, cfg)
+
+    shown: tuple = ()
+    if winner >= 0:
+        best = best_weis(find_weis(hands[winner], cfg, trump), trump, cfg)
+        if best is not None:
+            shown = tuple((winner, c) for c in card_list(best.cards))
+    return points, stoeck, shown
+
+
 def play_round(
     hands: list[int],
     contract: Contract | None,
@@ -82,6 +111,7 @@ def play_round(
     if contract is None:
         contract, declarer = choose_contract(hands, leader, seats, cfg)
 
+    weis, stoeck, shown = resolve_weis(hands, contract, leader, cfg)
     state = RoundState(contract=contract, hands=list(hands), cfg=cfg, leader=leader)
     trick_no = 0
     while not state.done:
@@ -91,17 +121,21 @@ def play_round(
         # only to an agent that declares it wants it — never through an observation.
         if hasattr(agent, "true_hands"):
             agent.true_hands = list(state.hands)
+        # A shown Weis is public, so the search is entitled to it — and without this the
+        # round-level arena could not measure §5l at all. A shown card drops out once it is
+        # played, because it is then public through `played` like any other.
         obs = build_observation(
             state,
             seat,
             declarer_seat=declarer,
             decision_seed=derive_decision_seed(game_seed, game_id, seat, 0, trick_no),
+            known_cards=tuple((s, c) for s, c in shown if state.hands[s] & (1 << c)),
         )
         card = agent.decide(obs)
         # The engine is authoritative — an agent's move is re-validated, never trusted.
         state.play(card)
         trick_no = len(state.tricks_played)
-    score = state.score()
+    score = state.score(weis=weis, stoeck=stoeck)
     return score.total
 
 
