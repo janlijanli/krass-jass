@@ -15,6 +15,9 @@ web = [
     "uvicorn[standard]>=0.30",
     "jinja2>=3.1",
     "python-multipart>=0.0.9",
+    # web/botclient.py talks to the bot services over HTTP. It was missing here and present
+    # in every working tree, so nothing noticed until CI installed the declared set.
+    "httpx>=0.27",
 ]
 
 [build-system]

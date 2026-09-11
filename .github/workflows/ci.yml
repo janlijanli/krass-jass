@@ -12,7 +12,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv venv --python 3.12
-      - run: uv pip install -e '.[dev]' maturin
+      # The web extra too: tests/test_web.py and tests/test_bot_service.py import the
+      # web layer and the bot service, so installing without it does not skip them —
+      # it fails collection and takes the whole run with it.
+      - run: uv pip install -e '.[dev,web]' maturin
       - uses: dtolnay/rust-toolchain@stable
       - name: Build Rust core
         run: cd rust && ../.venv/bin/maturin develop --release
