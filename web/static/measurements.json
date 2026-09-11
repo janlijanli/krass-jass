@@ -137,6 +137,20 @@
     }
   },
 
+  "policy_prior": {
+    "deals": 1000,
+    "note": "Hand-written best-play knowledge in the selection rule rather than the reward, so it steers the search without biasing the value. Ordering null; the PUCT hump at c=1 was the best of five comparisons and did not replicate; c=4 is significantly worse, which proves the prior is active and wrong. Same lesson as greedy==random. See measurements.md §5i.",
+    "points": [
+      { "mode": "ordering only", "share": 50.07, "std": 6.35, "p": 0.74 },
+      { "mode": "puct c=0.5", "share": 49.96, "std": 6.35, "p": 0.86 },
+      { "mode": "puct c=1.0", "share": 50.40, "std": 6.34, "p": 0.049 },
+      { "mode": "puct c=2.0", "share": 50.25, "std": 6.26, "p": 0.20 },
+      { "mode": "puct c=4.0", "share": 49.16, "std": 6.60, "p": 0.000053 },
+      { "mode": "puct c=1.0 replication", "share": 50.27, "std": 6.22, "deals": 1600, "p": 0.088 },
+      { "mode": "puct c=2.0 replication", "share": 49.98, "std": 6.51, "deals": 1600, "p": 0.91 }
+    ]
+  },
+
   "budget_sweep": {
     "deals": 500,
     "reference": 2400,

@@ -61,6 +61,8 @@ def dmcts(
     leaf_weights: list[float] | None = None,
     ismcts: bool = False,
     resample_every: int = 1,
+    order_moves: bool = False,
+    prior_weight: float = 0.0,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -103,4 +105,6 @@ def dmcts(
         leaf_weights=leaf_weights,
         ismcts=ismcts,
         resample_every=resample_every,
+        order_moves=order_moves,
+        prior_weight=prior_weight,
     )

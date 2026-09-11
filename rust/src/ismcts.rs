@@ -27,7 +27,8 @@
 //! with an exact solve when few enough cards remain, and the comparison between the two
 //! algorithms is cleaner with it off on both sides.
 
-use crate::cards::{card_suit, NUM_SEATS};
+use crate::cards::{card_suit, NUM_SEATS, SUIT_MASK};
+use crate::leafeval::top_live;
 use crate::determinize::determinize;
 use crate::legal::legal_moves;
 use crate::objective::reward;
@@ -128,6 +129,8 @@ pub fn ismcts(
     exploration: f64,
     seed: u64,
     resample_every: usize,
+    order_moves: bool,
+    prior_weight: f64,
 ) -> Vec<Candidate> {
     let root_legal = pos.legal(k);
     let root_team = pos.seat & 1;
@@ -218,8 +221,32 @@ pub fn ismcts(
                 untried &= !(1u64 << card);
             }
 
+            // The heuristic, computed only when something will use it.
+            let mut prior = [0.0f64; 36];
+            let use_prior = order_moves || prior_weight > 0.0;
+            if use_prior {
+                policy_prior(&w, legal, k, &mut prior);
+            }
+
             let card = if untried != 0 {
-                let card = pick_random(untried, &mut rng);
+                // Expansion order matters at this budget: the tree is shared and shallow, so
+                // a good move examined early gets the visits to prove itself.
+                let card = if order_moves {
+                    let mut best = usize::MAX;
+                    let mut best_p = f64::NEG_INFINITY;
+                    let mut rest = untried;
+                    while rest != 0 {
+                        let c = rest.trailing_zeros() as usize;
+                        rest &= rest - 1;
+                        if prior[c] > best_p {
+                            best_p = prior[c];
+                            best = c;
+                        }
+                    }
+                    best
+                } else {
+                    pick_random(untried, &mut rng)
+                };
                 let child = nodes.len();
                 nodes.push(Node { visits: 0, available: 1, total: 0.0, children: Vec::new() });
                 nodes[node].children.push((card, child));
@@ -239,9 +266,15 @@ pub fn ismcts(
                     let c = &nodes[child];
                     let mean = c.total / c.visits.max(1) as f64;
                     let mean = if ours { mean } else { 1.0 - mean };
-                    let score = mean
-                        + exploration
-                            * ((c.available.max(1) as f64).ln() / c.visits.max(1) as f64).sqrt();
+                    // PUCT when a prior is supplied: the heuristic steers early and decays
+                    // as visits accumulate, so it can never outvote what the search measured.
+                    let score = if prior_weight > 0.0 {
+                        mean + prior_weight * prior[card] * (c.available.max(1) as f64).sqrt()
+                            / (1.0 + c.visits as f64)
+                    } else {
+                        mean + exploration
+                            * ((c.available.max(1) as f64).ln() / c.visits.max(1) as f64).sqrt()
+                    };
                     if score > best_score {
                         best_score = score;
                         best = child;
@@ -302,4 +335,129 @@ pub fn ismcts(
             .then(b.mean_score.partial_cmp(&a.mean_score).unwrap_or(std::cmp::Ordering::Equal))
     });
     out
+}
+
+/// A hand-written policy prior over the legal moves at a node.
+///
+/// # Why this is in the *selection rule* and not in the reward
+///
+/// The obvious way to teach a search "draw trumps first" is to penalise not doing it. That is
+/// a bias term, and `docs/measurements.md` §5g measured what bias does here: the playout's
+/// error is zero-mean and washes out across 2,400 samples to ~0.019, while anything systematic
+/// survives untouched. A fitted evaluator carrying exactly this knowledge — trump counts were
+/// among its largest weights — lost nine points a move.
+///
+/// A prior escapes that. It changes which moves get *searched*, never what a position is
+/// *worth*, so the value estimate stays unbiased and the heuristic decays out of the way as
+/// evidence accumulates. It also cannot override a preference the search actually measured,
+/// which is the property that made the table conventions safe to ship.
+///
+/// It is deliberately not §5e's prior either: that one changed which *worlds* were imagined
+/// and could only flip decisions the search rated within 0.008 of each other. This reallocates
+/// depth, which moves the large-margin decisions §5e says are the only ones worth anything.
+///
+/// # The knowledge
+///
+/// From the Swiss sources in the research notes, and all of it computable without looking at
+/// another seat's cards — `live` is the set of unplayed cards, which is public.
+///
+/// - **Draw trumps**, in proportion to how many you hold. The declarer's first job.
+/// - **Cash boss cards** — the highest unplayed card of a suit is a trick when you want it.
+/// - **Schmieren**: partner is taking this trick, so pay into it.
+/// - **Do not feed**: an opponent is taking it, so play cheap unless you can take it.
+/// - **Do not over-trump.** The commonest amateur error, per every source consulted.
+fn policy_prior(w: &Walk, legal: u64, k: &Kernel, prior: &mut [f64; 36]) {
+    let contract = k.contract;
+    let values = &CARD_VALUES[contract];
+    let live: u64 = w.hands.iter().fold(0u64, |a, h| a | h) | w.trick.iter().fold(0u64, |a, &c| a | 1u64 << c);
+    let me = w.to_play;
+    let trump = k.trump;
+
+    // Who is taking the trick as it stands, and are they ours?
+    let (taker_is_partner, taker_is_opponent) = if let Some(&first) = w.trick.first() {
+        let strength = &STRENGTH[contract][card_suit(first)];
+        let mut best = 0usize;
+        for (i, &c) in w.trick.iter().enumerate() {
+            if strength[c] > strength[w.trick[best]] {
+                best = i;
+            }
+        }
+        let winner = (w.trick_leader + best) & 3;
+        ((winner & 1) == (me & 1) && winner != me, (winner & 1) != (me & 1))
+    } else {
+        (false, false)
+    };
+
+    let my_trumps = if trump >= 0 {
+        (w.hands[me] & SUIT_MASK[trump as usize]).count_ones() as f64
+    } else {
+        0.0
+    };
+
+    let mut rest = legal;
+    while rest != 0 {
+        let card = rest.trailing_zeros() as usize;
+        rest &= rest - 1;
+        let suit = card_suit(card);
+        let is_trump = trump >= 0 && suit == trump as usize;
+        let is_boss = top_live(live, suit, contract) == 1u64 << card;
+        let value = values[card] as f64;
+
+        let mut score = 0.0f64;
+        if w.trick.is_empty() {
+            // Leading.
+            if is_trump && my_trumps >= 3.0 {
+                score += 0.8 + 0.2 * my_trumps; // draw them
+            }
+            if is_boss {
+                score += 0.7;
+            }
+            if !is_boss && !is_trump {
+                score += 0.2 - 0.01 * value; // a cheap exit
+            }
+        } else if taker_is_partner {
+            score += 0.05 * value; // schmieren
+            if is_trump {
+                score -= 1.0; // and not with a trump: it is already ours
+            }
+        } else if taker_is_opponent {
+            let strength = &STRENGTH[contract][card_suit(w.trick[0])];
+            let best_on_table = w.trick.iter().map(|&c| strength[c]).max().unwrap_or(0);
+            if strength[card] > best_on_table {
+                score += 0.6; // take it
+            } else {
+                score += 0.3 - 0.02 * value; // or pay as little as possible
+            }
+        }
+        if is_trump && !taker_is_opponent && !w.trick.is_empty() {
+            score -= 0.5; // over-trumping, the commonest amateur error
+        }
+        prior[card] = score;
+    }
+
+    // Softmax over the legal moves, so the prior is a distribution and its scale is fixed
+    // however the weights above are tuned.
+    let mut max = f64::NEG_INFINITY;
+    let mut rest = legal;
+    while rest != 0 {
+        let c = rest.trailing_zeros() as usize;
+        rest &= rest - 1;
+        max = max.max(prior[c]);
+    }
+    let mut sum = 0.0;
+    let mut rest = legal;
+    while rest != 0 {
+        let c = rest.trailing_zeros() as usize;
+        rest &= rest - 1;
+        prior[c] = (prior[c] - max).exp();
+        sum += prior[c];
+    }
+    if sum > 0.0 {
+        let mut rest = legal;
+        while rest != 0 {
+            let c = rest.trailing_zeros() as usize;
+            rest &= rest - 1;
+            prior[c] /= sum;
+        }
+    }
 }

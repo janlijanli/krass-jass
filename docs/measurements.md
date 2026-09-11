@@ -518,6 +518,52 @@ seeing many distinct worlds through one tree, and it stops buying it somewhere b
 
 ---
 
+## 5i. Best-play knowledge, put where it cannot do damage — and it still does nothing
+
+§5g measured what happens when domain knowledge goes into the **value**: a fitted evaluator
+whose largest weights were trump counts lost nine points a move, because bias does not average
+out. The correct place for the same knowledge is the **selection rule** — a prior changes which
+moves are *searched*, never what a position is *worth*, so the value estimate stays unbiased
+and the heuristic decays as visits accumulate.
+
+The heuristic is the one the sources describe: draw trumps in proportion to how many you hold,
+cash the highest unplayed card of a suit, schmieren onto a trick your partner is taking (and
+not with a trump), pay as little as possible into one an opponent is taking, and do not
+over-trump. All of it computable without seeing another seat's cards.
+
+| | share | n | p |
+|---|---|---|---|
+| expansion ordering only | 50.07% ± 6.35 | 1000 | 0.74 |
+| PUCT c=0.5 | 49.96% ± 6.35 | 1000 | 0.86 |
+| PUCT c=1.0 | 50.40% ± 6.34 | 1000 | 0.049 |
+| PUCT c=2.0 | 50.25% ± 6.26 | 1000 | 0.20 |
+| PUCT c=4.0 | **49.16%** ± 6.60 | 1000 | 5.3e-05 |
+| *c=1.0, fresh seed* | 50.27% ± 6.22 | 1600 | 0.088 |
+| *c=2.0, fresh seed* | 49.98% ± 6.51 | 1600 | 0.91 |
+
+The c=1.0 hump was the best of five comparisons, which is where a p of 0.049 comes from about
+a quarter of the time by luck alone. It did not reach significance on replication. Both runs
+lean positive and pool to about +0.3, but the pooling is contaminated by having picked the
+winner first, so it is reported as a null and shipped off. What a real effect looked like on
+the same instrument, an hour earlier: ISMCTS at +1.15, p=1e-12, replicated three times.
+
+**The informative row is c=4.0.** Losing at p=5e-05 proves the prior is not inert — it is
+steering the search, and when given real weight it steers it *worse*. At 2,400 iterations the
+search already knows this material better than a rule distilled from prose does.
+
+Which is the ladder's oldest result restated. §1: **greedy scores the same as random**. A
+hand-written rule about which card to play has been worth nothing in this game since the first
+day of measurements, and it has now been demonstrated twice more — once in the value (§5g,
+nine points) and once in the policy (here, nothing).
+
+So the knowledge was not the problem and neither was the place it was put. Hand-written Jass
+heuristics are simply weaker than the search they are advising. The version worth building is
+a prior *learned from play* rather than written from prose — and unlike before, it now has a
+measured slot to occupy, a baseline to beat, and a demonstration that the slot is wired
+correctly.
+
+---
+
 ## 6. Open
 
 - Nothing measured against a human.

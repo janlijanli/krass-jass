@@ -130,6 +130,12 @@ class DmctsAgent(Agent):
     #: determinized search rather than 1.95x; at 8 the gain is gone (§5h). The cliff between
     #: 4 and 8 is why this is a measured constant and not a tuning knob.
     resample_every: int = 4
+    #: Expand promising moves first, by the hand-written policy prior in `ismcts.rs`.
+    order_moves: bool = False
+    #: PUCT with that prior instead of plain UCT. 0 is off. The prior steers which moves are
+    #: *searched* and never what a position is *worth* — which is why it escapes §5g, where a
+    #: fitted evaluator carrying the same knowledge lost nine points.
+    prior_weight: float = 0.0
 
     @property
     def name(self) -> str:
@@ -191,6 +197,8 @@ class DmctsAgent(Agent):
             "leaf_weights": list(self.leaf_weights) if self.leaf_weights else None,
             "ismcts": self.ismcts,
             "resample_every": self.resample_every,
+            "order_moves": self.order_moves,
+            "prior_weight": self.prior_weight,
         }
 
     def _priors(self, obs: Observation) -> dict:

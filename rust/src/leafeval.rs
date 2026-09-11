@@ -34,7 +34,7 @@ pub const N_FEATURES: usize = 14;
 /// The strongest unplayed card of `suit`, as a single-bit mask. Strength, not rank, so
 /// Undenufe reads the right way round — a seven that is now the best card left is the whole
 /// reason this feature exists.
-fn top_live(live: u64, suit: usize, contract: usize) -> u64 {
+pub fn top_live(live: u64, suit: usize, contract: usize) -> u64 {
     let cards = live & SUIT_MASK[suit];
     if cards == 0 {
         return 0;
