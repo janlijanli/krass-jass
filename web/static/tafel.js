@@ -3,22 +3,21 @@
  * Layout, per team (jassverzeichnis.ch/schreiben-jassen-uebersicht):
  *
  *   ┌──────────────────┬──────┐
- *   │ 100s  | | | |    │  X V │   ← upper right: X = 1000, V = 500
+ *   │ 100s  ||||/ ||    │      │
  *   ├──────────────────┤      │
  *   │  50s  |          │      │
  *   ├──────────────────┼──────┤
- *   │  20s  | |        │   13 │   ← lower right: the remainder, as a number
+ *   │  20s  | |        │   13 │   ← the remainder, as a number
  *   └──────────────────┴──────┘
  *
  * Portrait, the two teams either side of a line down the middle, strokes running left to
  * right within their band.
  *
- * The source's own rule is to pick the notation needing the fewest strokes, so the running
- * total is decomposed greedily — thousands and five-hundreds become X and V rather than ten
- * or five hundred-strokes. Under that decomposition a band rarely fills, but the bundling
- * rule is implemented anyway: the fifth stroke of a 100 or 20 band is drawn crosswise over
- * the four before it, and in the 50 band two strokes are crossed, two fifties being a
- * hundred.
+ * Everything above 20 is strokes — no X or V shorthand — so a large score is a lot of marks,
+ * which is what makes the bundling rule matter rather than being decoration: the fifth
+ * stroke of a 100 or 20 band is drawn crosswise over the four before it, and in the 50 band
+ * two strokes are crossed, two fifties being a hundred. Bands wrap when they run out of
+ * width and the board grows downward, the way a real one fills up over an evening.
  *
  * Chalk is an SVG filter — turbulence displaces the stroke edges so they wobble, and a
  * second turbulence layer knocks dust holes through the fill so it reads as chalk rather
@@ -39,34 +38,21 @@ export const BANDS = [
   { value: 50, label: "50", crossAt: 2 },
   { value: 20, label: "20", crossAt: 5 },
 ];
-/** The right-hand column, largest first. */
-export const SYMBOLS = [
-  { value: 1000, glyph: "X" },
-  { value: 500, glyph: "V" },
-];
-
 /**
- * Break a score into what actually goes on the board.
+ * Break a score into what goes on the board.
  *
- * Greedy, largest first, because the board's own guidance is fewest strokes. The remainder
- * is whatever is left under 20 and is written out as a number — real scores are not
- * multiples of twenty, and rounding them would put the wrong total on the board.
+ * Largest band first. The remainder is whatever is left under 20 and is written out as a
+ * number — real scores are not multiples of twenty, and rounding them would put the wrong
+ * total on the board.
  */
 export function decompose(score) {
   let left = Math.max(0, Math.round(score));
-  const symbols = [];
-  for (const { value, glyph } of SYMBOLS) {
-    while (left >= value) {
-      symbols.push(glyph);
-      left -= value;
-    }
-  }
   const bands = BANDS.map(({ value }) => {
     const n = Math.floor(left / value);
     left -= n * value;
     return n;
   });
-  return { symbols, bands, remainder: left };
+  return { bands, remainder: left };
 }
 
 /* Deterministic jitter, so a mark wobbles the same way every time it is drawn. */
@@ -113,49 +99,72 @@ function chalkText(x, y, text, cls, seed) {
   return t;
 }
 
-/** One band of strokes, bundling every `crossAt` with a crossing stroke. */
-function drawBand(g, x0, y, count, crossAt, seedBase) {
-  const gap = 10;
-  const groupWidth = (crossAt - 1) * gap + 9;
-  const top = y;
-  const bottom = y + 19;
+const GAP = 9;
+const ROW_H = 22;
+
+/** How many stroke-groups fit across one band. */
+function groupsPerRow(width, crossAt) {
+  return Math.max(1, Math.floor(width / ((crossAt - 1) * GAP + 10)));
+}
+
+/**
+ * One band of strokes, bundling every `crossAt` with a crossing stroke and wrapping when it
+ * runs out of width. Returns the height it used.
+ */
+function drawBand(g, x0, y, width, count, crossAt, seedBase) {
+  const groupWidth = (crossAt - 1) * GAP + 10;
+  const perRow = groupsPerRow(width, crossAt);
+  const groups = Math.ceil(count / crossAt);
+
   for (let i = 0; i < count; i++) {
+    const group = Math.floor(i / crossAt);
     const place = i % crossAt;
-    const gx = x0 + Math.floor(i / crossAt) * groupWidth;
+    const gx = x0 + (group % perRow) * groupWidth;
+    const top = y + Math.floor(group / perRow) * ROW_H;
+    const bottom = top + 17;
     if (place === crossAt - 1) {
-      g.append(stroke(gx - 3, bottom, gx + (crossAt - 2) * gap + 3, top, seedBase + i * 13));
+      g.append(stroke(gx - 3, bottom, gx + (crossAt - 2) * GAP + 3, top, seedBase + i * 13));
     } else {
-      g.append(stroke(gx + place * gap, top, gx + place * gap, bottom, seedBase + i * 13));
+      g.append(stroke(gx + place * GAP, top, gx + place * GAP, bottom, seedBase + i * 13));
     }
   }
+  return Math.max(1, Math.ceil(groups / perRow)) * ROW_H;
 }
 
-/** One team's half. Returns the height used. */
-function half(root, x0, width, score, seedBase) {
-  const { symbols, bands, remainder } = decompose(score);
+/**
+ * Draw one team's strokes into bands whose positions are fixed for the whole board.
+ *
+ * The bands are ruled across the slate, so both teams' 50s sit on the same line. Sizing each
+ * half independently let them drift apart, which no real board does.
+ */
+function halfStrokes(root, x0, width, score, rows, seedBase) {
+  const { bands, remainder } = decompose(score);
   const g = svg("g");
-  const columnX = x0 + width - 36;
-  const rightX = x0 + width - 17;
+  const columnX = x0 + width - 34;
+  const strokeX = x0 + 26;
+  const strokeWidth = columnX - strokeX - 6;
 
+  let y = BAND_TOP;
   BANDS.forEach((b, i) => {
-    const y = 22 + i * 29;
-    g.append(chalkText(x0 + 12, y + 15, b.label, "chalk-band", seedBase + i));
-    drawBand(g, x0 + 28, y, bands[i], b.crossAt, seedBase + i * 200 + 5);
-    if (i < BANDS.length - 1) {
-      g.append(stroke(x0 + 5, y + 24, columnX - 4, y + 24, seedBase + 900 + i, 1));
-    }
+    drawBand(g, strokeX, y, strokeWidth, bands[i], b.crossAt, seedBase + i * 200 + 5);
+    y += rows[i] * ROW_H + 6;
   });
 
-  symbols.slice(0, 4).forEach((glyph, i) => {
-    g.append(chalkText(rightX, 36 + i * 20, glyph, "chalk-symbol", seedBase + 300 + i));
-  });
-  g.append(chalkText(rightX, 103, String(remainder), "chalk-number", seedBase + 400));
-
-  // The rule separating the right-hand column from the bands.
-  g.append(stroke(columnX, 8, columnX, 110, seedBase + 500, 1.3));
+  g.append(chalkText(x0 + width - 16, y - 14, String(remainder), "chalk-number", seedBase + 400));
+  g.append(stroke(columnX, 8, columnX, y - 6, seedBase + 500, 1.3));
   root.append(g);
-  return 114;
 }
+
+/** Rows each band needs for a score, so both halves can be laid out to the same grid. */
+function rowsFor(score, width) {
+  const { bands } = decompose(score);
+  return BANDS.map((b, i) => {
+    const groups = Math.ceil(bands[i] / b.crossAt);
+    return Math.max(1, Math.ceil(groups / groupsPerRow(width, b.crossAt)));
+  });
+}
+
+const BAND_TOP = 22;
 
 /** Render the board. `scores` is `[us, them]`. */
 export function drawTafel(container, scores, { target = null } = {}) {
@@ -169,14 +178,31 @@ export function drawTafel(container, scores, { target = null } = {}) {
   body.append(chalkText(mid / 2, 13, "Wir", "chalk-head", 1));
   body.append(chalkText(mid + mid / 2, 13, "Sie", "chalk-head", 2));
 
-  const h = Math.max(
-    half(body, 4, mid - 8, scores[0], 11),
-    half(body, mid + 4, mid - 8, scores[1], 91)
-  );
+  // Bands are ruled across the whole slate, so each one is as tall as the fuller side needs.
+  const halfWidth = mid - 8;
+  const strokeWidth = halfWidth - 66;
+  const rowsA = rowsFor(scores[0], strokeWidth);
+  const rowsB = rowsFor(scores[1], strokeWidth);
+  const rows = BANDS.map((_, i) => Math.max(rowsA[i], rowsB[i]));
 
-  // The line down the middle, drawn last so it spans whatever the halves needed.
-  body.append(stroke(mid, 4, mid, h + 2, 3, 2.6));
-  root.setAttribute("viewBox", `0 0 ${W} ${h + 8}`);
+  // Band labels and the rules between them, drawn once across the board.
+  let y = BAND_TOP;
+  BANDS.forEach((b, i) => {
+    body.append(chalkText(15, y + 13, b.label, "chalk-band", 700 + i));
+    body.append(chalkText(mid + 15, y + 13, b.label, "chalk-band", 750 + i));
+    y += rows[i] * ROW_H + 6;
+    if (i < BANDS.length - 1) {
+      body.append(stroke(5, y - 3, W - 5, y - 3, 900 + i, 1));
+    }
+  });
+  const h = y;
+
+  halfStrokes(body, 4, halfWidth, scores[0], rows, 11);
+  halfStrokes(body, mid + 4, halfWidth, scores[1], rows, 91);
+
+  // The line down the middle, drawn last so it spans whatever the bands needed.
+  body.append(stroke(mid, 4, mid, h - 4, 3, 2.6));
+  root.setAttribute("viewBox", `0 0 ${W} ${h + 4}`);
 
   container.replaceChildren(root);
 

@@ -205,17 +205,19 @@ stacked top to bottom with strokes running left to right:
 | middle | 50 |
 | bottom | 20 |
 
-The right-hand column carries **X** = 1000 and **V** = 500 in the upper area, and the
-**remainder written as a number** in the lower area. Real scores are not multiples of twenty,
-so the remainder is not optional — rounding it would put the wrong total on the board.
+The right-hand column carries the **remainder, written as a number**. Real scores are not
+multiples of twenty, so the remainder is not optional — rounding it would put the wrong total
+on the board.
+
+**No X or V shorthand**: everything above 20 is strokes. That makes a large score a lot of
+marks, which is exactly what the bundling rule is for.
 
 Bundling: the fifth stroke of a 100 or 20 band is drawn crosswise over the four before it;
 in the 50 band two strokes are crossed, two fifties being a hundred.
 
-The source's own guidance is to choose the notation needing the fewest strokes, so the
-running total is decomposed largest-unit-first — 1573 is X, V, one 50-stroke, one 20-stroke
-and a written 3, not fifteen hundred-strokes. `BANDS` and `SYMBOLS` in `web/static/tafel.js`
-are the table; changing the notation is editing those rather than the drawing code.
+Bands wrap when they run out of width and the board grows downward, so a long game fills the
+slate the way a real one does. `BANDS` in `web/static/tafel.js` is the table; changing the
+notation is editing that rather than the drawing code.
 
 ## Game length and end conditions
 
