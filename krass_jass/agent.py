@@ -15,7 +15,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
-from . import native
+from . import convention, native
 from .cards import card_list
 from .observation import Observation
 from .rules import HOUSE, SHOVE, Contract, RulesConfig
@@ -91,6 +91,10 @@ class DmctsAgent(Agent):
     cfg: RulesConfig = HOUSE
     trump_policy: str = "rules"
     label: str | None = None
+    #: Order moves the search rated the same by table convention. A flag rather than a
+    #: subclass so the arena can A/B it — a convention that costs points is not one worth
+    #: having, and that is a claim somebody has to be able to check.
+    conventions: bool = True
 
     @property
     def name(self) -> str:
@@ -124,7 +128,11 @@ class DmctsAgent(Agent):
             threads=self.threads,
             endgame_cards=self.endgame_cards,
         )
-        return candidates[0][0]
+        if not self.conventions:
+            return candidates[0][0]
+        # The search has spoken; this only orders the moves it rated the same. See
+        # krass_jass/convention.py for why that restriction is the whole design.
+        return convention.choose(candidates, obs, forbidden)
 
     def trace(self, obs: Observation) -> list[tuple[int, int, float, int]]:
         """Per-candidate statistics for the decision record in `PLAN.md` §6."""

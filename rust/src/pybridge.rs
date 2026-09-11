@@ -9,6 +9,8 @@
 use pyo3::prelude::*;
 
 use crate::awareness::{trick_taker, trumps_out};
+use crate::convention;
+use crate::search::Candidate;
 use crate::config::Rules;
 use crate::scoring::{claim_sequence, score_round, RoundScore};
 use crate::trump::{select_trump, SHOVE};
@@ -245,6 +247,42 @@ fn rs_trumps_out(
     trumps_out(&tricks, &current_trick, hand, trump)
 }
 
+/// The convention tie-break, on a candidate list the caller already has.
+///
+/// Exposed so `tests/test_convention.py` can hold both implementations to the same answer:
+/// both sides read the *same* search output, so any difference is the convention itself.
+#[pyfunction]
+#[pyo3(signature = (candidates, hand, unseen, seen, trick, seat, trump, contract, forbidden))]
+#[allow(clippy::too_many_arguments)]
+fn rs_convention_choose(
+    candidates: Vec<(usize, u64, f64, u32)>,
+    hand: u64,
+    unseen: u64,
+    seen: u64,
+    trick: Vec<usize>,
+    seat: usize,
+    trump: i32,
+    contract: usize,
+    forbidden: Vec<u64>,
+) -> Option<usize> {
+    let cands: Vec<Candidate> = candidates
+        .into_iter()
+        .map(|(card, visits, mean_score, determinizations_selecting)| Candidate {
+            card,
+            visits,
+            mean_score,
+            determinizations_selecting,
+        })
+        .collect();
+    let mut forb = [0u64; 4];
+    for (i, v) in forbidden.into_iter().take(4).enumerate() {
+        forb[i] = v;
+    }
+    convention::choose(
+        &cands, hand, unseen, seen, &trick, seat, trump, contract, &forb,
+    )
+}
+
 /// Returns the contract index, or -1 for a shove.
 #[pyfunction]
 #[pyo3(signature = (hand, is_forehand, multipliers=None))]
@@ -433,6 +471,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_infer_forbidden, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trick_taker, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trumps_out, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_convention_choose, m)?)?;
     m.add_function(wrap_pyfunction!(rs_select_trump, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trump_scores, m)?)?;
     Ok(())

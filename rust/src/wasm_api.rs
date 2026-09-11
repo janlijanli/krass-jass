@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use crate::awareness::{trick_taker, trumps_out};
 use crate::cards::{card_list, card_suit, format_card, NUM_SEATS};
 use crate::config::Rules;
+use crate::convention;
 use crate::game::{Game, Phase};
 use crate::rng::Rng;
 use crate::rollout::Kernel;
@@ -190,7 +191,21 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
             1,
             5,
         );
-        out.first().map(|c| c.card as i32).unwrap_or(-1)
+        // The search has spoken; this only orders the moves it rated the same. See
+        // krass_jass/convention.py for why that restriction is the whole design.
+        convention::choose(
+            &out,
+            round.hands[seat],
+            unseen,
+            seen | round.hands[seat],
+            &round.trick,
+            seat,
+            round.trump,
+            contract,
+            &position.forbidden,
+        )
+        .map(|c| c as i32)
+        .unwrap_or(-1)
     })
 }
 

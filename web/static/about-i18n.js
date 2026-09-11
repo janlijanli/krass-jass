@@ -38,9 +38,10 @@ export const ABOUT = {
     "play.void.restart": "Start over",
     "play.weak.h": "Where it is weak",
     "play.weak.p":
-      "Its individual card play is much stronger than its <b>team</b> play. It does not " +
-      "follow the signalling conventions a human partner expects — it will not read your " +
-      "schmieren as a signal, and it does not send them either. That is a known limit of " +
+      "Its individual card play is much stronger than its <b>team</b> play. It <b>sends</b> " +
+      "one signal now — throwing the sister suit of the one it wants led, and cashing out " +
+      "when the opponents are proven out of trump — but it does not <b>read</b> yours: play " +
+      "the convention at it and it will not notice. Reading a partner is a known limit of " +
       "this kind of search, not a bug, and more thinking time does not fix it.",
     "play.human.p":
       "It has also <b>never been measured against a human</b>. The published work on this " +
@@ -165,9 +166,11 @@ export const ABOUT = {
     "play.weak.h": "Wo es schwach ist",
     "play.weak.p":
       "Sein Spiel mit den eigenen Karten ist deutlich stärker als sein <b>Zusammenspiel</b>. " +
-      "Es folgt den Zeichen nicht, die ein menschlicher Partner erwartet — es liest dein " +
-      "Schmieren nicht als Signal und gibt selbst auch keine. Das ist eine bekannte Grenze " +
-      "dieser Art von Suche, kein Fehler, und mehr Bedenkzeit ändert nichts daran.",
+      "Ein Zeichen <b>gibt</b> es inzwischen — es wirft die Schwesterfarbe jener Farbe ab, " +
+      "die es gespielt haben will, und zieht durch, sobald die Gegner nachweislich keinen " +
+      "Trumpf mehr haben — deine <b>liest</b> es aber nicht: Spielst du die Konvention, " +
+      "merkt es das nicht. Einen Partner zu lesen ist eine bekannte Grenze dieser Art von " +
+      "Suche, kein Fehler, und mehr Bedenkzeit ändert nichts daran.",
     "play.human.p":
       "Ausserdem wurde es <b>nie gegen Menschen gemessen</b>. Die veröffentlichte Arbeit zu " +
       "genau dieser Variante fand für einen vergleichbaren Bot {parity} — etwa auf Augenhöhe " +
@@ -296,11 +299,12 @@ export const ABOUT = {
     "play.void.restart": "Recommencer",
     "play.weak.h": "Où il est faible",
     "play.weak.p":
-      "Son jeu de la carte est bien plus fort que son jeu <b>en équipe</b>. Il ne suit pas " +
-      "les conventions de signal qu'un partenaire humain attend — il ne lira pas ton " +
-      "schmieren comme un signal, et il n'en envoie pas non plus. C'est une limite connue de " +
-      "ce type de recherche, pas un défaut, et davantage de temps de réflexion n'y change " +
-      "rien.",
+      "Son jeu de la carte est bien plus fort que son jeu <b>en équipe</b>. Il <b>envoie</b> " +
+      "désormais un signal — il défausse la couleur sœur de celle qu'il veut voir jouer, et " +
+      "il encaisse dès que les adversaires n'ont prouvablement plus d'atout — mais il ne " +
+      "<b>lit</b> pas les tiens : joue la convention, il ne la remarquera pas. Lire un " +
+      "partenaire est une limite connue de ce type de recherche, pas un défaut, et davantage " +
+      "de temps de réflexion n'y change rien.",
     "play.human.p":
       "Il n'a par ailleurs <b>jamais été mesuré contre des humains</b>. Les travaux publiés " +
       "sur cette variante précise ont relevé pour un bot comparable {parity} — à peu près au " +
@@ -428,10 +432,11 @@ export const ABOUT = {
     "play.void.restart": "Ricomincia",
     "play.weak.h": "Dov'è debole",
     "play.weak.p":
-      "Il suo gioco di carta è molto più forte del suo gioco <b>di squadra</b>. Non segue le " +
-      "convenzioni di segnalazione che un compagno umano si aspetta — non leggerà il tuo " +
-      "schmieren come un segnale, e non ne manda nemmeno. È un limite noto di questo tipo di " +
-      "ricerca, non un difetto, e più tempo di riflessione non lo risolve.",
+      "Il suo gioco di carta è molto più forte del suo gioco <b>di squadra</b>. Un segnale " +
+      "ora lo <b>manda</b> — scarta il seme gemello di quello che vuole si giochi, e incassa " +
+      "appena gli avversari sono provatamente senza briscola — ma i tuoi non li <b>legge</b>: " +
+      "gioca la convenzione e non se ne accorgerà. Leggere un compagno è un limite noto di " +
+      "questo tipo di ricerca, non un difetto, e più tempo di riflessione non lo risolve.",
     "play.human.p":
       "Inoltre <b>non è mai stato misurato contro esseri umani</b>. Il lavoro pubblicato su " +
       "questa esatta variante ha rilevato per un bot paragonabile {parity} — più o meno alla " +

@@ -24,6 +24,14 @@
     "note": "Identical card play on both sides; only the bidding differs."
   },
 
+  "conventions": {
+    "deals": 600,
+    "share": 50.15,
+    "std": 3.07,
+    "p": 0.2189,
+    "note": "Table conventions on against off, identical search budget both sides. They only re-order moves the search rated the same, so what is being tested is that they cost nothing — not that they gain."
+  },
+
   "budget_sweep": {
     "deals": 500,
     "reference": 2400,

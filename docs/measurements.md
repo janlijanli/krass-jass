@@ -149,6 +149,31 @@ iteration, per the discussion of team play and signalling.
 
 ---
 
+## 5b. Table conventions cost nothing
+
+The bot now orders moves the search rated the same by two table conventions: it discards the
+sister suit of the one it wants led (`♦/♥` and `♠/♣` are the colour pairs), and it cashes a
+side-suit winner when the opponents are *proven* out of trump. Both are about being readable
+to a human partner rather than about winning the trick in front of it — determinized search
+is a strong individual player and a poor partner, and that does not change here.
+
+The conventions only reorder moves the search could not separate, so the claim worth testing
+is the negative one.
+
+| | share | n | p |
+|---|---|---|---|
+| conventions on vs off, same budget | **50.15% ± 3.07** | 600 | 0.22 |
+
+Standard error 0.13%, so a cost larger than about a quarter of a point would have shown.
+It did not. The conventions fire on roughly 5% of decisions at the serve budget; the rest of
+the time the search had a preference and keeps it.
+
+What is *not* implemented is reading the convention back. A human playing it at the bot will
+not be understood, which is the same partner-modelling gap §5 describes and the reason expert
+iteration is the interesting direction rather than more search.
+
+---
+
 ## 6. Open
 
 - Nothing measured against a human.
