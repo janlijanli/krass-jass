@@ -6,6 +6,7 @@
  */
 
 import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js";
+import { applyStatic, contractName, t } from "./i18n.js";
 import { drawTafel } from "./tafel.js";
 
 const MEASUREMENTS_URL = "/static/measurements.json";
@@ -92,14 +93,12 @@ function renderTafel(view) {
     board.rounds.map((r) => r.points[mine]),
     board.rounds.map((r) => r.points[1 - mine]),
   ];
-  drawTafel(slate, history, { target: view.target ?? board.target });
+  drawTafel(slate, history, { target: view.target ?? board.target, t });
 
   // What the marks mean, because a notation nobody can read is decoration.
   const legend = document.createElement("p");
   legend.className = "tafel-legend";
-  legend.innerHTML =
-    "<b>│</b> 100 &nbsp;·&nbsp; <b>✕</b> 50 &nbsp;·&nbsp; <b>╷</b> 20 &nbsp;·&nbsp; " +
-    "a full row struck &nbsp;·&nbsp; the rest written out";
+  legend.innerHTML = t("tafel.legend");
   slate.append(legend);
 }
 
@@ -128,11 +127,11 @@ function renderContract(contract, multiplier) {
   }
   el.contract.className = "contract";
   const pip = CONTRACT_PIPS[contract];
-  const name = contract[0] + contract.slice(1).toLowerCase();
+  const name = contractName(contract);
   const red = contract === "HEARTS" || contract === "DIAMONDS";
   el.contract.innerHTML =
     (pip ? `<span class="pip${red ? " red" : ""}">${pip}</span>` : "") +
-    `<span>${pip ? name : contract[0] + contract.slice(1).toLowerCase()}</span>` +
+    `<span>${name}</span>` +
     (multiplier ? `<span class="mult">×${multiplier}</span>` : "");
 }
 
@@ -182,7 +181,10 @@ function renderTrick(view) {
   el.trick.classList.toggle("complete", !!view.trick_complete);
 }
 
-const WEIS_LABEL = { 20: "Dreiblatt", 50: "Vierblatt", 100: "Hundert", 150: "150", 200: "200" };
+const weisLabel = (points) =>
+  ["20", "50", "100", "150", "200"].includes(String(points))
+    ? t(`weis.${points}`)
+    : t("weis.generic");
 
 function renderWeis(view) {
   // What each seat announced, positioned on the same anticlockwise rotation as the trick.
@@ -228,11 +230,11 @@ function renderScorecard(view) {
   const mine = view.seat % 2;
   const pick = (pair) => [pair[mine], pair[1 - mine]];
   const rows = [
-    ["Tricks", pick(card.trick_points)],
-    ["Last trick", pick(card.last_trick)],
-    ["Weis", pick(card.weis)],
-    ["Stöck", pick(card.stoeck)],
-    ["Match", pick(card.match)],
+    [t("score.tricks"), pick(card.trick_points)],
+    [t("score.lastTrick"), pick(card.last_trick)],
+    [t("score.weis"), pick(card.weis)],
+    [t("score.stoeck"), pick(card.stoeck)],
+    [t("score.match"), pick(card.match)],
   ];
 
   const add = (label, us, them, cls) => {
@@ -252,7 +254,7 @@ function renderScorecard(view) {
   // Tricks + last trick is always 157 between the two teams. Say so, because it is the
   // number that tells a player whether they had a good round.
   const cardPoints = card.trick_points[0] + card.trick_points[1] + card.last_trick[0] + card.last_trick[1];
-  add(`of ${cardPoints} card points`, "", "", "note");
+  add(t("score.cardPoints", { n: cardPoints }), "", "", "note");
 
   const [ru, rt] = pick(card.round_total);
   const [tu, tt] = pick(card.scores);
@@ -261,18 +263,23 @@ function renderScorecard(view) {
     // Show the raw subtotal and the multiplication explicitly. Without it the rows sum to
     // one number and "This round" shows another, which reads as an error.
     const raw = rows.reduce((acc, [, pair]) => [acc[0] + pair[0], acc[1] + pair[1]], [0, 0]);
-    add("Subtotal", raw[0], raw[1], "subtotal");
-    add(`× ${card.multiplier} (${card.contract[0] + card.contract.slice(1).toLowerCase()})`, "", "", "note");
+    add(t("score.subtotal"), raw[0], raw[1], "subtotal");
+    add(
+      t("score.multiplier", { n: card.multiplier, contract: contractName(card.contract) }),
+      "", "", "note"
+    );
   }
-  add("This round", ru, rt, "subtotal");
-  add("Total", tu, tt, "total");
+  add(t("score.thisRound"), ru, rt, "subtotal");
+  add(t("score.total"), tu, tt, "total");
 
   el.scTitle.textContent =
-    view.phase === "game_over" ? "Final score" : `Round ${card.round + 1}`;
-  el.scContract.textContent = card.contract
-    ? card.contract[0] + card.contract.slice(1).toLowerCase()
-    : "";
-  el.scContinue.textContent = view.phase === "game_over" ? "New game" : "Next round";
+    view.phase === "game_over" ? t("score.final") : t("round.n", { n: card.round + 1 });
+  el.scContract.textContent = contractName(card.contract);
+  // The flag, not the label: reading the button's own text to decide what it does made the
+  // behaviour depend on the language it happened to be written in.
+  const over = view.phase === "game_over";
+  el.scContinue.dataset.over = over ? "1" : "";
+  el.scContinue.textContent = over ? t("score.newGame") : t("score.nextRound");
   el.scorecard.hidden = false;
 }
 
@@ -284,35 +291,39 @@ function renderSeats(view) {
 }
 
 function seatName(view, seat) {
+  // Anticlockwise: the next seat to play is to your right.
   const rel = (seat - view.seat + 4) % 4;
-  return ["You", "Right", "Partner", "Left"][rel];
+  return [t("seat.you"), t("seat.right"), t("seat.partner"), t("seat.left")][rel];
 }
 
 function statusText(view) {
-  if (view.phase === "round_over" || view.phase === "game_over") return "Round complete";
+  if (view.phase === "round_over" || view.phase === "game_over") return t("status.roundComplete");
   if (view.phase === "weis") {
     return view.to_act === view.seat && view.weis_offer
-      ? "Announce your Weis?"
-      : "Weis…";
+      ? t("status.weisAsk")
+      : t("status.weisWait");
   }
   if (view.trick_complete) {
-    const mine = (view.trick_winner - view.seat + 4) % 4;
-    const who = mine === 0 ? "You take it" : mine === 2 ? "Partner takes it" : "They take it";
-    return `${who} — tap the trick`;
+    const rel = (view.trick_winner - view.seat + 4) % 4;
+    const who =
+      rel === 0 ? t("status.youTake") : rel === 2 ? t("status.partnerTakes") : t("status.theyTake");
+    return t("status.tapTrick", { who });
   }
   if (view.phase === "game_over") return "Game over";
   if (view.phase === "round_over") return "Round over — tap to continue";
   if (view.to_act === view.seat) {
     if (view.phase === "bidding") {
       return view.declarer === view.seat && view.can_shove
-        ? "Your bid — or push it to your partner"
-        : "Your partner pushed — you must choose";
+        ? t("status.yourBid")
+        : t("status.mustChoose");
     }
-    return lifted ? "Tap again to play" : "Your turn";
+    return lifted ? t("status.tapAgain") : t("status.yourTurn");
   }
   if (view.to_act === null) return "";
   const who = seatName(view, view.to_act);
-  return view.phase === "bidding" ? `${who} is bidding…` : `${who} is thinking…`;
+  return view.phase === "bidding"
+    ? t("status.bidding", { who })
+    : t("status.thinking", { who });
 }
 
 function render(view) {
@@ -330,14 +341,16 @@ function render(view) {
   el.scoreUs.textContent = view.scores[mine];
   el.scoreThem.textContent = view.scores[1 - mine];
   renderContract(view.contract, view.multiplier);
-  el.round.textContent = `Round ${view.round + 1}`;
+  el.round.textContent = t("round.n", { n: view.round + 1 });
 
   // Running card points. 157 is the whole round — tricks plus the five for the last one.
   const playing = view.phase === "playing";
   el.taken.hidden = !playing;
   if (playing) {
     const taken = view.round_points || [0, 0];
-    el.taken.textContent = `${taken[mine]} – ${taken[1 - mine]} of ${view.points_in_play}`;
+    el.taken.textContent = t("hud.taken", {
+      us: taken[mine], them: taken[1 - mine], total: view.points_in_play,
+    });
   }
 
   const bidding = view.phase === "bidding" && view.to_act === view.seat;
@@ -360,7 +373,10 @@ document.querySelector(".felt").addEventListener("click", () => {
   if (el.trick.classList.contains("complete")) send({ type: "ack_trick" });
 });
 el.scContinue.addEventListener("click", () => {
-  if (el.scContinue.textContent === "New game") { document.querySelector(".menu").submit(); return; }
+  if (el.scContinue.dataset.over) {
+    document.querySelector(".menu").submit();
+    return;
+  }
   el.scorecard.hidden = true;
   send({ type: "next_round" });
 });
@@ -374,9 +390,20 @@ document.getElementById("weis-no").addEventListener("click", () =>
   send({ type: "weis", announce: false })
 );
 
+// Above the cut on purpose: scripts/make_site.py slices this file at the menu import, so
+// anything below here is absent from the offline build. It sat below, and the static markup
+// on the serverless page stayed in its English placeholder text.
+applyStatic();
+
 import { initMenu } from "./menu.js";
 
-initMenu({ measurementsUrl: MEASUREMENTS_URL });
+initMenu({
+  measurementsUrl: MEASUREMENTS_URL,
+  // Switching language has to redraw everything already on screen, not just the chrome.
+  onLanguageChange: () => {
+    if (lastView) render(lastView);
+  },
+});
 
 function connect() {
   const scheme = location.protocol === "https:" ? "wss" : "ws";
@@ -388,15 +415,16 @@ function connect() {
     if (event.type === "rejected") { el.status.textContent = event.message; return; }
     if (event.type === "error") { el.status.textContent = event.message; return; }
     if (event.type === "trick_won") {
-      const mine = (event.seat - mySeat + 4) % 4 === 0;
-      el.status.textContent = mine ? "You took it" : "Trick to seat " + event.seat;
+      const rel = (event.seat - mySeat + 4) % 4;
+      el.status.textContent =
+        rel === 0 ? t("status.youTake") : rel === 2 ? t("status.partnerTakes") : t("status.theyTake");
     }
   };
   socket.onclose = () => {
-    el.status.textContent = "Disconnected — reconnecting…";
+    el.status.textContent = t("status.disconnected");
     setTimeout(connect, 1200);
   };
-  socket.onopen = () => { el.status.textContent = "Connected"; };
+  socket.onopen = () => { el.status.textContent = t("status.connected"); };
 }
 
 connect();

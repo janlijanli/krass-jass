@@ -59,6 +59,7 @@ def asset_version() -> str:
     for name in sorted(
         (
             "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
+            "i18n.js", "about-i18n.js",
             "render.js", "solo.js", "engine.js", "krass_jass_core.wasm",
         )
     ):
@@ -105,7 +106,8 @@ def build_index() -> None:
     body = outer.group(1)
     rows = []
     for name, mult in CONTRACTS.items():
-        row = body.replace("{{ name|capitalize }}", name.capitalize())
+        row = body.replace("{{ name|upper }}", name)
+        row = row.replace("{{ name|capitalize }}", name.capitalize())
         row = row.replace("mult_KEYSLOT", f"mult_{name.lower()}")
         for v in (1, 2, 3, 4):
             row = row.replace(f"CHECK{v}", " checked" if v == mult else "")
@@ -130,6 +132,19 @@ def build_index() -> None:
     if leftovers:
         raise SystemExit(f"unresolved template tags: {leftovers[:3]}")
 
+    # A source that already carries a version froze one in: the first build stamped it, and
+    # every later build's replace then matched nothing. That is how `solo.js` spent several
+    # builds importing an engine from a deploy nobody could name. Fail loudly instead.
+    stale = [
+        f"{path}:{line}"
+        for folder in (ROOT / "site-src", ROOT / "web/static")
+        for path in sorted(folder.glob("*.js"))
+        for line in path.read_text().splitlines()
+        if "?v=" in line
+    ]
+    if stale:
+        raise SystemExit(f"versioned URL in a source file: {stale[:3]}")
+
     version = asset_version()
     html = html.replace('href="table.css"', f'href="table.css?v={version}"')
     html = html.replace('src="solo.js"', f'src="solo.js?v={version}"')
@@ -137,10 +152,13 @@ def build_index() -> None:
 
     # The modules import each other by bare name, so version those too — otherwise solo.js
     # is fresh and everything it pulls in is not.
-    for name in ("solo.js", "render.js", "menu.js", "engine.js"):
+    for name in ("solo.js", "render.js", "menu.js", "engine.js", "about.js"):
         path = SITE / name
         text = path.read_text()
-        for dep in ("engine.js", "render.js", "menu.js", "cards.js", "about.js", "tafel.js"):
+        for dep in (
+            "engine.js", "render.js", "menu.js", "cards.js", "about.js", "tafel.js",
+            "i18n.js", "about-i18n.js",
+        ):
             text = text.replace(f'"./{dep}"', f'"./{dep}?v={version}"')
         text = text.replace('"measurements.json"', f'"measurements.json?v={version}"')
         text = text.replace('"krass_jass_core.wasm"', f'"krass_jass_core.wasm?v={version}"')
@@ -158,7 +176,10 @@ def copy_assets() -> None:
     `docs/measurements.json` is copied for the same reason it is copied into `web/static/`:
     it is the single source for every number either build shows a reader.
     """
-    for name in ("table.css", "cards.js", "about.js", "menu.js", "tafel.js"):
+    for name in (
+        "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
+        "i18n.js", "about-i18n.js",
+    ):
         (SITE / name).write_text((ROOT / "web/static" / name).read_text())
     for name in ("engine.js", "solo.js", "README.md"):
         (SITE / name).write_text((ROOT / "site-src" / name).read_text())

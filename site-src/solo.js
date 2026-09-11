@@ -10,9 +10,9 @@
  * with no server; it is why multiplayer stays server-side.
  */
 
-import { loadEngine, CARD_INDEX } from "./engine.js?v=49f276d4";
-import { render, setSender } from "./render.js?v=49f276d4";
-import { initMenu } from "./menu.js?v=49f276d4";
+import { loadEngine, CARD_INDEX } from "./engine.js";
+import { render, setSender } from "./render.js";
+import { initMenu } from "./menu.js";
 
 const HUMAN_SEAT = 0;
 // docs/measurements.md §3: indistinguishable from 800,000 iterations, ~2 ms in wasm.
@@ -129,6 +129,11 @@ function ackTarget() {
   return v.trick_complete ? acked + 1 : acked;
 }
 
-initMenu({ measurementsUrl: "measurements.json?v=49f276d4", onNewGame: newGame });
+initMenu({
+  measurementsUrl: "measurements.json",
+  onNewGame: newGame,
+  // The chrome is static text, the table is not — redraw it in the new language too.
+  onLanguageChange: () => draw(),
+});
 
 newGame();

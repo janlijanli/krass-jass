@@ -16,17 +16,22 @@
   <div class="menu-backdrop" id="menu" hidden>
     <div class="menu menu-shell">
       <nav class="menu-modes">
-        <button type="button" class="menu-mode on" data-mode="settings">Settings</button>
-        <button type="button" class="menu-mode" data-mode="about">How it works</button>
-        <button type="button" class="menu-close" id="menu-x" aria-label="Close">×</button>
+        <button type="button" class="menu-mode on" data-mode="settings" data-i18n="menu.settings">Settings</button>
+        <button type="button" class="menu-mode" data-mode="about" data-i18n="menu.about">How it works</button>
+        <button type="button" class="menu-close" id="menu-x" data-i18n-aria="menu.close" aria-label="Close">×</button>
       </nav>
       <div class="menu-mode-panel" id="mode-about" hidden></div>
     <form class="menu menu-mode-panel" id="mode-settings" method="post" action="/new">
-      <header><span>Game settings</span></header>
-      <p class="menu-note">Changing these starts a new game.</p>
+      <header><span data-i18n="menu.gameSettings">Game settings</span></header>
+      <p class="menu-note" data-i18n="menu.note">Changing these starts a new game.</p>
 
       <fieldset>
-        <legend>Play to</legend>
+        <legend data-i18n="menu.language">Language</legend>
+        <div class="chips" id="lang-chips"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend data-i18n="menu.playTo">Play to</legend>
         <div class="chips">
           {% for value in targets %}
           <label class="chip">
@@ -39,26 +44,25 @@
       </fieldset>
 
       <fieldset>
-        <legend>Weis</legend>
+        <legend data-i18n="menu.weis">Weis</legend>
         <div class="chips">
           <label class="chip">
             <input type="radio" name="weis" value="on" {% if settings.weis %}checked{% endif %}>
-            <span>On</span>
+            <span data-i18n="menu.on">On</span>
           </label>
           <label class="chip">
             <input type="radio" name="weis" value="off" {% if not settings.weis %}checked{% endif %}>
-            <span>Off</span>
+            <span data-i18n="menu.off">Off</span>
           </label>
         </div>
-        <p class="menu-note">Stöck is always announced — it gives nothing away that the card
-          itself did not.</p>
+        <p class="menu-note" data-i18n="menu.stoeckNote">Stöck is always announced.</p>
       </fieldset>
 
       <fieldset>
-        <legend>Multipliers</legend>
+        <legend data-i18n="menu.multipliers">Multipliers</legend>
         {% for name, key in contracts %}
         <div class="mult-row">
-          <span class="mult-name">{{ name|capitalize }}</span>
+          <span class="mult-name" data-i18n="contract.{{ name|upper }}">{{ name|capitalize }}</span>
           <div class="chips">
             {% for value in multiplier_range %}
             <label class="chip small">
@@ -73,37 +77,37 @@
       </fieldset>
 
       <div class="menu-actions">
-        <button type="button" class="bid ghost" id="menu-close">Cancel</button>
-        <button type="submit" class="bid primary">Start new game</button>
+        <button type="button" class="bid ghost" id="menu-close" data-i18n="menu.cancel">Cancel</button>
+        <button type="submit" class="bid primary" data-i18n="menu.start">Start new game</button>
       </div>
     </form>
     </div>
   </div>
 
   <header class="scoreboard" id="scoreboard" role="button" tabindex="0" aria-label="Show the board">
-    <div class="score us"><span class="label">Wir</span><span class="value" id="score-us">0</span></div>
+    <div class="score us"><span class="label" data-i18n="team.us">Us</span><span class="value" id="score-us">0</span></div>
     <div class="meta">
       <div id="contract" class="contract none">—</div>
       <div id="round" class="round"></div>
       <div id="taken" class="taken" hidden></div>
     </div>
-    <div class="score them"><span class="label">Sie</span><span class="value" id="score-them">0</span></div>
+    <div class="score them"><span class="label" data-i18n="team.them">Them</span><span class="value" id="score-them">0</span></div>
   </header>
 
   <div class="tafel-backdrop" id="tafel" hidden>
     <div class="tafel">
       <header>
-        <span>Jasstafel</span>
-        <button type="button" class="menu-close" id="tafel-x" aria-label="Close">×</button>
+        <span data-i18n="tafel.title">Jasstafel</span>
+        <button type="button" class="menu-close" id="tafel-x" data-i18n-aria="menu.close" aria-label="Close">×</button>
       </header>
       <div class="tafel-slate" id="tafel-slate"></div>
     </div>
   </div>
 
   <section class="felt">
-    <div class="seat-marker north" data-seat="2"><span>Partner</span><i class="turn"></i></div>
-    <div class="seat-marker east"  data-seat="1"><span>Right</span><i class="turn"></i></div>
-    <div class="seat-marker west"  data-seat="3"><span>Left</span><i class="turn"></i></div>
+    <div class="seat-marker north" data-seat="2"><span data-i18n="seat.partner">Partner</span><i class="turn"></i></div>
+    <div class="seat-marker east"  data-seat="1"><span data-i18n="seat.right">Right</span><i class="turn"></i></div>
+    <div class="seat-marker west"  data-seat="3"><span data-i18n="seat.left">Left</span><i class="turn"></i></div>
 
     <div class="trick" id="trick"></div>
 
@@ -114,21 +118,21 @@
   <section class="weis-prompt" id="weis-prompt" hidden>
     <p class="prompt">You hold <strong id="weis-points"></strong></p>
     <div class="weis-actions">
-      <button class="bid" id="weis-yes">Announce</button>
-      <button class="bid ghost" id="weis-no">Keep it quiet</button>
+      <button class="bid" id="weis-yes" data-i18n="weis.announce">Announce</button>
+      <button class="bid ghost" id="weis-no" data-i18n="weis.decline">Keep it quiet</button>
     </div>
   </section>
 
   <section class="bidding" id="bidding" hidden>
-    <p class="prompt">Choose trump</p>
+    <p class="prompt" data-i18n="bid.prompt">Choose trump</p>
     <div class="bids">
       <button data-bid="DIAMONDS" class="bid suit-d"><span class="pip">♦</span><em>×1</em></button>
       <button data-bid="SPADES"   class="bid suit-s"><span class="pip">♠</span><em>×1</em></button>
       <button data-bid="HEARTS"   class="bid suit-h"><span class="pip">♥</span><em>×2</em></button>
       <button data-bid="CLUBS"    class="bid suit-c"><span class="pip">♣</span><em>×2</em></button>
-      <button data-bid="OBENABE"  class="bid word">Obenabe<em>×3</em></button>
-      <button data-bid="UNDENUFE" class="bid word">Undenufe<em>×4</em></button>
-      <button data-bid="SHOVE"    class="bid shove" id="shove">Schieben</button>
+      <button data-bid="OBENABE"  class="bid word"><span data-i18n="contract.OBENABE">Obenabe</span><em>×3</em></button>
+      <button data-bid="UNDENUFE" class="bid word"><span data-i18n="contract.UNDENUFE">Undenufe</span><em>×4</em></button>
+      <button data-bid="SHOVE"    class="bid shove" id="shove" data-i18n="bid.shove">Schieben</button>
     </div>
   </section>
 
@@ -140,7 +144,7 @@
     <div class="scorecard">
       <header><span id="sc-title">Round</span><span id="sc-contract" class="sc-contract"></span></header>
       <table>
-        <thead><tr><th></th><th>Us</th><th>Them</th></tr></thead>
+        <thead><tr><th></th><th data-i18n="team.us">Us</th><th data-i18n="team.them">Them</th></tr></thead>
         <tbody id="sc-rows"></tbody>
       </table>
       <button class="sc-continue" id="sc-continue">Continue</button>
@@ -148,8 +152,8 @@
   </div>
 
   <footer class="statusbar">
-    <span id="status">Connecting…</span>
-    <button class="newgame" id="settings-open">Settings</button>
+    <span id="status" data-i18n="status.connecting">Connecting…</span>
+    <button class="newgame" id="settings-open" data-i18n="menu.settings">Settings</button>
   </footer>
 </main>
 <script type="module" src="/static/table.js"></script>

@@ -222,7 +222,8 @@ function rowsFor(marks, min) {
  * `history` is `[[us per round], [them per round]]` — the rounds as they were scored, not the
  * totals, because the board is written up one round at a time.
  */
-export function drawTafel(container, history, { target = null } = {}) {
+export function drawTafel(container, history, { target = null, t = null } = {}) {
+  const say = t || ((k, p) => (p ? `playing to ${p.n}` : ""));
   const W = 264;
   const PAD = 8;
   const marks = history.map(accumulate);

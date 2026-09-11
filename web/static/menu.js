@@ -5,7 +5,35 @@
  * rather than a reason to keep two copies.
  */
 
-export function initMenu({ measurementsUrl, onNewGame = null }) {
+import { LANGS, LANG_NAMES, applyStatic, getLang, setLang, t } from "./i18n.js";
+
+/** The language chips. Browser detection is a guess; this is how a wrong guess is fixed. */
+function buildLanguagePicker(onChange) {
+  const host = document.getElementById("lang-chips");
+  if (!host) return;
+  host.replaceChildren();
+  for (const lang of LANGS) {
+    const label = document.createElement("label");
+    label.className = "chip";
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "lang";
+    input.value = lang;
+    input.checked = lang === getLang();
+    const span = document.createElement("span");
+    span.textContent = LANG_NAMES[lang];
+    label.append(input, span);
+    input.addEventListener("change", () => {
+      setLang(lang);
+      applyStatic();
+      buildLanguagePicker(onChange);
+      onChange?.();
+    });
+    host.append(label);
+  }
+}
+
+export function initMenu({ measurementsUrl, onNewGame = null, onLanguageChange = null }) {
   const menu = document.getElementById("menu");
   const opener = document.getElementById("menu-open");
 
@@ -32,6 +60,7 @@ export function initMenu({ measurementsUrl, onNewGame = null }) {
   // Built lazily, and from an artifact rather than typed prose — see about.js and
   // docs/measurements.json.
   let built = false;
+  let aboutData = null;
   async function showMode(mode) {
     document
       .querySelectorAll(".menu-mode")
@@ -42,18 +71,19 @@ export function initMenu({ measurementsUrl, onNewGame = null }) {
 
     if (mode === "about" && !built) {
       built = true;
-      panel.textContent = "Loading…";
+      panel.textContent = t("menu.loading");
       try {
         const [{ buildAbout }, data] = await Promise.all([
           import("./about.js"),
           fetch(measurementsUrl).then((r) => r.json()),
         ]);
+        aboutData = data;   // kept so the panel can be rebuilt in another language
         panel.replaceChildren(buildAbout(data));
       } catch (err) {
         // Better to say the numbers are missing than to render a page of blanks that looks
         // like measurements.
         built = false;
-        panel.textContent = "Could not load the measurements.";
+        panel.textContent = t("menu.loadFailed");
       }
     }
   }
@@ -71,5 +101,19 @@ export function initMenu({ measurementsUrl, onNewGame = null }) {
     });
   }
 
-  return { open, close, showMode };
+  /** Rebuild the documentation in the new language, if it has been opened. */
+  const relocalise = async () => {
+    if (!aboutData) return;
+    const { buildAbout } = await import("./about.js");
+    document.getElementById("mode-about").replaceChildren(buildAbout(aboutData));
+  };
+
+  // Wired here rather than left to the caller: the offline build forgot to call it, so the
+  // chrome switched language and the documentation stayed behind in the old one.
+  buildLanguagePicker(() => {
+    relocalise();
+    onLanguageChange?.();
+  });
+
+  return { open, close, showMode, relocalise };
 }

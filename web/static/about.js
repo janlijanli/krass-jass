@@ -5,12 +5,16 @@
  *
  * Every number here renders from `docs/measurements.json` with the date and sample size it
  * was measured with. Nothing is typed into prose — a figure without an `n` is not evidence,
- * and hand-copied numbers go stale silently.
+ * and hand-copied numbers go stale silently. That holds across languages too: the prose
+ * lives in about-i18n.js with placeholders, so a re-measurement updates all four at once.
  *
  * Figures are hand-written inline SVG rather than a charting library: there are four of
  * them, and a library would be more code than the figures. Motion carries the argument or
  * is absent, each one has a static end state, and `prefers-reduced-motion` is respected.
  */
+
+import { getLang } from "./i18n.js";
+import { about } from "./about-i18n.js";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -81,7 +85,7 @@ function ladderFigure(data) {
 
 /* ---------- figure 2: the saturation curve ------------------------------ */
 
-function saturationFigure(data) {
+function saturationFigure(data, L) {
   const pts = data.budget_sweep.points;
   const W = 320;
   const H = 150;
@@ -114,7 +118,7 @@ function saturationFigure(data) {
   // The knee is the whole point of the figure, so it is marked rather than left to be read.
   const knee = pts.find((p) => p.iterations === 2400);
   svg.append(
-    el("text", { x: x(knee.iterations) + 6, y: y(knee.share) - 8, class: "fig-note" }, "flat from here")
+    el("text", { x: x(knee.iterations) + 6, y: y(knee.share) - 8, class: "fig-note" }, about(L, "fig.flat"))
   );
 
   if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -132,7 +136,7 @@ function saturationFigure(data) {
 const SUITS = ["♦", "♥", "♠", "♣"];
 const RANKS = ["A", "K", "Q", "J", "10", "9", "8", "7", "6"];
 
-function voidFigure() {
+function voidFigure(L) {
   /* The single most legible piece of bot reasoning, and the Puur case is what shows it is
      precise rather than approximate. Hearts are trump; the opponent discards a club on a
      heart lead, which rules out every heart they could hold EXCEPT the Jack. */
@@ -168,31 +172,20 @@ function voidFigure() {
     });
   });
 
-  const caption = html("p", "fig-caption", "They follow suit, so nothing is known yet.");
+  const caption = html("p", "fig-caption", about(L, "play.void.1"));
   const wrap = html("div", "fig-wrap");
   wrap.append(svg, caption);
 
   const steps = [
-    {
-      text: "They follow suit, so nothing is known yet.",
-      ruled: () => [],
-    },
-    {
-      text: "They discard a <b>club</b> on a <b>spade</b> lead — so they hold no spades.",
-      ruled: (c) => c.suit === 2,
-    },
-    {
-      text:
-        "Now a <b>heart</b> is led and they discard again. Hearts are trump, so they hold no " +
-        "trump — <b>except possibly the Jack</b>, which they are allowed to keep back.",
-      ruled: (c) => c.suit === 2 || (c.suit === 1 && c.rank !== 3),
-    },
+    { key: "play.void.1", ruled: () => [] },
+    { key: "play.void.2", ruled: (c) => c.suit === 2 },
+    { key: "play.void.3", ruled: (c) => c.suit === 2 || (c.suit === 1 && c.rank !== 3) },
   ];
 
   let step = 0;
   const draw = () => {
-    const { text, ruled } = steps[step];
-    caption.innerHTML = text;
+    const { key, ruled } = steps[step];
+    caption.innerHTML = about(L, key);
     cells.forEach((c) => {
       c.rect.classList.toggle("ruled", !!ruled(c));
       c.label.classList.toggle("ruled", !!ruled(c));
@@ -203,10 +196,10 @@ function voidFigure() {
   };
   draw();
 
-  const button = html("button", "fig-step", "Next →");
+  const button = html("button", "fig-step", about(L, "play.void.next"));
   button.addEventListener("click", () => {
     step = (step + 1) % steps.length;
-    button.textContent = step === steps.length - 1 ? "Start over" : "Next →";
+    button.textContent = about(L, step === steps.length - 1 ? "play.void.restart" : "play.void.next");
     draw();
   });
   wrap.append(button);
@@ -239,240 +232,145 @@ function throughputFigure(data) {
 
 /* ---------- the panels --------------------------------------------------- */
 
-function playerPanel(data) {
+function playerPanel(data, L) {
   const wrap = html("div", "about-panel");
   wrap.append(
-    html("h3", null, "What it is doing"),
-    html(
-      "p",
-      null,
-      "It cannot see your cards. So it <b>imagines</b> them — deals the unseen cards into " +
-        "the other three hands at random, plays that imaginary deal out thousands of times, " +
-        "and repeats with a different guess. The card that does best across all those " +
-        "guesses is the one it plays."
-    ),
-    html("h3", null, "What it knows, and what it doesn't"),
-    html(
-      "p",
-      null,
-      "Its own hand, the cards already face up, and which moves are legal. Nothing else — " +
-        "no peek at your hand, no deck order. That is enforced in one function and checked " +
-        "by a test that fuzzes every observation looking for a card that should not be there."
-    ),
-    html("h3", null, "What it works out"),
-    html(
-      "p",
-      null,
-      "It reasons from what you play. Step through this — the last step is the one worth " +
-        "seeing, because it shows the inference is exact rather than approximate."
-    )
+    html("h3", null, about(L, "play.doing.h")),
+    html("p", null, about(L, "play.doing.p")),
+    html("h3", null, about(L, "play.knows.h")),
+    html("p", null, about(L, "play.knows.p")),
+    html("h3", null, about(L, "play.works.h")),
+    html("p", null, about(L, "play.works.p"))
   );
-  wrap.append(voidFigure());
+  wrap.append(voidFigure(L));
   wrap.append(
-    html("h3", null, "Where it is weak"),
-    html(
-      "p",
-      "warn",
-      "Its individual card play is much stronger than its <b>team</b> play. It does not " +
-        "follow the signalling conventions a human partner expects — it will not read your " +
-        "schmieren as a signal, and it does not send them either. That is a known limit of " +
-        "this kind of search, not a bug, and more thinking time does not fix it."
-    ),
-    html(
-      "p",
-      null,
-      `It has also <b>never been measured against a human</b>. The published work on this ` +
-        `exact variant found a comparable bot scored ${data.literature.human_parity} — ` +
-        `roughly par with strong amateurs. That is the research's number, not ours.`
-    )
+    html("h3", null, about(L, "play.weak.h")),
+    html("p", "warn", about(L, "play.weak.p")),
+    html("p", null, about(L, "play.human.p", { parity: data.literature.human_parity }))
   );
   return wrap;
 }
 
-function strengthPanel(data) {
+function strengthPanel(data, L) {
   const wrap = html("div", "about-panel");
   const { ladder, budget_sweep, trump_selection } = data;
 
   wrap.append(
-    html("h3", null, "Is it actually any good?"),
+    html("h3", null, about(L, "strength.h")),
     html(
       "p",
       null,
-      `Every figure here is measured, dated and carries its sample size. ` +
-        `<span class="meta">Measured ${data.measured_on} · ${data.machine} · ${data.conditions}.</span>`
+      about(L, "strength.intro") +
+        ` <span class="meta">` +
+        about(L, "strength.meta", {
+          date: data.measured_on,
+          machine: data.machine,
+          conditions: data.conditions,
+        }) +
+        `</span>`
     ),
-    html("h4", null, "The baseline ladder"),
-    html(
-      "p",
-      null,
-      `${ladder.deals} double rounds per matchup. Dots are the share of points; bars are 95% ` +
-        `confidence intervals. An interval crossing the centre line means <b>we cannot tell ` +
-        `the two apart</b>.`
-    )
+    html("h4", null, about(L, "strength.ladder.h")),
+    html("p", null, about(L, "strength.ladder.p", { deals: ladder.deals }))
   );
   wrap.append(ladderFigure(data));
-  wrap.append(
-    html(
-      "p",
-      "fig-caption",
-      "Note the top row: <b>greedy scores the same as random</b>. " +
-        "&ldquo;Play your highest-value legal card&rdquo; sounds reasonable and is worth nothing — " +
-        "it throws aces into tricks it was never going to win."
-    ),
-
-    html("h4", null, "Why every deal is played twice"),
-    html(
-      "p",
-      null,
-      `The deal dominates. Per-deal share has a standard deviation around 8%, so a short ` +
-        `match cannot resolve a 2% difference in skill. So each deal is played <b>twice</b>, ` +
-        `with the two sides swapped, and the pair is compared — which cancels most of the ` +
-        `luck. Testing that as if the halves were unrelated would throw the benefit away, so ` +
-        `the test is paired.`
-    ),
-
-    html("h4", null, "What more thinking buys"),
-    html(
-      "p",
-      null,
-      `Nothing, past about 2,400 iterations. Each budget below played ${budget_sweep.deals} ` +
-        `double rounds against a fixed 2,400-iteration opponent.`
-    )
-  );
-  wrap.append(saturationFigure(data));
   const high = budget_sweep.high_end[1];
   wrap.append(
+    html("p", "fig-caption", about(L, "strength.ladder.caption")),
+
+    html("h4", null, about(L, "strength.double.h")),
+    html("p", null, about(L, "strength.double.p")),
+
+    html("h4", null, about(L, "strength.budget.h")),
+    html("p", null, about(L, "strength.budget.p", { deals: budget_sweep.deals }))
+  );
+  wrap.append(saturationFigure(data, L));
+  wrap.append(
     html(
       "p",
       "fig-caption",
-      `At the top end, ${high.a.toLocaleString()} iterations against ` +
-        `${high.b.toLocaleString()} scored ${pct(high.share)} over ${high.deals} deals ` +
-        `(p = ${high.p}). <b>333× the computation, no measurable gain.</b> ` +
-        `The published work suggests ${data.literature.budget_claim}; that did not reproduce ` +
-        `here, and we do not yet know why.`
+      about(L, "strength.budget.caption", {
+        a: high.a.toLocaleString(L),
+        b: high.b.toLocaleString(L),
+        share: pct(high.share),
+        n: high.deals,
+        p: high.p,
+        claim: data.literature.budget_claim,
+      })
     ),
 
-    html("h4", null, "What the bidding is worth"),
+    html("h4", null, about(L, "strength.trump.h")),
     html(
       "p",
       null,
-      `Identical card play on both sides, only the trump choice differing: ` +
-        `<b>${pct(trump_selection.share)}</b> over ${trump_selection.deals} double rounds — ` +
-        `a ${(2 * (trump_selection.share - 50)).toFixed(0)}-point spread. The research predicted ` +
-        `${data.literature.trump_selection_claim}. <b>That one reproduced.</b>`
+      about(L, "strength.trump.p", {
+        share: pct(trump_selection.share),
+        deals: trump_selection.deals,
+        spread: (2 * (trump_selection.share - 50)).toFixed(0),
+        claim: data.literature.trump_selection_claim,
+      })
     ),
 
-    html("h4", null, "The number that matters most"),
+    html("h4", null, about(L, "strength.gap.h")),
     html(
       "p",
       null,
-      `A bot that <b>sees all four hands</b> beats the real one ` +
-        `${pct(ladder.matchups[3].share)} to ${pct(100 - ladder.matchups[3].share)}. That gap — ` +
-        `about 6 points — is the price of playing with hidden information, and search does ` +
-        `not close it: giving the real bot 16× more thinking moved it by less than half a ` +
-        `standard error. Closing it needs a different kind of player, not a faster one.`
+      about(L, "strength.gap.p", {
+        share: pct(ladder.matchups[3].share),
+        other: pct(100 - ladder.matchups[3].share),
+      })
     ),
 
-    html(
-      "p",
-      "warn",
-      "A caveat that applies to all of it: these are measured with Weis, Stöck and the match " +
-        "bonus switched off, because they swing scores hard enough to drown the difference " +
-        "between two agents. They are on when you play."
-    )
+    html("p", "warn", about(L, "strength.caveat"))
   );
   return wrap;
 }
 
-function internalsPanel(data) {
+function internalsPanel(data, L) {
   const wrap = html("div", "about-panel");
   wrap.append(
-    html("h3", null, "How it is built"),
-    html(
-      "p",
-      null,
-      "The engine is bitboards: a hand is a 36-bit integer and a suit is a 9-bit field, so " +
-        "legal moves and trick resolution are table lookups rather than branching logic."
-    ),
-    html("h4", null, "Why the search is in Rust"),
-    html(
-      "p",
-      null,
-      "Python managed about 35,000 search iterations a second, which put a training corpus " +
-        "at roughly a month of continuous computation. Profiling showed the random playout " +
-        "was 73% of the time — so porting only that would have capped the gain near 2.4×, " +
-        "and the search tree had to move with it."
-    )
+    html("h3", null, about(L, "internals.h")),
+    html("p", null, about(L, "internals.p")),
+    html("h4", null, about(L, "internals.rust.h")),
+    html("p", null, about(L, "internals.rust.p"))
   );
   wrap.append(throughputFigure(data));
+  const costs = data.endgame.points
+    .map((p) => about(L, "fig.cards", { n: p.cards_each, ms: p.ms }))
+    .join(", ");
   wrap.append(
-    html(
-      "p",
-      "fig-caption",
-      "Per move at the 2,400-iteration serve budget. The browser build is 1.39× the native " +
-        "one — which is why this page can run the whole game with no server behind it."
-    ),
+    html("p", "fig-caption", about(L, "internals.rust.caption")),
 
-    html("h4", null, "The three rules that make Jass different"),
-    html(
-      "p",
-      null,
-      "Implementations of other trick-taking games get these wrong. <b>You may always " +
-        "trump</b>, even holding the led suit. Once someone has trumped, a <b>lower trump is " +
-        "illegal</b> unless your hand is nothing but trumps. And if your only trump is the " +
-        "Jack, you need not play it on a trump lead."
-    ),
+    html("h4", null, about(L, "internals.rules.h")),
+    html("p", null, about(L, "internals.rules.p")),
 
-    html("h4", null, "The endgame is solved exactly"),
-    html(
-      "p",
-      null,
-      `Once few enough cards remain, the search is <b>replaced</b> by an exact ` +
-        `double-dummy solve. Cost roughly 15× per extra card — ` +
-        data.endgame.points
-          .map((p) => `${p.cards_each} cards ${p.ms} ms`)
-          .join(", ") +
-        ` — which is why it replaces the search rather than running inside it.`
-    ),
+    html("h4", null, about(L, "internals.endgame.h")),
+    html("p", null, about(L, "internals.endgame.p", { costs })),
 
-    html("h4", null, "How it is kept honest"),
-    html(
-      "p",
-      null,
-      "The rules exist twice — Python and Rust — and a third time in a deliberately naive " +
-        "reference implementation written from the rules text that imports neither. Property " +
-        "tests play whole random rounds and compare all three at every ply. Two implementations " +
-        "can agree on the same misreading; three written from different starting points are " +
-        "much less likely to."
-    ),
+    html("h4", null, about(L, "internals.honest.h")),
+    html("p", null, about(L, "internals.honest.p")),
 
-    html(
-      "p",
-      "warn",
-      "One honest limit of <b>this</b> build: it runs entirely in your browser, so all four " +
-        "hands are in this tab's memory. The bots genuinely cannot see yours — the filtering " +
-        "is the same code the server version runs — but a determined human with developer " +
-        "tools can. That is fine for playing against bots and is exactly why multiplayer " +
-        "would have to be server-side."
-    )
+    html("p", "warn", about(L, "internals.caveat"))
   );
   return wrap;
 }
 
 export function buildAbout(data) {
+  // Read once per build: menu.js rebuilds the whole panel when the language changes, so a
+  // half-translated panel is not reachable.
+  const L = getLang();
   const panels = {
-    play: () => playerPanel(data),
-    strength: () => strengthPanel(data),
-    internals: () => internalsPanel(data),
+    play: () => playerPanel(data, L),
+    strength: () => strengthPanel(data, L),
+    internals: () => internalsPanel(data, L),
   };
   const built = {};
   const body = html("div", "about-body");
 
   const tabs = html("div", "about-tabs");
   const names = [
-    ["play", "How it plays"],
-    ["strength", "Is it good?"],
-    ["internals", "Under the hood"],
+    ["play", about(L, "tab.play")],
+    ["strength", about(L, "tab.strength")],
+    ["internals", about(L, "tab.internals")],
   ];
   let active = "play";
 
