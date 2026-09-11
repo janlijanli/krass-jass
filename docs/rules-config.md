@@ -215,9 +215,13 @@ marks, which is exactly what the bundling rule is for.
 Bundling: the fifth stroke of a 100 or 20 band is drawn crosswise over the four before it;
 in the 50 band two strokes are crossed, two fifties being a hundred.
 
-Bands wrap when they run out of width and the board grows downward, so a long game fills the
-slate the way a real one does. `BANDS` in `web/static/tafel.js` is the table; changing the
-notation is editing that rather than the drawing code.
+The slate is **portrait** and its bands are ruled to a fixed height rather than sized to the
+current score — a board is a fixed object whose lines are drawn once and filled up over the
+evening, so one that changed shape every round would be wrong. A band grows past its ruling
+only if a score genuinely overflows it.
+
+`BANDS` in `web/static/tafel.js` is the table; changing the notation is editing that rather
+than the drawing code.
 
 ## Game length and end conditions
 

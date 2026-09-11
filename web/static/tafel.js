@@ -32,11 +32,18 @@ const svg = (tag, attrs = {}) => {
   return n;
 };
 
-/** The bands, top to bottom. */
+/**
+ * The bands, top to bottom.
+ *
+ * `rows` is the height each band is ruled to, not how much it currently needs. A slate is a
+ * fixed object: the lines are drawn once and the marks fill them up over the evening. Sizing
+ * bands to the current score made the board change shape every round, which no board does.
+ * A band grows past its ruling only if a score genuinely overflows it.
+ */
 export const BANDS = [
-  { value: 100, label: "100", crossAt: 5 },
-  { value: 50, label: "50", crossAt: 2 },
-  { value: 20, label: "20", crossAt: 5 },
+  { value: 100, label: "100", crossAt: 5, rows: 5 },
+  { value: 50, label: "50", crossAt: 2, rows: 2 },
+  { value: 20, label: "20", crossAt: 5, rows: 2 },
 ];
 /**
  * Break a score into what goes on the board.
@@ -100,7 +107,9 @@ function chalkText(x, y, text, cls, seed) {
 }
 
 const GAP = 9;
-const ROW_H = 22;
+const ROW_H = 30;
+/** Portrait: a Jasstafel is a tall slate, not a wide one. */
+const WIDTH = 264;
 
 /** How many stroke-groups fit across one band. */
 function groupsPerRow(width, crossAt) {
@@ -155,12 +164,12 @@ function halfStrokes(root, x0, width, score, rows, seedBase) {
   root.append(g);
 }
 
-/** Rows each band needs for a score, so both halves can be laid out to the same grid. */
+/** Rows each band needs for a score — its ruled height, unless the score overflows it. */
 function rowsFor(score, width) {
   const { bands } = decompose(score);
   return BANDS.map((b, i) => {
     const groups = Math.ceil(bands[i] / b.crossAt);
-    return Math.max(1, Math.ceil(groups / groupsPerRow(width, b.crossAt)));
+    return Math.max(b.rows, Math.ceil(groups / groupsPerRow(width, b.crossAt)));
   });
 }
 
@@ -168,7 +177,7 @@ const BAND_TOP = 22;
 
 /** Render the board. `scores` is `[us, them]`. */
 export function drawTafel(container, scores, { target = null } = {}) {
-  const W = 320;
+  const W = WIDTH;
   const mid = W / 2;
   const root = svg("svg", { class: "slate-svg" });
   root.append(chalkDefs());

@@ -5,10 +5,10 @@
  * or what a trick is worth — it asks, and it renders the answer (docs/webapp-plan.md §1).
  */
 
-import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js?v=0e6f2d52";
+import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js?v=1adeb171";
 
 export { render };
-import { drawTafel } from "./tafel.js?v=0e6f2d52";
+import { drawTafel } from "./tafel.js?v=1adeb171";
 
 const MEASUREMENTS_URL = "/static/measurements.json";
 

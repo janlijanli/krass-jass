@@ -453,7 +453,7 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
   background: rgba(0, 0, 0, .6); backdrop-filter: blur(3px);
 }
 .tafel {
-  width: 100%; max-width: 340px;
+  width: 100%; max-width: 300px;
   /* Stone, not paper. Layered gradients give it an uneven, quarried look; the inset shadow
      is the worn darkening around the edge of a board that has been wiped for years. */
   background:
@@ -475,7 +475,11 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
   color: rgba(255,255,255,.75);
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
-.tafel-slate { padding: 10px 6px 12px; }
+.tafel-slate {
+  padding: 10px 6px 12px;
+  /* A tall board on a short phone still has to be reachable. */
+  max-height: 62dvh; overflow-y: auto;
+}
 
 /* ---------- chalk ---------- */
 
