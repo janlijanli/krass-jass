@@ -220,6 +220,13 @@ current score — a board is a fixed object whose lines are drawn once and fille
 evening, so one that changed shape every round would be wrong. A band grows past its ruling
 only if a score genuinely overflows it.
 
+**Marks accumulate; they are not redrawn.** Each round is written up as it is scored and the
+strokes stay where they were put. Only the remainder is wiped and rewritten, because the next
+round's leftover joins it and may become a new stroke. So a team can end with three strokes
+in the 50 band where a redrawn total would show a hundred and a fifty — that is not an error,
+it is what a board that has been written on looks like, and it is why the bundling rule
+exists at all. The invariant is that marks plus remainder always equal the cumulative score.
+
 `BANDS` in `web/static/tafel.js` is the table; changing the notation is editing that rather
 than the drawing code.
 

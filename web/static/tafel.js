@@ -46,11 +46,10 @@ export const BANDS = [
   { value: 20, label: "20", crossAt: 5, rows: 2 },
 ];
 /**
- * Break a score into what goes on the board.
+ * Break one amount into marks, largest band first.
  *
- * Largest band first. The remainder is whatever is left under 20 and is written out as a
- * number — real scores are not multiples of twenty, and rounding them would put the wrong
- * total on the board.
+ * The remainder is whatever is left under 20 and is written out as a number — real scores
+ * are not multiples of twenty, and rounding them would put the wrong total on the board.
  */
 export function decompose(score) {
   let left = Math.max(0, Math.round(score));
@@ -60,6 +59,39 @@ export function decompose(score) {
     return n;
   });
   return { bands, remainder: left };
+}
+
+/**
+ * The board as it actually gets written: round by round, marks accumulating.
+ *
+ * Chalk is not rubbed out and rewritten each round — strokes stay where they were put. Only
+ * the remainder is a number in the corner, and that is the one thing that does get wiped and
+ * written again, because each round's leftover joins it and may turn into a new stroke.
+ *
+ * So a team can end up with three strokes in the 50 band where a redrawn total would show a
+ * hundred and a fifty. That is not an error, it is what the board looks like — and the
+ * bundling rule exists precisely because marks pile up this way.
+ *
+ * The invariant that matters: marks plus remainder always equal the cumulative score.
+ */
+export function accumulate(roundPoints) {
+  const bands = BANDS.map(() => 0);
+  let remainder = 0;
+  for (const points of roundPoints) {
+    let pending = remainder + Math.max(0, Math.round(points));
+    BANDS.forEach(({ value }, i) => {
+      const n = Math.floor(pending / value);
+      bands[i] += n;
+      pending -= n * value;
+    });
+    remainder = pending;
+  }
+  return { bands, remainder };
+}
+
+/** What the marks on the board add up to — used to check the board against the real score. */
+export function markedTotal({ bands, remainder }) {
+  return bands.reduce((sum, n, i) => sum + n * BANDS[i].value, 0) + remainder;
 }
 
 /* Deterministic jitter, so a mark wobbles the same way every time it is drawn. */
@@ -146,8 +178,8 @@ function drawBand(g, x0, y, width, count, crossAt, seedBase) {
  * The bands are ruled across the slate, so both teams' 50s sit on the same line. Sizing each
  * half independently let them drift apart, which no real board does.
  */
-function halfStrokes(root, x0, width, score, rows, seedBase) {
-  const { bands, remainder } = decompose(score);
+function halfStrokes(root, x0, width, marks, rows, seedBase) {
+  const { bands, remainder } = marks;
   const g = svg("g");
   const columnX = x0 + width - 34;
   const strokeX = x0 + 26;
@@ -164,9 +196,9 @@ function halfStrokes(root, x0, width, score, rows, seedBase) {
   root.append(g);
 }
 
-/** Rows each band needs for a score — its ruled height, unless the score overflows it. */
-function rowsFor(score, width) {
-  const { bands } = decompose(score);
+/** Rows each band needs — its ruled height, unless the marks overflow it. */
+function rowsFor(marks, width) {
+  const { bands } = marks;
   return BANDS.map((b, i) => {
     const groups = Math.ceil(bands[i] / b.crossAt);
     return Math.max(b.rows, Math.ceil(groups / groupsPerRow(width, b.crossAt)));
@@ -175,8 +207,15 @@ function rowsFor(score, width) {
 
 const BAND_TOP = 22;
 
-/** Render the board. `scores` is `[us, them]`. */
-export function drawTafel(container, scores, { target = null } = {}) {
+/**
+ * Render the board.
+ *
+ * `history` is `[[us per round], [them per round]]` — the rounds as they were scored, not
+ * the totals, because the board is written up one round at a time.
+ */
+export function drawTafel(container, history, { target = null } = {}) {
+  const marks = history.map(accumulate);
+  const scores = marks.map(markedTotal);
   const W = WIDTH;
   const mid = W / 2;
   const root = svg("svg", { class: "slate-svg" });
@@ -190,8 +229,8 @@ export function drawTafel(container, scores, { target = null } = {}) {
   // Bands are ruled across the whole slate, so each one is as tall as the fuller side needs.
   const halfWidth = mid - 8;
   const strokeWidth = halfWidth - 66;
-  const rowsA = rowsFor(scores[0], strokeWidth);
-  const rowsB = rowsFor(scores[1], strokeWidth);
+  const rowsA = rowsFor(marks[0], strokeWidth);
+  const rowsB = rowsFor(marks[1], strokeWidth);
   const rows = BANDS.map((_, i) => Math.max(rowsA[i], rowsB[i]));
 
   // Band labels and the rules between them, drawn once across the board.
@@ -206,8 +245,8 @@ export function drawTafel(container, scores, { target = null } = {}) {
   });
   const h = y;
 
-  halfStrokes(body, 4, halfWidth, scores[0], rows, 11);
-  halfStrokes(body, mid + 4, halfWidth, scores[1], rows, 91);
+  halfStrokes(body, 4, halfWidth, marks[0], rows, 11);
+  halfStrokes(body, mid + 4, halfWidth, marks[1], rows, 91);
 
   // The line down the middle, drawn last so it spans whatever the bands needed.
   body.append(stroke(mid, 4, mid, h - 4, 3, 2.6));

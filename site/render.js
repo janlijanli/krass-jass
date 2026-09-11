@@ -5,10 +5,10 @@
  * or what a trick is worth — it asks, and it renders the answer (docs/webapp-plan.md §1).
  */
 
-import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js?v=1adeb171";
+import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js?v=e27fb9b8";
 
 export { render };
-import { drawTafel } from "./tafel.js?v=1adeb171";
+import { drawTafel } from "./tafel.js?v=e27fb9b8";
 
 const MEASUREMENTS_URL = "/static/measurements.json";
 
@@ -87,13 +87,15 @@ function recordRound(view) {
 
 function renderTafel(view) {
   const mine = view.seat % 2;
-  const scores = [view.scores[mine], view.scores[1 - mine]];
   const slate = el.tafelSlate;
   slate.replaceChildren();
 
-  // Read the target off the view rather than a remembered copy — one less piece of state to
-  // be stale, and the view always has it.
-  drawTafel(slate, scores, { target: view.target ?? board.target, rounds: board.rounds });
+  // The board is written up round by round, so it gets the history rather than the totals.
+  const history = [
+    board.rounds.map((r) => r.points[mine]),
+    board.rounds.map((r) => r.points[1 - mine]),
+  ];
+  drawTafel(slate, history, { target: view.target ?? board.target });
 
   // What the marks mean, because a notation nobody can read is decoration.
   const legend = document.createElement("p");

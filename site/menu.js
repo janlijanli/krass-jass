@@ -45,7 +45,7 @@ export function initMenu({ measurementsUrl, onNewGame = null }) {
       panel.textContent = "Loading…";
       try {
         const [{ buildAbout }, data] = await Promise.all([
-          import("./about.js?v=1adeb171"),
+          import("./about.js?v=e27fb9b8"),
           fetch(measurementsUrl).then((r) => r.json()),
         ]);
         panel.replaceChildren(buildAbout(data));
