@@ -27,12 +27,30 @@ pub struct Stakes {
     /// 0 means no game to project onto: fall back to the share of the round.
     pub target: i32,
     pub multiplier: i32,
+    /// Risk aversion, offsetting determinized search's optimism. 0 is off. See the Python
+    /// module: the *kink* is what does the work, an affine penalty would do nothing.
+    pub risk_lambda: f64,
+}
+
+const RISK_THRESHOLD: f64 = 0.4;
+
+/// Dislike bad rounds more than linearly. Slope `1 + lam` below the threshold, `1` above.
+fn risk_adjust(share: f64, lam: f64) -> f64 {
+    if lam <= 0.0 {
+        return share;
+    }
+    let f = share - lam * (RISK_THRESHOLD - share).max(0.0);
+    let lo = -lam * RISK_THRESHOLD;
+    (f - lo) / (1.0 - lo)
 }
 
 /// Value in [0, 1] of finishing the round with `ours`/`theirs` card points.
 pub fn reward(ours: i32, theirs: i32, team: usize, s: &Stakes) -> f64 {
     let total = ours + theirs;
-    let share = if total == 0 { 0.5 } else { ours as f64 / total as f64 };
+    let share = risk_adjust(
+        if total == 0 { 0.5 } else { ours as f64 / total as f64 },
+        s.risk_lambda,
+    );
     if s.target <= 0 {
         return share;
     }

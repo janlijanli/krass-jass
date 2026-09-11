@@ -57,6 +57,7 @@ def dmcts(
     target: int = 0,
     multiplier: int = 1,
     adversarial: bool = True,
+    risk_lambda: float = 0.0,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -95,4 +96,5 @@ def dmcts(
         target=target,
         multiplier=multiplier,
         adversarial=adversarial,
+        risk_lambda=risk_lambda,
     )

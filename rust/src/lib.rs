@@ -160,7 +160,7 @@ fn play_out_many(
     seat, hand, unseen, trick, trick_leader, contract, forbidden=None, affinity=None, rank_bias=None,
     determinizations=1000, iterations=800, exploration=1.5, seed=0, threads=1,
     endgame_cards=5, strict_undertrump=true, puur_exempt=true,
-    scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true
+    scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true, risk_lambda=0.0
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -187,6 +187,7 @@ fn dmcts(
     target: i32,
     multiplier: i32,
     adversarial: bool,
+    risk_lambda: f64,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -233,6 +234,7 @@ fn dmcts(
             bonus: [weis.0, weis.1],
             target,
             multiplier,
+            risk_lambda,
         },
         adversarial,
     };

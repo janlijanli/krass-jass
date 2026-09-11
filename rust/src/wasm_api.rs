@@ -213,6 +213,7 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
                 bonus: [game.weis_points_public(0), game.weis_points_public(1)],
                 target: game.rules.target_score,
                 multiplier: game.rules.multiplier(contract),
+                risk_lambda: 0.0,
             },
             adversarial: true,
         };

@@ -64,6 +64,36 @@ GAME_FROM = 1.0    #: rounds left at which the projection is the whole reward
 GAME_UNTIL = 4.0   #: and beyond which it counts for nothing
 
 
+#: Share below which a round counts as a bad one, for the risk term.
+RISK_THRESHOLD = 0.4
+
+
+def risk_adjust(share: float, lam: float) -> float:
+    """Dislike the rounds where you get buried, more than linearly.
+
+    Determinized search is systematically **over-optimistic**: inside every imagined world it
+    knows the layout, so it believes it can dodge disasters it cannot actually see coming.
+    A risk-averse reward is a deliberate distortion to offset a known one.
+
+    It has to be non-linear or it does nothing at all, and the obvious form is the trap. A
+    penalty of `(ours - lam * theirs) / total` expands to `(1 + lam) * share - lam` — an
+    *affine* transform of the share — and MCTS picks the child with the highest mean reward,
+    so an affine transform cannot change which child that is. It would measure exactly
+    nothing. (It does quietly rescale the value against UCT's unscaled exploration term, so
+    it is a disguised exploration-constant change, which is a different experiment.)
+
+    What survives is the **kink**: slope `1 + lam` below the threshold and `1` above, which is
+    concave, which is risk aversion. The renormalisation afterwards is affine and therefore
+    cosmetic — it keeps the reward in [0, 1] for UCT and for the opponent flip, and changes
+    no decision.
+    """
+    if lam <= 0.0:
+        return share
+    f = share - lam * max(0.0, RISK_THRESHOLD - share)
+    lo = -lam * RISK_THRESHOLD
+    return (f - lo) / (1.0 - lo)
+
+
 def reward(
     ours: int,
     theirs: int,
@@ -72,6 +102,7 @@ def reward(
     target: int | None,
     multiplier: int,
     team: int,
+    risk_lambda: float = 0.0,
 ) -> float:
     """Value in [0, 1] of finishing the round with `ours`/`theirs` card points.
 
@@ -81,7 +112,7 @@ def reward(
     matches measure and what every number in `docs/measurements.md` before §5d was taken with.
     """
     total = ours + theirs
-    share = 0.5 if total == 0 else ours / total
+    share = risk_adjust(0.5 if total == 0 else ours / total, risk_lambda)
     if not target:
         return share
 

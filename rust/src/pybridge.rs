@@ -274,6 +274,7 @@ fn rs_reward(
             bonus: [weis.0, weis.1],
             target,
             multiplier,
+            risk_lambda: 0.0,
         },
     )
 }

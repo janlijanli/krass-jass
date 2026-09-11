@@ -355,6 +355,44 @@ about partner play, arrived at from a different direction.
 
 ---
 
+## 5f. Risk aversion in the reward buys nothing
+
+Determinized search is over-optimistic by construction: inside every imagined world it knows
+the layout, so it believes it can dodge disasters it cannot see coming. A risk-averse reward
+is the obvious counter-bias — dislike the rounds where you get buried, more than linearly.
+
+The obvious *form* of it is a trap worth writing down. A penalty of
+`(ours - λ·theirs) / total` expands to `(1 + λ)·share - λ`, an **affine** transform of the
+share, and MCTS picks the child with the highest mean reward — so it cannot change which
+child that is. It would measure exactly nothing. (It does rescale the value against UCT's
+unscaled exploration term, so it is a disguised exploration-constant change. That constant is
+1.5, inherited from the published work and never tuned here: a separate, untested experiment.)
+
+What was tested instead is a kink — slope `1 + λ` below a 40% share, `1` above, which is
+concave and therefore risk-averse. At λ=1 a certain 0.4 scores 0.571 against a coin flip on
+0.2/0.6 at 0.500.
+
+| λ | share | p |
+|---|---|---|
+| 0.25 | 50.34% ± 6.58 | 0.21 |
+| 0.5 | 49.53% ± 6.14 | 0.059 |
+| 1.0 | 49.60% ± 6.82 | 0.15 |
+| 2.0 | 49.68% ± 6.92 | 0.25 |
+
+n=600 each, EVAL, paired, against the linear reward. All null, no dose-response upward, and
+the nearest thing to a signal is on the losing side. **The optimism is either not large or not
+reachable by reshaping the reward.** Kept behind `DmctsAgent.risk_lambda`, default 0.
+
+**What this does and does not say about §5e.** It changes what a world is worth, so it is not
+a prior — but it changes the reward's *shape*, not the leaf estimate's *accuracy*. A monotone
+reshape can only move decisions where the outcome distributions differ between cards; a better
+evaluator moves decisions where the search is simply wrong about a position. Different sets,
+so `docs/value-net-plan.md` is not undermined by this. What it weakly supports is that the
+~6-point gap lives in the **policy** — strategy fusion — rather than in the valuation, which
+argues for ISMCTS alongside the value work rather than after it.
+
+---
+
 ## 6. Open
 
 - Nothing measured against a human.

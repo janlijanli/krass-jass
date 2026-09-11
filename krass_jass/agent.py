@@ -109,6 +109,9 @@ class DmctsAgent(Agent):
     #: choosing a suit means length in it. Unlike a discard convention this is forced — every
     #: seat has to bid — so the signal is always there. See `krass_jass/bidding.py`.
     read_bidding: bool = True
+    #: Risk aversion in the reward, offsetting the over-optimism determinized search has by
+    #: construction. 0 is off; see `krass_jass/objective.py` for why it must be non-linear.
+    risk_lambda: float = 0.0
 
     @property
     def name(self) -> str:
@@ -166,6 +169,7 @@ class DmctsAgent(Agent):
             "target": target,
             "multiplier": self.cfg.multiplier(obs.contract) if target else 1,
             "adversarial": self.adversarial,
+            "risk_lambda": self.risk_lambda,
         }
 
     def _priors(self, obs: Observation) -> dict:
