@@ -131,6 +131,10 @@ class DmctsAgent(Agent):
     #: above are a mask; a value is not, so it filters imagined worlds instead of forbidding
     #: cards — `rust/src/announce.rs` has the measurement that decided the shape.
     use_weis_announced: bool = True
+    #: Worlds drawn before the search settles for one that contradicts a call. Buys
+    #: belief accuracy with time: at 80.4% rejection, 16 still leaves ~3% of worlds
+    #: ignoring what the table said.
+    weis_draws: int = 16
     ismcts: bool = True
     #: Iterations sharing one imagined world before a new one is drawn. 1 is textbook ISMCTS
     #: and is dominated by the cost of dealing worlds. **4** keeps the full gain at 1.41x the
@@ -216,7 +220,11 @@ class DmctsAgent(Agent):
             for seat, points in obs.weis_announced:
                 called[seat] = points
             called[obs.seat] = -1          # own hand is known, not guessed at
-            weis = {"weis_called": called, "weis_played": list(obs.played_by)}
+            weis = {
+                "weis_called": called,
+                "weis_played": list(obs.played_by),
+                "weis_draws": self.weis_draws,
+            }
         return forbidden, weis
 
     def _stakes(self, obs: Observation) -> dict:

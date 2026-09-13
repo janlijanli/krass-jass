@@ -46,9 +46,12 @@ use crate::weis::{find_weis, four_points};
 
 /// Worlds drawn before the search settles for one that contradicts a call.
 ///
-/// Sixteen because silence — the case that is nearly always what is being asked — accepts
-/// at better than one in three even with three silent seats, so the cap is never reached
-/// there; it exists for the calls rare enough that no budget would be enough.
+/// Sixteen was chosen when a move had to cost milliseconds: silence accepts at better than
+/// one in three even with three silent seats, so the cap is never reached there, and it
+/// existed for the calls rare enough that no budget would be enough. At 80.4% rejection it
+/// still leaves ~3% of worlds contradicting what the table said. A field rather than a
+/// constant so that 3% can be bought down when there is time to spend — see the sweep in
+/// `docs/measurements.md`.
 pub const MAX_DRAWS: usize = 16;
 
 const RANK_FIELD: u64 = (1 << NUM_RANKS) - 1;
@@ -107,6 +110,9 @@ pub struct Announcements {
     pub played: [u64; NUM_SEATS],
     pub rules: Rules,
     pub trump: i32,
+    /// Worlds drawn before settling for one that contradicts a call. `MAX_DRAWS` unless a
+    /// caller is deliberately buying accuracy with time.
+    pub draws: usize,
 }
 
 impl Announcements {
@@ -117,6 +123,7 @@ impl Announcements {
             played: [0; NUM_SEATS],
             rules: Rules::default(),
             trump: -1,
+            draws: MAX_DRAWS,
         }
     }
 
@@ -157,7 +164,7 @@ pub fn determinize_consistent(
     out: &mut [u64; NUM_SEATS],
     rng: &mut Rng,
 ) -> bool {
-    let draws = if ann.active() { MAX_DRAWS } else { 1 };
+    let draws = if ann.active() { ann.draws.max(1) } else { 1 };
     // The last world that was *legal*, as opposed to the last world that was drawn. A failed
     // `determinize` returns having written only some of the seats, so keeping `out` as the
     // fallback would hand the search a deal with cards in two hands at once — which is not a

@@ -68,6 +68,7 @@ def dmcts(
     oracle_p: float = 0.0,
     weis_called: list[int] | None = None,
     weis_played: list[int] | None = None,
+    weis_draws: int = 16,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -123,4 +124,5 @@ def dmcts(
         weis_large=cfg.weis_large,
         weis_four_nines=cfg.weis_four_nines,
         weis_four_beats_sequence=cfg.weis_four_beats_sequence,
+        weis_draws=weis_draws,
     )

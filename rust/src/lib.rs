@@ -165,7 +165,7 @@ fn play_out_many(
     determinizations=1000, iterations=800, exploration=1.5, seed=0, threads=1,
     endgame_cards=5, strict_undertrump=true, puur_exempt=true,
     scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true, risk_lambda=0.0, leaf_weights=None, ismcts=false, resample_every=1, order_moves=false, prior_weight=0.0, policy_weights=None, oracle_hands=None, oracle_p=0.0,
-    weis_called=None, weis_played=None, weis_large=false, weis_four_nines=true, weis_four_beats_sequence=true
+    weis_called=None, weis_played=None, weis_large=false, weis_four_nines=true, weis_four_beats_sequence=true, weis_draws=16
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -210,6 +210,7 @@ fn dmcts(
     weis_large: bool,
     weis_four_nines: bool,
     weis_four_beats_sequence: bool,
+    weis_draws: usize,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -255,6 +256,7 @@ fn dmcts(
             ..config::Rules::default()
         };
         ann.trump = if contract < 4 { contract as i32 } else { -1 };
+        ann.draws = weis_draws.max(1);
     }
     if let Some(played) = weis_played {
         if played.len() != NUM_SEATS {

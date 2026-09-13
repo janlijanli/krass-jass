@@ -15,10 +15,17 @@ import { render, setSender } from "./render.js";
 import { initMenu, adviceOn } from "./menu.js";
 
 const HUMAN_SEAT = 0;
-// docs/measurements.md §3: indistinguishable from 800,000 iterations, ~2 ms in wasm.
+// 153,600 iterations — `docs/measurements.md` §3b. §3 measured this search saturating at
+// 2,400 and that finding does not transfer here: it was taken under EVAL, where Weis does
+// not exist, so the belief constraints that make extra worlds worth drawing were not there
+// to sharpen. Under HOUSE the same 64x is worth +0.56 of a round's share over 3,000 deals.
+// 256x buys nothing more and is visibly slower, so this is the top of the curve, not a
+// ceiling imposed by patience.
 const DETERMINIZATIONS = 40;
-const ITERATIONS = 60;
-// The search answers in milliseconds, which reads as a spreadsheet rather than an opponent.
+const ITERATIONS = 3840;
+// The search used to answer in milliseconds, which reads as a spreadsheet rather than an
+// opponent. It now takes a good fraction of a second, and that is *real* thinking — so the
+// pause below is what is left of the target after the search, never added on top of it.
 const THINK_MIN = 550;
 const THINK_MAX = 1500;
 
@@ -48,33 +55,55 @@ function view() {
 /* Advice mode.
  *
  * A fourth bot, run on the human's own seat with the same budget and the same search the
- * other three use — so it sees exactly what you see and guesses like they do. Cached per
- * position, because the answer cannot change until a card is played and re-running it on
- * every redraw would stutter the table for nothing.
+ * other three use — so it sees exactly what you see and guesses like they do.
+ *
+ * At 153,600 iterations that is most of a second, which must not be spent on the main
+ * thread before the hand is on screen: the switch would look like the app freezing. So the
+ * table renders first, the search is scheduled after it, and the badges arrive a moment
+ * later. Cached per position, because the answer cannot change until a card is played.
  */
 let adviceKey = null;
 let advice = [];
+let advicePending = false;
 
-function adviceFor(v) {
-  if (!adviceOn() || v.phase !== "playing" || v.to_act !== HUMAN_SEAT) return [];
-  // One card is not advice. `bot_rank` reports that case separately and returns no moves.
-  if ((v.legal?.length ?? 0) < 2) return [];
-  const key = `${v.round}|${v.hand.join("")}|${v.trick.map((c) => c.card).join("")}`;
-  if (key !== adviceKey) {
-    adviceKey = key;
-    // The same decision seed the bot on this seat would have used, so the advice is the
-    // move that seat would really have played rather than a second, differently-seeded one.
-    const seed = engine.decisionSeed(handle, HUMAN_SEAT, Math.max(0, v.round));
-    advice = engine.botRank(handle, HUMAN_SEAT, DETERMINIZATIONS, ITERATIONS, seed)
-      .moves.map((m) => m.card);
-  }
-  return advice;
-}
+const wantsAdvice = (v) =>
+  adviceOn() &&
+  v.phase === "playing" &&
+  v.to_act === HUMAN_SEAT &&
+  // One legal card is not advice, and `bot_rank` reports that case as no moves at all.
+  (v.legal?.length ?? 0) >= 2;
+
+const positionKey = (v) =>
+  `${v.round}|${v.hand.join("")}|${v.trick.map((c) => c.card).join("")}`;
 
 function draw() {
   const v = view();
-  v.advice = adviceFor(v);
+  const key = wantsAdvice(v) ? positionKey(v) : null;
+  if (key === null) {
+    adviceKey = null;
+    advice = [];
+  }
+  v.advice = key !== null && key === adviceKey ? advice : [];
   render(v);
+
+  if (key === null || key === adviceKey || advicePending) return;
+  advicePending = true;
+  // A macrotask, not a microtask: the browser has to get a paint in between, and a promise
+  // continuation would run before one.
+  setTimeout(() => {
+    try {
+      // The decision seed this seat would really have used, so the advice is the move that
+      // seat would have played rather than a second, differently-seeded search.
+      const seed = engine.decisionSeed(handle, HUMAN_SEAT, Math.max(0, v.round));
+      advice = engine
+        .botRank(handle, HUMAN_SEAT, DETERMINIZATIONS, ITERATIONS, seed)
+        .moves.map((m) => m.card);
+      adviceKey = key;
+    } finally {
+      advicePending = false;
+    }
+    draw();
+  }, 0);
 }
 
 function newGame() {
@@ -105,12 +134,17 @@ async function drive() {
         engine.chooseWeis(handle, seat, true);   // bots always announce
       } else if (v.phase === "playing") {
         const seed = engine.decisionSeed(handle, seat, trick);
+        const started = performance.now();
         const card = engine.botPlay(handle, seat, DETERMINIZATIONS, ITERATIONS, seed);
         if (card < 0) break;
         // Pace by how much of a decision it was: a forced card comes back fast.
         const choices = view().legal.length || 4;
         const span = Math.min(1, Math.max(0, choices - 1) / 6);
-        await sleep((THINK_MIN + span * (THINK_MAX - THINK_MIN)) * (0.75 + Math.random() * 0.25));
+        const target = (THINK_MIN + span * (THINK_MAX - THINK_MIN)) * (0.75 + Math.random() * 0.25);
+        // Subtract what the search really took. The pause exists so a bot does not answer
+        // instantly; time spent actually thinking serves that purpose already, and adding
+        // the two would make a stronger bot feel like a slower one for no reason.
+        await sleep(Math.max(0, target - (performance.now() - started)));
         engine.play(handle, seat, card);
       } else {
         break;

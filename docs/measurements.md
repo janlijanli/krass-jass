@@ -50,6 +50,11 @@ engine is evidence the harness is sound, which makes §3 harder to wave away as 
 
 ## 3. Search budget saturates near 2,400 iterations
 
+> **Only under EVAL.** §3b re-ran this under HOUSE, where the Weis constraints exist,
+> and the budget keeps paying to 64x — +0.56 of a round's share over 3,000 deals. The
+> figures below are correct for the conditions they were taken under and were used
+> outside them, including to set the app's budget.
+
 Every budget played against a fixed 40×60 = 2,400-iteration reference, endgame solver off,
 agents bidding, n=500.
 
@@ -123,6 +128,46 @@ So there is nothing to win by re-splitting, the shipped setting is already mid-p
 the allocation explanation for the discrepancy with the published figure is closed.
 
 Do not delete their figure. Do not adopt ours as universal.
+
+---
+
+## 3b. The saturation in §3 is an artefact of EVAL
+
+§3 is the most-cited number in this file: the search saturates near 2,400 iterations, and
+333x more buys nothing. Every budget decision since has leaned on it, including the one in
+the app.
+
+It does not hold under HOUSE.
+
+| budget | vs 2,400 | deals | p |
+|---|---|---|---|
+| 9,600 (4x) | 50.41% | 600 | 0.096 |
+| 38,400 (16x) | **50.370% ± 0.113** | **3,000** | **0.001** |
+| **153,600 (64x)** | **50.560% ± 0.118** | **3,000** | **2e-06** |
+| 614,400 (256x) | 50.64% ± 6.05 | 600 | 0.0096 |
+
+Four seeds, pooled within each budget, all against the same 2,400 reference. The curve rises
+to 64x and is flat after it: 256x costs 4.7x more and is worth at most +0.08, inside its own
+noise.
+
+**Why the two disagree.** §3 was measured under `EVAL`, which switches Weis off — so there
+were no announcements, no shown cards, and nothing constraining which worlds got imagined.
+Every extra iteration bought another *unconstrained* guess, and guesses drawn from the same
+flat distribution stop adding information quickly. Under HOUSE every world is rejection-
+sampled against what the table called, and §5m measured that filter rejecting **80.4%** of
+them. Extra iterations there buy more *accepted* worlds — which is the belief-accuracy lever
+§5k identified as the largest in this file.
+
+That is a hypothesis about the mechanism, not a measurement of it. What is measured is that
+the budget pays under HOUSE and did not under EVAL. A direct control — the same sweep run
+under EVAL on today's code — would separate "Weis constraints did it" from "the original
+sweep was wrong", and it is the obvious next run.
+
+**What ships.** The app moves from 2,400 to 153,600. In wasm that is roughly half a second
+a move against the 550–1500 ms the app was already spending on an artificial pause, so the
+pause now *absorbs* the search instead of being added to it: measured at 1.0–1.2 s between
+bot moves, the same band as before. A stronger bot that felt slower would have been a bad
+trade; this one does not feel different at all.
 
 ---
 

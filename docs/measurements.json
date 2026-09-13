@@ -242,6 +242,19 @@
     ]
   },
 
+  "budget_under_house": {
+    "note": "§3's saturation was measured under EVAL, where Weis does not exist and nothing constrains which worlds get imagined. Under HOUSE the budget keeps paying to 64x and is flat after it. Each row is pooled over independent seeds against the same 2,400-iteration reference. See measurements.md §3b.",
+    "reference": 2400,
+    "ships": 153600,
+    "points": [
+      { "iterations": 9600, "share": 50.41, "std": 6.09, "deals": 600, "p": 0.0955 },
+      { "iterations": 38400, "share": 50.370, "se": 0.113, "deals": 3000, "p": 0.001 },
+      { "iterations": 153600, "share": 50.560, "se": 0.118, "deals": 3000, "p": 2e-06 },
+      { "iterations": 614400, "share": 50.64, "std": 6.05, "deals": 600, "p": 0.00964 }
+    ],
+    "verdict": "+0.56 of a round's share at 64x. 256x buys at most +0.08 more, inside its own noise, for 4.7x the time — so 153,600 is the top of the curve rather than the limit of patience."
+  },
+
   "throughput": {
     "note": "Search budget 2,400 iterations — the measured saturation point.",
     "rows": [

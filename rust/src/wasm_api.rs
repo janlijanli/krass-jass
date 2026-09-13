@@ -202,6 +202,7 @@ fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u
                 played,
                 rules: game.rules,
                 trump: round.trump,
+                draws: crate::announce::MAX_DRAWS,
             };
             for entry in &game.weis_summary {
                 announcements.called[entry.seat] = entry.points;
