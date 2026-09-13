@@ -12,11 +12,11 @@ export const ABOUT = {
   en: {
     "play.advice.h": "Want to see its opinion?",
     "play.advice.p":
-      "Settings has a <b>Recommendations</b> switch. Turn it on and your own cards get "
-      "numbered 1\u20133 \u2014 what a fourth bot would play from your seat, best first. It is "
-      "the same search the three you are playing against use, run on your hand, so it sees "
-      "exactly what you see and is guessing just as they are. Treat it as a second opinion, "
-      "not an answer key: on the numbers above it loses a third of its rounds to a player "
+      "Settings has a <b>Recommendations</b> switch. Turn it on and your own cards get " +
+      "numbered 1\u20133 \u2014 what a fourth bot would play from your seat, best first. It is " +
+      "the same search the three you are playing against use, run on your hand, so it sees " +
+      "exactly what you see and is guessing just as they are. Treat it as a second opinion, " +
+      "not an answer key: on the numbers above it loses a third of its rounds to a player " +
       "who can see everything.",
 
     "tab.walk": "Nerd-Doc",
@@ -184,11 +184,11 @@ export const ABOUT = {
   de: {
     "play.advice.h": "Willst du seine Meinung sehen?",
     "play.advice.p":
-      "In den Einstellungen gibt es einen Schalter <b>Empfehlungen</b>. Schalte ihn ein, und "
-      "deine eigenen Karten bekommen die Nummern 1\u20133 \u2014 was ein vierter Bot von deinem "
-      "Platz aus spielen w\u00fcrde, beste zuerst. Es ist dieselbe Suche, die auch deine drei "
-      "Gegen\u00fcber benutzen, auf deine Hand angewendet: Sie sieht genau, was du siehst, und "
-      "r\u00e4t genauso wie sie. Nimm es als zweite Meinung, nicht als L\u00f6sung \u2014 gegen "
+      "In den Einstellungen gibt es einen Schalter <b>Empfehlungen</b>. Schalte ihn ein, und " +
+      "deine eigenen Karten bekommen die Nummern 1\u20133 \u2014 was ein vierter Bot von deinem " +
+      "Platz aus spielen w\u00fcrde, beste zuerst. Es ist dieselbe Suche, die auch deine drei " +
+      "Gegen\u00fcber benutzen, auf deine Hand angewendet: Sie sieht genau, was du siehst, und " +
+      "r\u00e4t genauso wie sie. Nimm es als zweite Meinung, nicht als L\u00f6sung \u2014 gegen " +
       "jemanden, der alle Karten sieht, verliert sie ein Drittel der Runden.",
 
     "tab.walk": "Nerd-Doc",
@@ -362,11 +362,11 @@ export const ABOUT = {
   fr: {
     "play.advice.h": "Envie de conna\u00eetre son avis ?",
     "play.advice.p":
-      "Les r\u00e9glages ont un interrupteur <b>Recommandations</b>. Activez-le et vos propres "
-      "cartes re\u00e7oivent les num\u00e9ros 1\u20133 \u2014 ce qu'un quatri\u00e8me bot jouerait "
-      "\u00e0 votre place, la meilleure d'abord. C'est la m\u00eame recherche que celle de vos "
-      "trois adversaires, appliqu\u00e9e \u00e0 votre main : elle voit exactement ce que vous "
-      "voyez et devine comme eux. Un deuxi\u00e8me avis, pas un corrig\u00e9 \u2014 face \u00e0 qui "
+      "Les r\u00e9glages ont un interrupteur <b>Recommandations</b>. Activez-le et vos propres " +
+      "cartes re\u00e7oivent les num\u00e9ros 1\u20133 \u2014 ce qu'un quatri\u00e8me bot jouerait " +
+      "\u00e0 votre place, la meilleure d'abord. C'est la m\u00eame recherche que celle de vos " +
+      "trois adversaires, appliqu\u00e9e \u00e0 votre main : elle voit exactement ce que vous " +
+      "voyez et devine comme eux. Un deuxi\u00e8me avis, pas un corrig\u00e9 \u2014 face \u00e0 qui " +
       "voit tout, elle perd un tiers des manches.",
 
     "tab.walk": "Nerd-Doc",
@@ -545,11 +545,11 @@ export const ABOUT = {
   it: {
     "play.advice.h": "Vuoi sapere che ne pensa?",
     "play.advice.p":
-      "Nelle impostazioni c'\u00e8 un interruttore <b>Consigli</b>. Attivalo e le tue carte "
-      "ricevono i numeri 1\u20133 \u2014 quello che un quarto bot giocherebbe dal tuo posto, la "
-      "migliore per prima. \u00c8 la stessa ricerca dei tre contro cui giochi, applicata alla "
-      "tua mano: vede esattamente quello che vedi tu e tira a indovinare come loro. Un "
-      "secondo parere, non la soluzione \u2014 contro chi vede tutte le carte perde un terzo "
+      "Nelle impostazioni c'\u00e8 un interruttore <b>Consigli</b>. Attivalo e le tue carte " +
+      "ricevono i numeri 1\u20133 \u2014 quello che un quarto bot giocherebbe dal tuo posto, la " +
+      "migliore per prima. \u00c8 la stessa ricerca dei tre contro cui giochi, applicata alla " +
+      "tua mano: vede esattamente quello che vedi tu e tira a indovinare come loro. Un " +
+      "secondo parere, non la soluzione \u2014 contro chi vede tutte le carte perde un terzo " +
       "dei giri.",
 
     "tab.walk": "Nerd-Doc",
