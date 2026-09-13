@@ -243,7 +243,7 @@
   },
 
   "budget_under_house": {
-    "note": "§3's saturation was measured under EVAL, where Weis does not exist and nothing constrains which worlds get imagined. Under HOUSE the budget keeps paying to 64x and is flat after it. Each row is pooled over independent seeds against the same 2,400-iteration reference. See measurements.md §3b.",
+    "note": "§3's saturation does not hold for today's engine. The budget keeps paying to 64x and is flat after it, under HOUSE and under EVAL alike — so the Weis constraints are not the explanation, and §3 is not condition-dependent. The candidate that fits is that §3 measured the voting search that §5h replaced, and its number was carried across the change without being re-taken. Each row is pooled over independent seeds against the same 2,400-iteration reference. See measurements.md §3b.",
     "reference": 2400,
     "ships": 153600,
     "points": [
@@ -252,7 +252,8 @@
       { "iterations": 153600, "share": 50.560, "se": 0.118, "deals": 3000, "p": 2e-06 },
       { "iterations": 614400, "share": 50.64, "std": 6.05, "deals": 600, "p": 0.00964 }
     ],
-    "verdict": "+0.56 of a round's share at 64x. 256x buys at most +0.08 more, inside its own noise, for 4.7x the time — so 153,600 is the top of the curve rather than the limit of patience."
+    "eval_control": { "iterations": 153600, "share": 50.695, "se": 0.121, "deals": 3000, "p": 8.3e-09 },
+    "verdict": "+0.56 of a round's share at 64x under HOUSE, +0.70 under EVAL. 256x buys at most +0.08 more, inside its own noise, for 4.7x the time — so 153,600 is the top of the curve rather than the limit of patience."
   },
 
   "throughput": {

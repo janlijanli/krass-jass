@@ -50,10 +50,10 @@ engine is evidence the harness is sound, which makes §3 harder to wave away as 
 
 ## 3. Search budget saturates near 2,400 iterations
 
-> **Only under EVAL.** §3b re-ran this under HOUSE, where the Weis constraints exist,
-> and the budget keeps paying to 64x — +0.56 of a round's share over 3,000 deals. The
-> figures below are correct for the conditions they were taken under and were used
-> outside them, including to set the app's budget.
+> **Superseded.** §3b re-ran this and the budget keeps paying to 64x — +0.56 of a round's
+> share under HOUSE and +0.70 under EVAL, both over 3,000 deals. These figures were taken
+> on the voting search that §5h replaced, and the number was carried across that change
+> without being re-taken. It set the app's budget until then.
 
 Every budget played against a fixed 40×60 = 2,400-iteration reference, endgame solver off,
 agents bidding, n=500.
@@ -131,7 +131,7 @@ Do not delete their figure. Do not adopt ours as universal.
 
 ---
 
-## 3b. The saturation in §3 is an artefact of EVAL
+## 3b. §3's saturation does not hold — and not for the reason first given
 
 §3 is the most-cited number in this file: the search saturates near 2,400 iterations, and
 333x more buys nothing. Every budget decision since has leaned on it, including the one in
@@ -150,18 +150,36 @@ Four seeds, pooled within each budget, all against the same 2,400 reference. The
 to 64x and is flat after it: 256x costs 4.7x more and is worth at most +0.08, inside its own
 noise.
 
-**Why the two disagree.** §3 was measured under `EVAL`, which switches Weis off — so there
-were no announcements, no shown cards, and nothing constraining which worlds got imagined.
-Every extra iteration bought another *unconstrained* guess, and guesses drawn from the same
-flat distribution stop adding information quickly. Under HOUSE every world is rejection-
-sampled against what the table called, and §5m measured that filter rejecting **80.4%** of
-them. Extra iterations there buy more *accepted* worlds — which is the belief-accuracy lever
-§5k identified as the largest in this file.
+### The explanation I first gave, and the control that killed it
 
-That is a hypothesis about the mechanism, not a measurement of it. What is measured is that
-the budget pays under HOUSE and did not under EVAL. A direct control — the same sweep run
-under EVAL on today's code — would separate "Weis constraints did it" from "the original
-sweep was wrong", and it is the obvious next run.
+The obvious reading was that the conditions differ: §3 ran under `EVAL`, which switches Weis
+off, so nothing constrained which worlds got imagined and extra iterations bought more
+guesses from the same flat distribution. Under HOUSE every world is rejection-sampled
+against what the table called — §5m measured that rejecting **80.4%** of them — so extra
+iterations would buy more *accepted* worlds, the belief lever of §5k.
+
+It is wrong. The same sweep, run under EVAL on today's code:
+
+| | share | deals | p |
+|---|---|---|---|
+| EVAL, 153,600 vs 2,400 | **50.695% ± 0.121** | 3,000 | **8.3e-09** |
+| HOUSE, 153,600 vs 2,400 | 50.560% ± 0.118 | 3,000 | 2e-06 |
+
+The budget pays *slightly more* under EVAL, not less. The Weis constraints have nothing to
+do with it, and §3 is not condition-dependent — it is simply wrong for the engine that runs
+today.
+
+**The candidate that fits.** §3 predates ISMCTS. It measured a search that built a fresh
+tree per imagined deal and voted, and saturation is what that design should do: past some
+point each new world's private tree is solved well enough that another one changes no votes.
+ISMCTS (§5h) shares **one** tree across worlds, so an extra iteration deepens the same
+statistics instead of starting over — and there is no reason for that to level off at the
+same place. §3 was a correct measurement of a search that was replaced four sections later,
+and its number was carried across the change without being re-taken. That is the more
+uncomfortable failure of the two: not a wrong experiment, a stale one.
+
+Stated as a hypothesis again, because the control for it is still running: the same sweep
+with `ismcts=False`. If PIMC is flat where ISMCTS keeps paying, this is settled.
 
 **What ships.** The app moves from 2,400 to 153,600. In wasm that is roughly half a second
 a move against the 550–1500 ms the app was already spending on an artificial pause, so the
