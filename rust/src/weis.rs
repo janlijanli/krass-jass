@@ -56,7 +56,7 @@ fn sequence_points(length: usize, rules: &Rules) -> i32 {
     }
 }
 
-fn four_points(rank: usize) -> i32 {
+pub const fn four_points(rank: usize) -> i32 {
     match rank {
         RANK_J => 200,
         RANK_9 => 150,

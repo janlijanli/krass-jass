@@ -56,6 +56,13 @@ class Observation:
     #: until the second honour is played, so it is not in an observation and not in the
     #: search's projection either.
     weis_points: tuple[int, int] = (0, 0)
+    #: `(seat, points)` for **all four seats**, the value each called in the first trick —
+    #: zero for a seat that called nothing. Empty while the calls are still coming in, or
+    #: when Weis is off: silence is only a claim once the seat has had its turn to speak.
+    #:
+    #: A value is not a card and cannot become a void mask, which is why `known_cards` left
+    #: it: "a four-card sequence somewhere" forbids no particular card. It is a predicate
+    #: over whole hands and is tested where whole hands are made — see `rust/src/announce.rs`.
     weis_announced: tuple = ()
     #: `(seat, card)` pairs that the table has been *shown*. The winning Weis is turned face
     #: up to prove it, so those cards are public knowledge about a specific hand — and the
@@ -86,6 +93,22 @@ class Observation:
         return self.trick_leader
 
     @property
+    def played_by(self) -> tuple[int, ...]:
+        """Per seat, a mask of the cards it has already played this round.
+
+        A Weis value is a statement about the nine cards a seat was *dealt*, so a world
+        imagined in trick five has to be put back together before it can be tested against
+        one. Derived from the public history like `played`, and never from a hand.
+        """
+        out = [0, 0, 0, 0]
+        for leader, cards in self.tricks_played:
+            for i, c in enumerate(cards):
+                out[(leader + i) % 4] |= 1 << c
+        for i, c in enumerate(self.trick):
+            out[(self.trick_leader + i) % 4] |= 1 << c
+        return tuple(out)
+
+    @property
     def played(self) -> int:
         """Mask of every card visible on the table, this trick and previous ones."""
         seen = 0
@@ -114,6 +137,7 @@ def build_observation(
     declarer_seat: int = 0,
     scores: tuple[int, int] = (0, 0),
     weis_points: tuple[int, int] = (0, 0),
+    weis_announced: tuple = (),
     known_cards: tuple = (),
     time_budget_ms: int = 1500,
     decision_seed: int = 0,
@@ -136,6 +160,7 @@ def build_observation(
         tricks_played=tuple(state.tricks_played),
         scores=scores,
         weis_points=weis_points,
+        weis_announced=weis_announced,
         known_cards=known_cards,
         time_budget_ms=time_budget_ms,
         decision_seed=decision_seed,

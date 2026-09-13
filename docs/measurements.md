@@ -729,6 +729,8 @@ game — which is why measuring it needs `HOUSE` and whole games (`arena/games.p
 channel. And the announced *values* from hands that never showed their cards — "I have 100",
 unproven — remain unused. That is a real constraint (a seat calling 100 holds four of a kind
 or a four-sequence) but it is not a per-card mask, so it needs machinery this does not have.
+**§5m builds it** — and finds that the pins measured in this section were mostly being
+discarded by a bug in `determinize`, so every figure below came through a lossy channel.
 
 ### What it was costing
 
@@ -774,6 +776,118 @@ One duplication comes with it: `resolve_weis` mirrors `Game._resolve_weis`'s aut
 so "who shows what" now has two implementations. The arena needs its own because it plays
 rounds with injected hands, but it is a drift risk, and the fix is for the arena to route
 rounds through `Game`.
+
+---
+
+## 5m. The calls, and a sampler bug that was throwing them away
+
+§5l used the cards a Weis **shows** and left the values it **calls** on the table, with a
+reason: "a seat calling 100 holds four of a kind or a four-sequence, but that is not a
+per-card mask, so it needs machinery this does not have." This is that machinery, and
+building it uncovered something larger than the feature.
+
+### The mechanism, measured before anything was built
+
+Weis is called in two stages. Everyone announces a value as their turn comes round in the
+first trick; only the team holding the best one shows cards. The search was using stage two
+and ignoring stage one entirely — including the silences, which are the bulk of it.
+
+| | over 40,000 deals, HOUSE |
+|---|---|
+| a seat calls nothing | **72.3%** |
+| calls 20 | 21.1% |
+| calls 50 | 3.7% |
+| calls 100 or more | 1.8% |
+| positive calls per round still unshown after §5l | 0.40 |
+| **imagined worlds that contradict what the table said** | **80.4%** |
+
+That last row is the one that matters, and it is far larger than §5l's 17.3% of pinned
+cards: four-fifths of the search's imagined worlds were deals the table had already ruled
+out loud. The information is overwhelmingly in the **silence** — 2.9 of four seats say
+nothing in an average round, and 69% of rounds have no unshown positive call at all.
+
+A value names no card, so it cannot join `forbidden`. It is a predicate over whole hands and
+is tested where whole hands are made: `rust/src/announce.rs` deals a world and checks it,
+with a cheap exact gate (no run of three, no scoring four of a kind) for the 72% silent case
+and `find_weis` only when that cannot decide. A call is a statement about the **nine cards
+dealt**, so a mid-round world is put back together with `played_by` before being tested —
+without that, every world from trick two onwards is rejected.
+
+Rejection is capped at 16 draws and then the world is used anyway. §5e's arithmetic against
+exact rejection sampling applies here too, and lands better: silence accepts at 0.72 a seat,
+so a typical move redraws about five times, and the rare call that would cost thirty-six
+redraws simply runs out the cap and leaves the search believing what it believed before.
+
+### The bug this found, which was costing more than the feature is worth
+
+Whole games crashed with `ValueError: no candidates` — the search returning **no move at
+all**. A 200-game control with the new flag off did not crash and I read that as
+exoneration; it was underpowered. At 800 games the control crashed too, so the bug predated
+this work and had shipped.
+
+`determinize` deals cards to seats in a random order. A card that only **one** seat may hold
+was not placed first, so the pinned seat filled up with other cards and the pins were left
+homeless: `pool` did not empty and the entire deal was discarded. A shown Weis pins three to
+five such cards. At four pins nearly every draw failed, so a position could exhaust all 600
+world draws and return nothing.
+
+**This means §5l's pins were mostly being thrown away as failed determinizations from the day
+they landed.** The fix is the standard one — assign every forced card first, to a fixpoint,
+because placing one can fill a seat and force the next — and it is pinned by two tests, one
+of them the real position from the crash. Both arms of every A/B benefit, so every figure
+below was re-run on the corrected sampler and the earlier ones are discarded.
+
+The fix also removed disagreement between seeds that had looked like noise: on the buggy
+sampler the four seeds scattered at chi-squared 8.5 on 3 df, on the corrected one 1.9.
+
+### What the calls are worth
+
+Both arms have the §5l pins **on**, so this is what the unproven values add on top of the
+proven cards.
+
+| instrument | | share | deals | p |
+|---|---|---|---|---|
+| rounds, HOUSE | seed 91 | 50.31% ± 6.52 | 1500 | 0.063 |
+| | seed 8802 | 50.32% ± 6.22 | 1500 | 0.049 |
+| | seed 314 | 50.38% ± 6.37 | 1500 | 0.022 |
+| | seed 2718 | 50.59% ± 6.31 | 1500 | 2.7e-04 |
+| | **pooled** | **50.400% ± 0.082** | **6000** | **1.1e-06** |
+| whole games, target 1000 | seed 5150 | 51.25% ± 22.34 | 800 | 0.11 |
+| | seed 77000 | 51.47% ± 21.28 | 1600 | 0.0058 |
+| | **pooled** | **51.40% ± 0.44** | **2400** | **0.0015** |
+| **rounds, equal wall-clock** | | **50.11% ± 0.12** | 3000 | **0.34** |
+
+For scale, the shown pins re-measured on the same corrected sampler and the same 40x60
+budget are **50.405% ± 0.097** over 3,000 deals (p=3.1e-05) — so the called values are worth
+about as much again as the cards that get turned face up. That figure is *not* comparable to
+§5l's own 50.57/50.66: the budgets differ, as the per-deal standard deviations show, and no
+claim is made here that the sampler fix made §5l larger or smaller.
+
+### The equal-time column, and why it does not decide this one
+
+`docs/value-net-plan.md` §Phase 4 says equal wall-clock is the gate that decides shipping. By
+that gate this fails: the constraint costs **1.94x a move** (2.06 -> 3.99 ms), and handing the
+baseline 4,600 iterations against 2,400 erases the gain.
+
+It ships on anyway, and the reason is in this file's own numbers rather than an exception
+made for it. A move costs 4 ms against the ~1 s the app allows a bot for pacing — 250x of
+headroom. The search budget is fixed at 2,400 because §3 found it saturating there, so the
+time the calls cost is time nothing else would have used. Equal wall-clock is the right gate
+for a change that competes with search for a scarce budget; compute is not scarce here.
+
+**One result that does not fit.** If the search truly saturates at 2,400, then 4,600
+iterations should buy the baseline nothing and the equal-time column should read like the
+equal-iteration one. Instead the baseline recovered about 0.29 of the 0.40. Either saturation
+is softer than §3 says under HOUSE with Weis live, or the extra iterations are worth
+something specifically when beliefs are wrong. It is recorded rather than explained.
+
+### What is deliberately not here
+
+The call is used as an exact value and nothing more. A seat calling 50 holds a four-card
+sequence *somewhere*, and which suits remain possible given its voids is a further
+constraint the sampler could use to place cards rather than only to reject worlds. That is
+the difference between filtering worlds and generating them, and at 80.4% rejection it is
+where the remaining cost is.
 
 ---
 

@@ -78,11 +78,56 @@ pub fn determinize(
     out: &mut [u64; NUM_SEATS],
     rng: &mut Rng,
 ) -> bool {
+    // Owned outright rather than accumulated into: the forced phase below writes through
+    // `out`, so a caller's leftovers from a previous deal would be dealt a second time.
+    *out = [0u64; NUM_SEATS];
+    let mut pool = unseen;
+    let mut counts = *counts;
+
+    // **Forced cards first.** A card only one seat may hold has to go to that seat, and the
+    // sampler has to place it *before* it fills that seat with anything else. Without this
+    // the shown Weis of `measurements.md` §5l — three to five cards pinned to one hand —
+    // is nearly always lost: the pinned seat draws random allowed cards, the pins are left
+    // with nowhere to go, `pool` does not empty and the whole deal is thrown away. At four
+    // pinned cards that happens on almost every draw, so the search could run out of worlds
+    // entirely and return no move at all.
+    //
+    // To a fixpoint, because placing a card can fill a seat and thereby force more.
+    loop {
+        let mut placed = false;
+        let mut rest = pool;
+        while rest != 0 {
+            let card = rest.trailing_zeros() as usize;
+            rest &= rest - 1;
+            let bit = 1u64 << card;
+            let mut home = NUM_SEATS;
+            let mut homes = 0;
+            for seat in 0..NUM_SEATS {
+                if counts[seat] > 0 && forbidden[seat] & bit == 0 {
+                    home = seat;
+                    homes += 1;
+                }
+            }
+            match homes {
+                0 => return false,              // nowhere to put it: no such world exists
+                1 => {
+                    out[home] |= bit;
+                    counts[home] -= 1;
+                    pool ^= bit;
+                    placed = true;
+                }
+                _ => {}
+            }
+        }
+        if !placed {
+            break;
+        }
+    }
+
     // Most constrained seat first, which is what keeps the rejection rate low.
     let mut order: Vec<usize> = (0..NUM_SEATS).filter(|&s| counts[s] > 0).collect();
-    order.sort_by_key(|&s| ((unseen & !forbidden[s]).count_ones() as i32, s as i32));
+    order.sort_by_key(|&s| ((pool & !forbidden[s]).count_ones() as i32, s as i32));
 
-    let mut pool = unseen;
     for &seat in &order {
         let allowed_all = pool & !forbidden[seat];
         let mut allowed = allowed_all;
@@ -100,7 +145,7 @@ pub fn determinize(
         let high_w = weight(rank_bias[seat]);
         let low_w = weight(-rank_bias[seat]);
 
-        let mut hand = 0u64;
+        let mut hand = out[seat];
         for _ in 0..counts[seat] {
             if flat {
                 let n = allowed.count_ones();
@@ -164,4 +209,64 @@ pub fn determinize(
     }
     // every unseen card must have found a home
     pool == 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The failure that made the search return **no move at all**, from a real game.
+    ///
+    /// A shown Weis pins four cards to one seat, so every other seat forbids them. The seat
+    /// that must hold them has plenty of other cards it may also hold, and a sampler that
+    /// fills it at random almost never happens to include all four — leaving them homeless
+    /// and the deal discarded. Every draw failed, the tree got no children, and the caller
+    /// raised on an empty candidate list.
+    #[test]
+    fn cards_with_only_one_possible_home_are_placed_first() {
+        let pins = (1u64 << 31) | (1u64 << 32) | (1u64 << 33) | (1u64 << 34);
+        let unseen = ((1u64 << 36) - 1) & !0x7Fu64;     // 29 cards, seven in the searching hand
+        let counts = [10usize, 0, 10, 9];
+        let mut forbidden = [0u64; NUM_SEATS];
+        for seat in [1usize, 2, 3] {
+            forbidden[seat] = pins;                      // the pins belong to seat 0
+        }
+        forbidden[0] = SUIT_MASK[1];                     // and seat 0 is void in a suit
+
+        let mut rng = Rng::new(4);
+        for _ in 0..200 {
+            let mut out = [0u64; NUM_SEATS];
+            assert!(
+                determinize(unseen, &counts, &forbidden, &[[0i8; 4]; NUM_SEATS],
+                            &[0i8; NUM_SEATS], &mut out, &mut rng),
+                "a deal exists, so the sampler has to find one",
+            );
+            assert_eq!(out[0] & pins, pins, "the pinned cards went to the wrong seat");
+            let mut union = 0u64;
+            for seat in 0..NUM_SEATS {
+                assert_eq!(out[seat].count_ones() as usize, counts[seat]);
+                assert_eq!(out[seat] & forbidden[seat], 0, "seat {seat} got a forbidden card");
+                assert_eq!(union & out[seat], 0, "a card was dealt twice");
+                union |= out[seat];
+            }
+            assert_eq!(union, unseen, "the pool did not empty");
+        }
+    }
+
+    /// Placing a card can fill a seat, which can force the next card — so one pass is not
+    /// enough and the loop has to run to a fixpoint.
+    #[test]
+    fn forcing_one_card_can_force_the_next() {
+        let unseen = 0b111u64;
+        let counts = [1usize, 1, 1, 0];
+        // Card 0 can only go to seat 0. That fills seat 0, which leaves card 1 only seat 1.
+        let forbidden = [0u64, 0b001, 0b011, 0];
+        let mut rng = Rng::new(9);
+        let mut out = [0u64; NUM_SEATS];
+        assert!(determinize(unseen, &counts, &forbidden, &[[0i8; 4]; NUM_SEATS],
+                            &[0i8; NUM_SEATS], &mut out, &mut rng));
+        assert_eq!(out[0], 0b001);
+        assert_eq!(out[1], 0b010);
+        assert_eq!(out[2], 0b100);
+    }
 }

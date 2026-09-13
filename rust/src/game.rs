@@ -385,6 +385,13 @@ impl Game {
         self.weis_points = points;
     }
 
+    /// Have the calls been made? Before they have, a seat that has said nothing has not
+    /// said "nothing" — it has not spoken yet, and reading silence as a claim would be a
+    /// constraint the table never heard.
+    pub fn weis_calls_are_in(&self) -> bool {
+        self.weis_resolved
+    }
+
     /// Stöck is *held* now but announced later, when the second of King/Queen is played.
     fn note_stoeck(&mut self) {
         let contract = self.contract.expect("contract set");

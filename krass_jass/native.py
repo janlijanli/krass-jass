@@ -66,6 +66,8 @@ def dmcts(
     policy_weights: list[float] | None = None,
     oracle_hands: list[int] | None = None,
     oracle_p: float = 0.0,
+    weis_called: list[int] | None = None,
+    weis_played: list[int] | None = None,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -113,4 +115,12 @@ def dmcts(
         policy_weights=policy_weights,
         oracle_hands=oracle_hands,
         oracle_p=oracle_p,
+        # What the table was *told*. `weis_called` is per seat and -1 where there is nothing
+        # to check; it is a predicate over whole hands, so it filters worlds after they are
+        # dealt rather than joining `forbidden`. See rust/src/announce.rs.
+        weis_called=weis_called,
+        weis_played=weis_played,
+        weis_large=cfg.weis_large,
+        weis_four_nines=cfg.weis_four_nines,
+        weis_four_beats_sequence=cfg.weis_four_beats_sequence,
     )

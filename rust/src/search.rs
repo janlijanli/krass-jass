@@ -11,8 +11,8 @@
 #[cfg(feature = "python")]
 use rayon::prelude::*;
 
+use crate::announce::{determinize_consistent, Announcements};
 use crate::cards::*;
-use crate::determinize::determinize;
 use crate::endgame::solve_root;
 use crate::legal::legal_moves;
 use crate::rng::Rng;
@@ -46,6 +46,9 @@ pub struct Position {
     /// Model opponents as opponents. False reproduces the original search, which maximised
     /// the root team's value at *every* node — see `Tree::uct_child`.
     pub adversarial: bool,
+    /// What the table was told in the first trick. `Announcements::none()` is the behaviour
+    /// every figure before `docs/measurements.md` §5m was measured with.
+    pub announcements: Announcements,
 }
 
 impl Position {
@@ -369,13 +372,15 @@ pub fn dmcts(
         let mut hands = [0u64; NUM_SEATS];
         hands[pos.seat] = pos.hand;
 
-        // Rejection-sample a world consistent with the proven voids.
+        // Rejection-sample a world consistent with the proven voids, and — inside that —
+        // with the Weis values the table called. See `announce.rs` for why the second one
+        // is a preference with a cap rather than a constraint.
         let mut ok = false;
         for _ in 0..64 {
             let mut dealt = [0u64; NUM_SEATS];
-            if determinize(
+            if determinize_consistent(
                 pos.unseen, &counts, &pos.forbidden, &pos.affinity, &pos.rank_bias,
-                &mut dealt, &mut rng,
+                &pos.announcements, pos.seat, pos.hand, &mut dealt, &mut rng,
             ) {
                 for s in 0..NUM_SEATS {
                     if s != pos.seat {

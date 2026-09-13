@@ -11,6 +11,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use crate::announce::Announcements;
 use crate::awareness::trick_taker;
 use crate::cards::{card_list, card_suit, format_card, NUM_SEATS};
 use crate::config::Rules;
@@ -162,13 +163,53 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
         }
         let unseen = ((1u64 << 36) - 1) & !round.hands[seat] & !seen;
 
-        let forbidden = infer_forbidden(
+        let mut forbidden = infer_forbidden(
             &round.tricks_played,
             &round.trick,
             round.leader,
             round.trump,
             &game.rules,
         );
+
+        // What the Weis stage published, which the browser bot was throwing away entirely.
+        // `measurements.md` §5l measured the shown half at +0.62 of a round's card points
+        // and it reached only the Python agent; §5m adds the called half. Both are read off
+        // `weis_summary`, which is exactly what every player at the table saw and heard.
+        let mut announcements = Announcements::none();
+        if game.weis_calls_are_in() && game.rules.weis_enabled {
+            let mut played = [0u64; NUM_SEATS];
+            for (leader, cards) in &round.tricks_played {
+                for (i, &c) in cards.iter().enumerate() {
+                    played[(leader + i) & 3] |= 1u64 << c;
+                }
+            }
+            for (i, &c) in round.trick.iter().enumerate() {
+                played[(round.leader + i) & 3] |= 1u64 << c;
+            }
+            // Silence is a claim too, and it is the common one — see announce.rs.
+            announcements = Announcements {
+                called: [0; NUM_SEATS],
+                played,
+                rules: game.rules,
+                trump: round.trump,
+            };
+            for entry in &game.weis_summary {
+                announcements.called[entry.seat] = entry.points;
+                // The winning Weis is turned face up to prove it. Nobody else can hold those
+                // cards, which is the strongest claim there is about a specific hand.
+                for &card in entry.cards.iter().flatten() {
+                    if seen & (1u64 << card) != 0 {
+                        continue;
+                    }
+                    for other in 0..NUM_SEATS {
+                        if other != entry.seat {
+                            forbidden[other] |= 1u64 << card;
+                        }
+                    }
+                }
+            }
+            announcements.called[seat] = -1;
+        }
         let kernel = Kernel::new(
             contract,
             game.rules.strict_undertrump,
@@ -217,6 +258,7 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
             },
             adversarial: true,
             leaf_weights: Vec::new(),
+            announcements,
         };
         // The browser plays the same search the measurements were taken with. ISMCTS above
         // the endgame threshold, the exact solve below it — see measurements.md §5h.

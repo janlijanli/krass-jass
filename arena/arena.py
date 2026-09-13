@@ -65,7 +65,7 @@ def choose_contract(
 
 
 def resolve_weis(hands: list[int], contract: Contract, leader: int, cfg: RulesConfig):
-    """Weis and Stöck for a round, and the cards the winner has to show.
+    """Weis and Stöck for a round, the cards the winner shows, and what every seat called.
 
     Mirrors the automatic path in `Game._resolve_weis`: everyone announces, the single best
     Weis is turned face up to prove it, and the winning *team* scores all of its Weis.
@@ -77,7 +77,7 @@ def resolve_weis(hands: list[int], contract: Contract, leader: int, cfg: RulesCo
     project.
     """
     if not cfg.weis_enabled:
-        return (0, 0), (0, 0), ()
+        return (0, 0), (0, 0), (), ()
 
     # `is_trump`, not truthiness: Contract.DIAMONDS is 0 and therefore falsy.
     trump = contract.trump_suit if contract.is_trump else -1
@@ -89,7 +89,14 @@ def resolve_weis(hands: list[int], contract: Contract, leader: int, cfg: RulesCo
         best = best_weis(find_weis(hands[winner], cfg, trump), trump, cfg)
         if best is not None:
             shown = tuple((winner, c) for c in card_list(best.cards))
-    return points, stoeck, shown
+
+    # Stage one, which the shown cards are only the visible end of: everyone calls a value
+    # as their turn comes round, and a value nobody ever proves is public all the same. Zero
+    # for a seat that called nothing — silence is the common call and the informative one.
+    announced = tuple(
+        (seat, sum(m.points for m in find_weis(hands[seat], cfg, trump))) for seat in range(4)
+    )
+    return points, stoeck, shown, announced
 
 
 def play_round(
@@ -111,7 +118,7 @@ def play_round(
     if contract is None:
         contract, declarer = choose_contract(hands, leader, seats, cfg)
 
-    weis, stoeck, shown = resolve_weis(hands, contract, leader, cfg)
+    weis, stoeck, shown, announced = resolve_weis(hands, contract, leader, cfg)
     state = RoundState(contract=contract, hands=list(hands), cfg=cfg, leader=leader)
     trick_no = 0
     while not state.done:
@@ -130,6 +137,7 @@ def play_round(
             declarer_seat=declarer,
             decision_seed=derive_decision_seed(game_seed, game_id, seat, 0, trick_no),
             known_cards=tuple((s, c) for s, c in shown if state.hands[s] & (1 << c)),
+            weis_announced=announced,
         )
         card = agent.decide(obs)
         # The engine is authoritative — an agent's move is re-validated, never trusted.

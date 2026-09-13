@@ -14,6 +14,7 @@ use pyo3::prelude::*;
 #[cfg(feature = "python")]
 use pyo3::exceptions::PyValueError;
 
+pub mod announce;
 pub mod awareness;
 pub mod bidding;
 pub mod cards;
@@ -163,7 +164,8 @@ fn play_out_many(
     seat, hand, unseen, trick, trick_leader, contract, forbidden=None, affinity=None, rank_bias=None,
     determinizations=1000, iterations=800, exploration=1.5, seed=0, threads=1,
     endgame_cards=5, strict_undertrump=true, puur_exempt=true,
-    scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true, risk_lambda=0.0, leaf_weights=None, ismcts=false, resample_every=1, order_moves=false, prior_weight=0.0, policy_weights=None, oracle_hands=None, oracle_p=0.0
+    scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true, risk_lambda=0.0, leaf_weights=None, ismcts=false, resample_every=1, order_moves=false, prior_weight=0.0, policy_weights=None, oracle_hands=None, oracle_p=0.0,
+    weis_called=None, weis_played=None, weis_large=false, weis_four_nines=true, weis_four_beats_sequence=true
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -199,6 +201,15 @@ fn dmcts(
     policy_weights: Option<Vec<f32>>,
     oracle_hands: Option<Vec<u64>>,
     oracle_p: f64,
+    // `weis_called`: per seat, the Weis value that seat called, or -1 for a seat with
+    // nothing to check — the searching seat's own entry is ignored, its hand is known.
+    // `weis_played`: per seat, the cards it has already played, because a call is a
+    // statement about the nine that were dealt. See `announce.rs`.
+    weis_called: Option<Vec<i32>>,
+    weis_played: Option<Vec<u64>>,
+    weis_large: bool,
+    weis_four_nines: bool,
+    weis_four_beats_sequence: bool,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -229,6 +240,28 @@ fn dmcts(
         rb.copy_from_slice(&rows);
     }
     let k = make_kernel(contract, strict_undertrump, puur_exempt, 5, 0)?;
+    let mut ann = announce::Announcements::none();
+    if let Some(called) = weis_called {
+        if called.len() != NUM_SEATS {
+            return Err(PyValueError::new_err("weis_called must have 4 entries"));
+        }
+        ann.called.copy_from_slice(&called);
+        ann.called[seat & 3] = -1;
+        ann.rules = config::Rules {
+            weis_enabled: true,
+            weis_large,
+            weis_four_nines,
+            weis_four_beats_sequence,
+            ..config::Rules::default()
+        };
+        ann.trump = if contract < 4 { contract as i32 } else { -1 };
+    }
+    if let Some(played) = weis_played {
+        if played.len() != NUM_SEATS {
+            return Err(PyValueError::new_err("weis_played must have 4 entries"));
+        }
+        ann.played.copy_from_slice(&played);
+    }
     let pos = search::Position {
         seat: seat & 3,
         hand,
@@ -249,6 +282,7 @@ fn dmcts(
         },
         adversarial,
         leaf_weights: leaf_weights.unwrap_or_default(),
+        announcements: ann,
     };
     // Long CPU-bound work: release the GIL so the caller stays responsive and rayon can
     // actually use the cores.

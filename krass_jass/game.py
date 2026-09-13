@@ -145,6 +145,20 @@ class Game:
                     out.append((entry["seat"], card))
         return tuple(out)
 
+    def _announced(self) -> tuple:
+        """`(seat, points)` for every seat, once the calling is over.
+
+        Empty until then. Before the calls are in, a seat that has said nothing has not said
+        "nothing" — it has not spoken yet, and reading its silence as a claim would put a
+        constraint on the search that the table never heard. With `weis_manual` the human
+        may decline a Weis they hold; the table heard "nothing" and so does the search,
+        which is the whole point of declining.
+        """
+        if not self.cfg.weis_enabled or not self._weis_resolved:
+            return ()
+        called = {entry["seat"]: entry["points"] for entry in self.weis_summary}
+        return tuple((seat, called.get(seat, 0)) for seat in range(NUM_SEATS))
+
     def decision_seed(self, seat: int) -> int:
         trick = len(self.round.tricks_played) if self.round else 0
         return derive_decision_seed(self.seed, self.game_id, seat, self.round_index, trick)
@@ -158,6 +172,7 @@ class Game:
             declarer_seat=self.declarer,
             scores=(self.scores[0], self.scores[1]),
             weis_points=(self._weis[0], self._weis[1]),
+            weis_announced=self._announced(),
             known_cards=self._shown_cards(),
             time_budget_ms=time_budget_ms,
             decision_seed=self.decision_seed(seat),

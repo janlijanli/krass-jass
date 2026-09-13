@@ -127,6 +127,10 @@ class DmctsAgent(Agent):
     #: Use the cards the table was *shown* as hard constraints. A flag only so the A/B can
     #: run: it is exact public information and there is no case for ignoring it.
     use_known_cards: bool = True
+    #: Use the Weis values the table was *called*, including the silences. The shown cards
+    #: above are a mask; a value is not, so it filters imagined worlds instead of forbidding
+    #: cards — `rust/src/announce.rs` has the measurement that decided the shape.
+    use_weis_announced: bool = True
     ismcts: bool = True
     #: Iterations sharing one imagined world before a new one is drawn. 1 is textbook ISMCTS
     #: and is dominated by the cost of dealing worlds. **4** keeps the full gain at 1.41x the
@@ -153,25 +157,7 @@ class DmctsAgent(Agent):
         if len(legal) == 1:
             return legal[0]  # no decision to make; do not burn the budget
 
-        forbidden = infer_forbidden(
-            list(obs.tricks_played),
-            list(obs.trick),
-            obs.trick_leader,
-            obs.contract,
-            self.cfg,
-        )
-        # What the play proves, and separately what it suggests. The first removes worlds
-        # from the search; the second only changes how often it visits them.
-        #
-        # A Weis that was shown is proof of the strongest kind — the table saw those cards in
-        # that hand — so it joins the void masks rather than the soft priors. Nobody else can
-        # be holding them. `docs/measurements.md` §5k measured belief accuracy as the largest
-        # lever in the file; this is the one piece of it that is exact and free.
-        if self.use_known_cards:
-            for seat, card in obs.known_cards:
-                for other in range(4):
-                    if other != seat:
-                        forbidden[other] |= 1 << card
+        forbidden, weis = self._beliefs(obs)
         candidates = native.dmcts(
             seat=obs.seat,
             hand=obs.hand,
@@ -181,6 +167,7 @@ class DmctsAgent(Agent):
             contract=obs.contract,
             cfg=self.cfg,
             forbidden=forbidden,
+            **weis,
             **self._priors(obs),
             determinizations=self.determinizations,
             iterations=self.iterations,
@@ -195,6 +182,42 @@ class DmctsAgent(Agent):
         # The search has spoken; this only orders the moves it rated the same. See
         # krass_jass/convention.py for why that restriction is the whole design.
         return convention.choose(candidates, obs, forbidden)
+
+    def _beliefs(self, obs: Observation) -> tuple[list[int], dict]:
+        """What the search is allowed to believe about the other three hands.
+
+        Two kinds of evidence, and they are different shapes. What the play *proves* and
+        what the table was *shown* are statements about cards, so they become a per-seat
+        mask of cards that seat cannot hold, and a world contradicting one is never dealt.
+        What the table was *told* is a statement about a hand — "I have fifty" names no
+        card — so it can only be checked once a world exists, and it travels separately.
+
+        A Weis that was shown is proof of the strongest kind: the table saw those cards in
+        that hand, so nobody else can be holding them. `docs/measurements.md` §5k measured
+        belief accuracy as the largest lever in the file, §5l the shown half of this, §5m
+        the called half.
+        """
+        forbidden = infer_forbidden(
+            list(obs.tricks_played),
+            list(obs.trick),
+            obs.trick_leader,
+            obs.contract,
+            self.cfg,
+        )
+        if self.use_known_cards:
+            for seat, card in obs.known_cards:
+                for other in range(4):
+                    if other != seat:
+                        forbidden[other] |= 1 << card
+
+        weis: dict = {}
+        if self.use_weis_announced and obs.weis_announced:
+            called = [-1] * 4
+            for seat, points in obs.weis_announced:
+                called[seat] = points
+            called[obs.seat] = -1          # own hand is known, not guessed at
+            weis = {"weis_called": called, "weis_played": list(obs.played_by)}
+        return forbidden, weis
 
     def _stakes(self, obs: Observation) -> dict:
         """What this round is for: the game score, the Weis already banked, the line.
@@ -243,18 +266,11 @@ class DmctsAgent(Agent):
 
     def trace(self, obs: Observation) -> list[tuple[int, int, float, int]]:
         """Per-candidate statistics for the decision record in `PLAN.md` §6."""
-        forbidden = infer_forbidden(
-            list(obs.tricks_played), list(obs.trick), obs.trick_leader, obs.contract, self.cfg
-        )
-        if self.use_known_cards:
-            for seat, card in obs.known_cards:
-                for other in range(4):
-                    if other != seat:
-                        forbidden[other] |= 1 << card
+        forbidden, weis = self._beliefs(obs)
         return native.dmcts(
             seat=obs.seat, hand=obs.hand, unseen=obs.unseen, trick=list(obs.trick),
             trick_leader=obs.trick_leader, contract=obs.contract, cfg=self.cfg,
-            forbidden=forbidden, **self._priors(obs),
+            forbidden=forbidden, **weis, **self._priors(obs),
             determinizations=self.determinizations,
             iterations=self.iterations, exploration=self.exploration,
             seed=obs.decision_seed, threads=self.threads, endgame_cards=self.endgame_cards,

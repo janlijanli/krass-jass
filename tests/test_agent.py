@@ -191,7 +191,7 @@ def test_the_round_arena_is_unchanged_when_weis_is_off():
         contract = Contract(rng.randrange(6))
         leader = rng.randrange(4)
 
-        assert resolve_weis(hands, contract, leader, EVAL) == ((0, 0), (0, 0), ())
+        assert resolve_weis(hands, contract, leader, EVAL) == ((0, 0), (0, 0), (), ())
 
         a = RoundState(contract=contract, hands=list(hands), cfg=EVAL, leader=leader)
         b = RoundState(contract=contract, hands=list(hands), cfg=EVAL, leader=leader)
@@ -217,8 +217,128 @@ def test_a_shown_weis_is_really_in_the_hand_that_showed_it():
         rng.shuffle(deck)
         hands = [sum(1 << c for c in deck[i * 9 : (i + 1) * 9]) for i in range(4)]
         contract = Contract(rng.randrange(6))
-        _weis, _stoeck, shown = resolve_weis(hands, contract, rng.randrange(4), HOUSE)
+        _weis, _stoeck, shown, _called = resolve_weis(hands, contract, rng.randrange(4), HOUSE)
         for seat, card in shown:
             assert hands[seat] & (1 << card), "shown a card that seat does not hold"
             checked += 1
     assert checked > 0, "no Weis was ever shown; the fixture proves nothing"
+
+
+def test_a_call_is_published_only_once_the_table_has_heard_it():
+    """Silence is a claim — but only after the seat has had its turn to make it.
+
+    Before the calls are in, a seat that has said nothing has not said "nothing", and
+    handing the search a zero would be a constraint the table never heard. A seat that
+    *declines* is the other half: the table heard "nothing" and so does the search, which
+    is the whole point of declining.
+    """
+    from krass_jass.cards import card_list, parse_hand as H
+    from krass_jass.game import Game, Phase
+    from krass_jass.rules import HOUSE
+
+    game = Game(cfg=HOUSE.variant(weis_manual=True), seed=2)
+    game._dealt = [
+        H("DK DQ DA D9 D8 S6 S7 H6 H7"),   # 20
+        H("SA SK SQ SJ ST S9 S8 H8 H9"),   # 100
+        H("CA CK CQ CJ CT C9 C8 C7 C6"),   # 100, the best — and it will decline
+        H("DJ DT D7 D6 HA HK HQ HJ HT"),   # 100
+    ]
+    game.forehand = 0
+    game.declarer = 0
+    game.bid(0, "DIAMONDS")
+
+    assert game.phase is Phase.WEIS
+    assert game._announced() == (), "a call was published before anybody made it"
+
+    for _ in range(4):
+        seat = game.to_act
+        if game.phase is Phase.WEIS:
+            game.choose_weis(seat, seat != 2)
+        game.play(seat, card_list(game.round.legal_moves(seat))[0])
+
+    called = game._announced()
+    assert [seat for seat, _ in called] == [0, 1, 2, 3], "every seat has to be accounted for"
+    assert dict(called)[2] == 0, "a declined Weis is a call of nothing, not a hidden one"
+    assert dict(called)[0] == 20
+
+
+def test_what_a_seat_called_is_true_of_the_hand_it_was_dealt():
+    """The call is the predicate the search filters worlds with, so a call the dealt hand
+    would not have made would have it rejecting the *real* world.
+
+    The reconstruction matters as much as the value: a call is about the nine cards dealt,
+    and a world imagined in trick five is missing some of them.
+    """
+    import random
+
+    from arena.arena import resolve_weis
+    from krass_jass.rules import HOUSE, Contract
+    from krass_jass.weis import find_weis
+
+    rng = random.Random(29)
+    positive = 0
+    for _ in range(150):
+        deck = list(range(36))
+        rng.shuffle(deck)
+        hands = [sum(1 << c for c in deck[i * 9 : (i + 1) * 9]) for i in range(4)]
+        contract = Contract(rng.randrange(6))
+        trump = contract.trump_suit if contract.is_trump else -1
+        *_rest, called = resolve_weis(hands, contract, rng.randrange(4), HOUSE)
+        for seat, points in called:
+            assert points == sum(m.points for m in find_weis(hands[seat], HOUSE, trump))
+            positive += points > 0
+    assert positive > 0, "nobody ever called; the fixture proves nothing"
+
+
+def test_a_seat_is_never_asked_to_explain_a_card_it_has_played():
+    """`played_by` is what puts a mid-round world back together before it is tested against
+    a call. It must be exactly the public history, split by who played what."""
+    import random
+
+    from krass_jass.observation import build_observation
+    from krass_jass.rules import EVAL, Contract
+    from krass_jass.state import RoundState
+    from krass_jass.cards import card_list
+
+    rng = random.Random(5)
+    for _ in range(30):
+        deck = list(range(36))
+        rng.shuffle(deck)
+        hands = [sum(1 << c for c in deck[i * 9 : (i + 1) * 9]) for i in range(4)]
+        state = RoundState(
+            contract=Contract(rng.randrange(6)), hands=list(hands), cfg=EVAL, leader=rng.randrange(4)
+        )
+        dealt = list(hands)
+        while not state.done:
+            obs = build_observation(state, state.to_play)
+            by_seat = obs.played_by
+            assert sum(bin(m).count("1") for m in by_seat) == bin(obs.played).count("1")
+            for seat in range(4):
+                assert by_seat[seat] | state.hands[seat] == dealt[seat]
+                assert by_seat[seat] & state.hands[seat] == 0
+            state.play(card_list(state.legal_moves())[0])
+
+
+def test_the_search_sees_no_calls_when_weis_is_off():
+    """Every figure in `docs/measurements.md` before §5m was taken under `EVAL`, where Weis
+    does not exist. The new belief has to be provably absent there, not merely quiet."""
+    import random
+
+    from arena.arena import resolve_weis
+    from krass_jass.agent import DmctsAgent
+    from krass_jass.observation import build_observation
+    from krass_jass.rules import EVAL, Contract
+    from krass_jass.state import RoundState
+
+    rng = random.Random(17)
+    for _ in range(20):
+        deck = list(range(36))
+        rng.shuffle(deck)
+        hands = [sum(1 << c for c in deck[i * 9 : (i + 1) * 9]) for i in range(4)]
+        contract = Contract(rng.randrange(6))
+        assert resolve_weis(hands, contract, 0, EVAL)[3] == ()
+        state = RoundState(contract=contract, hands=list(hands), cfg=EVAL, leader=0)
+        obs = build_observation(state, state.to_play)
+        assert obs.weis_announced == ()
+        agent = DmctsAgent(determinizations=2, iterations=8, cfg=EVAL)
+        assert agent._beliefs(obs)[1] == {}, "a belief arrived where there is no Weis"

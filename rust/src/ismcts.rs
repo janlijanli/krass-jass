@@ -31,7 +31,7 @@ use crate::cards::{card_suit, NUM_SEATS, SUIT_MASK};
 use crate::cards::NUM_CARDS;
 use crate::leafeval::top_live;
 use crate::policy::{learned_prior, N_POLICY_FEATURES};
-use crate::determinize::determinize;
+use crate::announce::determinize_consistent;
 use crate::legal::legal_moves;
 use crate::objective::reward;
 use crate::rng::Rng;
@@ -181,9 +181,9 @@ pub fn ismcts(
             let use_oracle = oracle_p > 0.0 && (rng.below(10_000) as f64) < oracle_p * 10_000.0;
             if use_oracle {
                 dealt = *oracle_hands;
-            } else if !determinize(
+            } else if !determinize_consistent(
                 pos.unseen, &counts, &pos.forbidden, &pos.affinity, &pos.rank_bias,
-                &mut dealt, &mut rng,
+                &pos.announcements, pos.seat, pos.hand, &mut dealt, &mut rng,
             ) {
                 continue;
             }
