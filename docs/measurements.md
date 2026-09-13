@@ -178,8 +178,23 @@ same place. §3 was a correct measurement of a search that was replaced four sec
 and its number was carried across the change without being re-taken. That is the more
 uncomfortable failure of the two: not a wrong experiment, a stale one.
 
-Stated as a hypothesis again, because the control for it is still running: the same sweep
-with `ismcts=False`. If PIMC is flat where ISMCTS keeps paying, this is settled.
+And that one holds. The same sweep, same conditions, same budgets, with `ismcts=False`:
+
+| search | 153,600 vs 2,400, EVAL | deals | p |
+|---|---|---|---|
+| PIMC — a tree per world, then a vote | **50.140% ± 0.146** | 2,000 | **0.34** |
+| ISMCTS — one shared tree | **50.695% ± 0.121** | 3,000 | **8.3e-09** |
+
+The voting search saturates and the shared tree does not, under identical conditions. The
+difference between them is +0.55 ± 0.19, p≈0.004. §3 measured a real property of a real
+search; that search was replaced in §5h and the number was not re-taken.
+
+**The lesson is about bookkeeping, not about search.** A measurement is only valid for the
+thing it was taken on, and §3 carried its authority across a change to the very component
+it described — for four sections, into the app's budget, and into three later arguments that
+cited "the search saturates" as settled. Nothing in the file marked it as depending on the
+algorithm, because when it was written there was only one. Every figure taken before §5h
+deserves the same question asked of it.
 
 **What ships.** The app moves from 2,400 to 153,600. In wasm that is roughly half a second
 a move against the 550–1500 ms the app was already spending on an artificial pause, so the

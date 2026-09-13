@@ -253,6 +253,7 @@
       { "iterations": 614400, "share": 50.64, "std": 6.05, "deals": 600, "p": 0.00964 }
     ],
     "eval_control": { "iterations": 153600, "share": 50.695, "se": 0.121, "deals": 3000, "p": 8.3e-09 },
+    "pimc_control": { "iterations": 153600, "share": 50.140, "se": 0.146, "deals": 2000, "p": 0.34, "note": "The voting search §5h replaced, same conditions and budgets. Flat — so §3's saturation was a property of that algorithm, not of the engine." },
     "verdict": "+0.56 of a round's share at 64x under HOUSE, +0.70 under EVAL. 256x buys at most +0.08 more, inside its own noise, for 4.7x the time — so 153,600 is the top of the curve rather than the limit of patience."
   },
 
