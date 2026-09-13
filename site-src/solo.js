@@ -12,7 +12,7 @@
 
 import { loadEngine, CARD_INDEX } from "./engine.js";
 import { render, setSender } from "./render.js";
-import { initMenu } from "./menu.js";
+import { initMenu, adviceOn } from "./menu.js";
 
 const HUMAN_SEAT = 0;
 // docs/measurements.md §3: indistinguishable from 800,000 iterations, ~2 ms in wasm.
@@ -45,8 +45,36 @@ function view() {
   return engine.view(handle, HUMAN_SEAT, acked);
 }
 
+/* Advice mode.
+ *
+ * A fourth bot, run on the human's own seat with the same budget and the same search the
+ * other three use — so it sees exactly what you see and guesses like they do. Cached per
+ * position, because the answer cannot change until a card is played and re-running it on
+ * every redraw would stutter the table for nothing.
+ */
+let adviceKey = null;
+let advice = [];
+
+function adviceFor(v) {
+  if (!adviceOn() || v.phase !== "playing" || v.to_act !== HUMAN_SEAT) return [];
+  // One card is not advice. `bot_rank` reports that case separately and returns no moves.
+  if ((v.legal?.length ?? 0) < 2) return [];
+  const key = `${v.round}|${v.hand.join("")}|${v.trick.map((c) => c.card).join("")}`;
+  if (key !== adviceKey) {
+    adviceKey = key;
+    // The same decision seed the bot on this seat would have used, so the advice is the
+    // move that seat would really have played rather than a second, differently-seeded one.
+    const seed = engine.decisionSeed(handle, HUMAN_SEAT, Math.max(0, v.round));
+    advice = engine.botRank(handle, HUMAN_SEAT, DETERMINIZATIONS, ITERATIONS, seed)
+      .moves.map((m) => m.card);
+  }
+  return advice;
+}
+
 function draw() {
-  render(view());
+  const v = view();
+  v.advice = adviceFor(v);
+  render(v);
 }
 
 function newGame() {
@@ -134,6 +162,7 @@ initMenu({
   onNewGame: newGame,
   // The chrome is static text, the table is not — redraw it in the new language too.
   onLanguageChange: () => draw(),
+  onAdviceChange: () => draw(),
 });
 
 newGame();

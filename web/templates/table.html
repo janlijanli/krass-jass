@@ -58,6 +58,23 @@
         <p class="menu-note" data-i18n="menu.stoeckNote">Stöck is always announced.</p>
       </fieldset>
 
+      <!-- Shown only by the offline build, which has an engine on the page to ask. Unlike
+           everything else in this form it takes effect immediately, so it says so. -->
+      <fieldset id="advice-toggle" hidden>
+        <legend data-i18n="menu.advice">Recommendations</legend>
+        <div class="chips">
+          <label class="chip">
+            <input type="radio" name="advice" value="on">
+            <span data-i18n="menu.on">On</span>
+          </label>
+          <label class="chip">
+            <input type="radio" name="advice" value="off" checked>
+            <span data-i18n="menu.off">Off</span>
+          </label>
+        </div>
+        <p class="menu-note" data-i18n="menu.adviceNote">A fourth bot on your seat.</p>
+      </fieldset>
+
       <fieldset>
         <legend data-i18n="menu.multipliers">Multipliers</legend>
         {% for name, key in contracts %}

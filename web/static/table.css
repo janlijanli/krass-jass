@@ -587,3 +587,85 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
 .tafel-bar i { position: absolute; inset: 0 auto 0 0; background: var(--gold); border-radius: 2px; }
 .tafel-bar i.them { background: rgba(255,255,255,.5); }
 .tafel-bar + .tafel-bar { margin-top: 3px; }
+
+/* -- the Nerd-Doc walkthrough -------------------------------------------- */
+/* A stepper rather than a long scroll: each step is one idea and one figure, and the
+   figure animates only where the motion is the argument. See walkthrough.js. */
+.wt-stage {
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  padding: 12px 12px 10px;
+  background: rgba(0,0,0,.16);
+}
+.about-panel h4.wt-title {
+  margin: 0 0 6px; font-size: 14px; text-transform: none; letter-spacing: 0; opacity: 1;
+}
+.wt-body { margin: 0 0 10px; font-size: 13px; line-height: 1.55; opacity: .9; min-height: 5.6em; }
+.wt-figure { min-height: 120px; }
+.wt-dots { display: flex; gap: 6px; justify-content: center; margin: 8px 0 10px; }
+.wt-dot {
+  width: 7px; height: 7px; padding: 0; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.3); background: transparent; cursor: pointer;
+  transition: background .2s, border-color .2s;
+}
+.wt-dot.on { background: var(--gold); border-color: var(--gold); }
+.wt-nav-row { display: flex; align-items: center; gap: 6px; }
+.wt-nav {
+  font: inherit; font-size: 12px; padding: 5px 10px; border-radius: 7px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: var(--paper);
+}
+.wt-nav-main { border-color: var(--gold); background: rgba(216,180,90,.2); }
+.wt-counter { margin-left: auto; font-size: 11px; opacity: .45; }
+
+.wt-chip rect { fill: rgba(255,255,255,.1); stroke: rgba(255,255,255,.14); }
+.wt-chip.wt-mine rect { fill: rgba(216,180,90,.55); stroke: var(--gold); }
+.wt-chip.wt-hidden rect { fill: rgba(255,255,255,.05); }
+.wt-chip-t { font-size: 9px; fill: var(--paper); opacity: .4; }
+.wt-chip.wt-dealt rect { fill: rgba(216,180,90,.3); stroke: rgba(216,180,90,.45); }
+.wt-seat { fill: rgba(255,255,255,.04); stroke: rgba(255,255,255,.12); }
+
+.wt-world-ok { fill: rgba(216,180,90,.5); stroke: var(--gold); stroke-width: .8; }
+.wt-world-bad { fill: rgba(255,255,255,.05); stroke: rgba(255,255,255,.1); }
+.wt-strike { stroke: var(--paper); stroke-opacity: .35; stroke-width: 1; }
+
+.wt-edge { stroke: rgba(255,255,255,.22); stroke-width: 1.4; }
+.wt-edge-thin { stroke-opacity: .12; }
+.wt-node { fill: rgba(255,255,255,.12); stroke: rgba(255,255,255,.25); }
+.wt-node-root { fill: rgba(216,180,90,.7); stroke: var(--gold); }
+.wt-node-leaf { fill: rgba(255,255,255,.07); }
+.wt-visits { fill: var(--gold); opacity: .75; }
+
+.wt-rollout { fill: none; stroke: var(--gold); stroke-width: 2; stroke-linejoin: round; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wt-chip, .wt-visits, .wt-rollout { transition: none !important; }
+}
+
+/* -- advice mode --------------------------------------------------------- */
+/* A fourth bot's opinion on your own seat. Gold is the app's "this matters" colour, so the
+   ranks step down through it rather than using three unrelated hues — rank is an ordering,
+   not a category.
+
+   The badge sits *inside* the card, bottom-left: `.card` clips its content so it can keep
+   the rounded corners over the face SVG, and in the fan it is the left strip of each card
+   that stays visible. The corner indices live top-left and bottom-right (cards.js), so the
+   bottom-left is the one quiet corner on the face. */
+.hand .card { position: relative; }
+.hand .card.advised { box-shadow: 0 0 0 2px var(--gold), 0 6px 16px rgba(0,0,0,.4); }
+.hand .card.advised-2 { box-shadow: 0 0 0 2px rgba(216,180,90,.6), 0 5px 12px rgba(0,0,0,.35); }
+.hand .card.advised-3 { box-shadow: 0 0 0 2px rgba(216,180,90,.32), 0 4px 10px rgba(0,0,0,.3); }
+
+.advice-rank {
+  position: absolute;
+  left: 4px; bottom: 4px;
+  min-width: 17px; height: 17px;
+  display: grid; place-items: center;
+  padding: 0 4px;
+  border-radius: 9px;
+  font-size: 11px; font-weight: 700; line-height: 1;
+  background: var(--gold); color: var(--ink);
+  box-shadow: 0 1px 4px rgba(0,0,0,.45);
+  pointer-events: none;
+}
+.card.advised-2 .advice-rank { background: rgba(216,180,90,.78); }
+.card.advised-3 .advice-rank { background: rgba(216,180,90,.55); }

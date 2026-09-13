@@ -7,6 +7,25 @@
 
 import { LANGS, LANG_NAMES, applyStatic, getLang, setLang, t } from "./i18n.js";
 
+/* Advice mode — off by default, and remembered.
+ *
+ * It sits outside the settings form on purpose. Everything in that form takes effect on a
+ * *new game*; this takes effect on the next card, and burying a live switch among six that
+ * are not would train the player to distrust the form.
+ *
+ * Only the offline build can offer it: the advice is a fourth search run in this tab, and
+ * the hosted build has no engine on the page to run it with.
+ */
+const ADVICE_KEY = "kj_advice";
+let advice = false;
+try {
+  advice = localStorage.getItem(ADVICE_KEY) === "on";
+} catch {
+  advice = false;      // private windows and blocked site data are not an error here
+}
+
+export const adviceOn = () => advice;
+
 /** The language chips. Browser detection is a guess; this is how a wrong guess is fixed. */
 function buildLanguagePicker(onChange) {
   const host = document.getElementById("lang-chips");
@@ -33,7 +52,12 @@ function buildLanguagePicker(onChange) {
   }
 }
 
-export function initMenu({ measurementsUrl, onNewGame = null, onLanguageChange = null }) {
+export function initMenu({
+  measurementsUrl,
+  onNewGame = null,
+  onLanguageChange = null,
+  onAdviceChange = null,
+}) {
   const menu = document.getElementById("menu");
   const opener = document.getElementById("menu-open");
 
@@ -110,6 +134,25 @@ export function initMenu({ measurementsUrl, onNewGame = null, onLanguageChange =
 
   // Wired here rather than left to the caller: the offline build forgot to call it, so the
   // chrome switched language and the documentation stayed behind in the old one.
+  // Present only where it can work, so the offline build shows it and the hosted one
+  // simply has no such control rather than a dead one.
+  const adviceHost = document.getElementById("advice-toggle");
+  if (adviceHost && onAdviceChange) {
+    adviceHost.hidden = false;
+    adviceHost.querySelectorAll('input[name="advice"]').forEach((input) => {
+      input.checked = (input.value === "on") === advice;
+      input.addEventListener("change", () => {
+        advice = input.value === "on";
+        try {
+          localStorage.setItem(ADVICE_KEY, advice ? "on" : "off");
+        } catch {
+          /* not being able to remember it is not a reason to refuse to do it */
+        }
+        onAdviceChange();
+      });
+    });
+  }
+
   buildLanguagePicker(() => {
     relocalise();
     onLanguageChange?.();

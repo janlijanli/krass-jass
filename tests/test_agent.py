@@ -342,3 +342,41 @@ def test_the_search_sees_no_calls_when_weis_is_off():
         assert obs.weis_announced == ()
         agent = DmctsAgent(determinizations=2, iterations=8, cfg=EVAL)
         assert agent._beliefs(obs)[1] == {}, "a belief arrived where there is no Weis"
+
+
+def test_the_search_only_ever_returns_a_legal_move():
+    """Advice mode shows the search's ranking to the *player*, so a candidate that is not
+    legal stops being a wasted node and becomes a badge on a card they cannot play.
+
+    `bot_rank` in `rust/src/wasm_api.rs` publishes exactly what the search returned, so what
+    has to hold is the search's own guarantee. This exercises the shared core through the
+    Python bridge, which is where CI can reach it.
+    """
+    import random
+
+    from krass_jass.agent import DmctsAgent
+    from krass_jass.cards import card_list
+    from krass_jass.observation import build_observation
+    from krass_jass.rules import HOUSE, Contract
+    from krass_jass.state import RoundState
+
+    rng = random.Random(808)
+    agent = DmctsAgent(determinizations=4, iterations=20, cfg=HOUSE)
+    checked = 0
+    for _ in range(12):
+        deck = list(range(36))
+        rng.shuffle(deck)
+        hands = [sum(1 << c for c in deck[i * 9 : (i + 1) * 9]) for i in range(4)]
+        state = RoundState(
+            contract=Contract(rng.randrange(6)), hands=list(hands), cfg=HOUSE, leader=0
+        )
+        while not state.done:
+            obs = build_observation(state, state.to_play, decision_seed=rng.getrandbits(48))
+            legal = set(card_list(obs.legal_moves))
+            if len(legal) > 1:
+                cards = {card for card, *_ in agent.trace(obs)}
+                assert cards <= legal, f"ranked an illegal move: {cards - legal}"
+                assert cards, "no ranking at all, which advice mode would render as nothing"
+                checked += 1
+            state.play(card_list(state.legal_moves())[0])
+    assert checked > 20, "too few real decisions to be evidence"

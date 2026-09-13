@@ -15,6 +15,7 @@
 
 import { getLang } from "./i18n.js";
 import { about } from "./about-i18n.js";
+import { walkthroughPanel } from "./walkthrough.js";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -244,6 +245,8 @@ function playerPanel(data, L) {
   );
   wrap.append(voidFigure(L));
   wrap.append(
+    html("h3", null, about(L, "play.advice.h")),
+    html("p", null, about(L, "play.advice.p")),
     html("h3", null, about(L, "play.weak.h")),
     html("p", "warn", about(L, "play.weak.p")),
     html("p", null, about(L, "play.human.p", { parity: data.literature.human_parity }))
@@ -362,6 +365,7 @@ export function buildAbout(data) {
     play: () => playerPanel(data, L),
     strength: () => strengthPanel(data, L),
     internals: () => internalsPanel(data, L),
+    walk: () => walkthroughPanel(data, L),
   };
   const built = {};
   const body = html("div", "about-body");
@@ -371,6 +375,7 @@ export function buildAbout(data) {
     ["play", about(L, "tab.play")],
     ["strength", about(L, "tab.strength")],
     ["internals", about(L, "tab.internals")],
+    ["walk", about(L, "tab.walk")],
   ];
   let active = "play";
 

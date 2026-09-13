@@ -202,6 +202,29 @@
     "verdict": "+0.62 +/- 0.18 of a round's card points, +1.78 +/- 1.13 of games. The second measured gain in the file, and larger than ISMCTS's +1.15."
   },
 
+  "called_weis": {
+    "note": "The Weis values every seat calls in the first trick, including the silences — the half of the announcement protocol the search ignored. A value names no card, so it filters imagined worlds instead of forbidding cards. Building it uncovered a bug in determinize that had been discarding most of the shown-Weis pins since they landed. See measurements.md §5m.",
+    "seat_calls_nothing": 0.723,
+    "worlds_contradicting_the_calls": 0.804,
+    "unshown_positive_calls_per_round": 0.40,
+    "cost_multiplier": 1.94,
+    "rounds": [
+      { "seed": 91, "share": 50.31, "std": 6.52, "deals": 1500, "p": 0.0633 },
+      { "seed": 8802, "share": 50.32, "std": 6.22, "deals": 1500, "p": 0.0488 },
+      { "seed": 314, "share": 50.38, "std": 6.37, "deals": 1500, "p": 0.0223 },
+      { "seed": 2718, "share": 50.59, "std": 6.31, "deals": 1500, "p": 0.000268 }
+    ],
+    "rounds_pooled": { "share": 50.40, "se": 0.082, "deals": 6000, "p": 1.1e-06 },
+    "games": [
+      { "seed": 5150, "wins": 51.25, "std": 22.34, "games": 800, "p": 0.114 },
+      { "seed": 77000, "wins": 51.47, "std": 21.28, "games": 1600, "p": 0.00576 }
+    ],
+    "games_pooled": { "wins": 51.40, "se": 0.44, "games": 2400, "p": 0.0015 },
+    "equal_wall_clock": { "share": 50.11, "se": 0.12, "deals": 3000, "p": 0.34 },
+    "pins_remeasured": { "share": 50.405, "se": 0.097, "deals": 3000, "p": 3.1e-05 },
+    "verdict": "+0.40 +/- 0.08 of a round's share and +1.40 +/- 0.44 of games at a fixed budget; null at equal wall-clock, which is not the binding constraint at 4 ms a move. The sampler fix it uncovered matters more than the feature."
+  },
+
   "budget_sweep": {
     "deals": 500,
     "reference": 2400,

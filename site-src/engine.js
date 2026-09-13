@@ -30,6 +30,8 @@ export async function loadEngine(url = "krass_jass_core.wasm") {
     nextRound: (h) => w.game_next_round(h) === 0,
     botBid: (h, seat) => w.bot_bid(h, seat),
     botPlay: (h, seat, dets, iters, seed) => w.bot_play(h, seat, dets, iters, seed),
+    // The same search `botPlay` runs, published instead of played — advice mode.
+    botRank: (h, seat, dets, iters, seed) => readView(w.bot_rank(h, seat, dets, iters, seed)),
     decisionSeed: (h, seat, trick) => w.decision_seed(h, seat, trick),
   };
 }

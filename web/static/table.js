@@ -148,6 +148,18 @@ function renderHand(view) {
     node.style.transform = `rotate(${(i - (view.hand.length - 1) / 2) * spread}deg)`;
     if (myTurn && !legal.has(code)) node.classList.add("illegal");
 
+    // Advice mode: a fourth bot on your own seat, so the badge means "this is what it
+    // would play from what it can see" — not "this is right". It knows no more than the
+    // three you are playing against. Only ever shown on your own turn.
+    const rank = myTurn ? (view.advice ?? []).indexOf(code) : -1;
+    if (rank >= 0) {
+      node.classList.add("advised", `advised-${rank + 1}`);
+      const badge = document.createElement("span");
+      badge.className = "advice-rank";
+      badge.textContent = String(rank + 1);
+      node.append(badge);
+    }
+
     node.addEventListener("click", () => {
       if (!myTurn || !legal.has(code)) return;
       // Two taps: the first lifts so you can see what you picked on a small screen,

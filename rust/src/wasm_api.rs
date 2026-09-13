@@ -22,7 +22,7 @@ use crate::bidding::infer_from_bid;
 use crate::reading::infer_affinity;
 use crate::rng::Rng;
 use crate::rollout::Kernel;
-use crate::search::{dmcts, Position};
+use crate::search::{dmcts, Candidate, Position};
 use crate::tables::{contract_name, CARD_VALUES};
 use crate::trump::{select_trump, SHOVE};
 use crate::voids::infer_forbidden;
@@ -134,21 +134,31 @@ pub extern "C" fn bot_bid(handle: u32, seat: u32) -> i32 {
     })
 }
 
-/// A bot's card, by DMCTS with void-consistent determinization. Returns a card index.
-#[no_mangle]
-pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u32) -> i32 {
+/// What the search thinks of every legal move, best first.
+///
+/// `bot_play` and `bot_rank` are the same decision seen twice — one plays it, the other
+/// shows it — so they share this rather than running two searches that could disagree.
+/// `Forced` keeps "there is only one card" distinct from "the search picked one", because
+/// recommending a card the player has no choice about is noise.
+enum Thought {
+    None,
+    Forced(usize),
+    Ranked(Vec<Candidate>, usize),
+}
+
+fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u32) -> Thought {
     GAMES.with(|g| {
         let games = g.borrow();
-        let Some(game) = games.get(&handle) else { return -1 };
-        let Some(round) = game.round.as_ref() else { return -1 };
+        let Some(game) = games.get(&handle) else { return Thought::None };
+        let Some(round) = game.round.as_ref() else { return Thought::None };
         let seat = seat as usize;
 
         let legal = round.legal_moves(seat);
         if legal == 0 {
-            return -1;
+            return Thought::None;
         }
         if legal.count_ones() == 1 {
-            return legal.trailing_zeros() as i32; // no decision to make
+            return Thought::Forced(legal.trailing_zeros() as usize);
         }
 
         let contract = round.contract;
@@ -263,35 +273,15 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
         // The browser plays the same search the measurements were taken with. ISMCTS above
         // the endgame threshold, the exact solve below it — see measurements.md §5h.
         let total = (determinizations * iterations) as usize;
-        if round.hands[seat].count_ones() > 5 {
-            let out = crate::ismcts::ismcts(&position, &kernel, total, 1.5, seed as u64 | 1, 4, false, 0.0, &[], &[0u64; NUM_SEATS], 0.0);
-            return convention::choose(
-                &out,
-                round.hands[seat],
-                unseen,
-                seen | round.hands[seat],
-                &round.trick,
-                seat,
-                round.trump,
-                contract,
-                &position.forbidden,
-            )
-            .map(|c| c as i32)
-            .unwrap_or(-1);
-        }
-        let out = dmcts(
-            &position,
-            &kernel,
-            determinizations as usize,
-            iterations as usize,
-            1.5,
-            seed as u64 | 1,
-            1,
-            5,
-        );
+        let out = if round.hands[seat].count_ones() > 5 {
+            crate::ismcts::ismcts(&position, &kernel, total, 1.5, seed as u64 | 1, 4, false, 0.0, &[], &[0u64; NUM_SEATS], 0.0)
+        } else {
+            dmcts(&position, &kernel, determinizations as usize, iterations as usize,
+                  1.5, seed as u64 | 1, 1, 5)
+        };
         // The search has spoken; this only orders the moves it rated the same. See
         // krass_jass/convention.py for why that restriction is the whole design.
-        convention::choose(
+        let pick = convention::choose(
             &out,
             round.hands[seat],
             unseen,
@@ -301,10 +291,62 @@ pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterat
             round.trump,
             contract,
             &position.forbidden,
-        )
-        .map(|c| c as i32)
-        .unwrap_or(-1)
+        );
+        match pick {
+            Some(card) => Thought::Ranked(out, card),
+            None => Thought::None,
+        }
     })
+}
+
+/// A bot's card, by DMCTS with void-consistent determinization. Returns a card index.
+#[no_mangle]
+pub extern "C" fn bot_play(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u32) -> i32 {
+    match think(handle, seat, determinizations, iterations, seed) {
+        Thought::None => -1,
+        Thought::Forced(card) => card as i32,
+        Thought::Ranked(_, card) => card as i32,
+    }
+}
+
+/// The same decision, published instead of played — the advice mode in the app.
+///
+/// Returns the JSON length, with the payload in the shared view buffer: an array of
+/// `{card, visits, share}` best first, plus `forced` when the player has no choice.
+///
+/// It runs a **fourth bot on the human's own seat**, so it is subject to exactly the limits
+/// the other three are: it cannot see anyone's hand, and it is guessing like they are. What
+/// it is not is an oracle, and the app says so rather than implying the top card is right.
+#[no_mangle]
+pub extern "C" fn bot_rank(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u32) -> usize {
+    let json = match think(handle, seat, determinizations, iterations, seed) {
+        Thought::None => "{\"moves\":[]}".to_string(),
+        Thought::Forced(card) => {
+            format!("{{\"forced\":\"{}\",\"moves\":[]}}", format_card(card))
+        }
+        Thought::Ranked(out, pick) => {
+            // Visits, normalised over the candidates — the same quantity the Nerd-Doc's
+            // "share of visits" figure shows, so the number in the app and the number in
+            // the documentation mean the same thing.
+            let total: u64 = out.iter().map(|c| c.visits).sum::<u64>().max(1);
+            // The convention layer may re-order moves the search rated equal, so the card
+            // it actually plays leads the list even when another has a visit or two more.
+            let mut rows: Vec<&Candidate> = out.iter().collect();
+            rows.sort_by_key(|c| (if c.card == pick { 0 } else { 1 }, u64::MAX - c.visits));
+            let parts: Vec<String> = rows
+                .iter()
+                .take(3)
+                .map(|c| {
+                    format!(
+                        "{{\"card\":\"{}\",\"visits\":{},\"share\":{:.4}}}",
+                        format_card(c.card), c.visits, c.visits as f64 / total as f64
+                    )
+                })
+                .collect();
+            format!("{{\"moves\":[{}]}}", parts.join(","))
+        }
+    };
+    publish(json)
 }
 
 fn cards_json(cards: &[usize]) -> String {

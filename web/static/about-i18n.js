@@ -10,6 +10,53 @@
 
 export const ABOUT = {
   en: {
+    "play.advice.h": "Want to see its opinion?",
+    "play.advice.p":
+      "Settings has a <b>Recommendations</b> switch. Turn it on and your own cards get "
+      "numbered 1\u20133 \u2014 what a fourth bot would play from your seat, best first. It is "
+      "the same search the three you are playing against use, run on your hand, so it sees "
+      "exactly what you see and is guessing just as they are. Treat it as a second opinion, "
+      "not an answer key: on the numbers above it loses a third of its rounds to a player "
+      "who can see everything.",
+
+    "tab.walk": "Nerd-Doc",
+    "wt.h": "One decision, start to finish",
+    "wt.intro":
+      "Seven steps, in the order the engine actually runs them — from \"I cannot see your cards\" to \"I play this one\". Step through it.",
+    "wt.prev": "← Back",
+    "wt.next": "Next →",
+    "wt.replay": "Replay",
+    "wt.seat.left": "left",
+    "wt.seat.partner": "partner",
+    "wt.seat.right": "right",
+    "wt.info.h": "1. What it is allowed to know",
+    "wt.info.p":
+      "Nine cards in its hand, and whatever is face up on the table. The other twenty-seven are a <b>question mark</b> — three quarters of the deck. One function decides what a seat may see, and a test fuzzes every observation looking for a card that should not be there.",
+    "wt.deal.h": "2. It invents a deal",
+    "wt.deal.p":
+      "Since it cannot know, it <b>guesses</b>: the unseen cards are dealt at random into the other three hands. Now it has a complete deal it can reason about perfectly — one that is almost certainly wrong. Press <b>Replay</b> and you get a different one. It will build thousands.",
+    "wt.rule.h": "3. Most guesses are already impossible",
+    "wt.rule.p":
+      "A guess has to fit what the table has shown. Someone who failed to follow suit cannot hold that suit. A Weis turned face up pins those exact cards to that exact hand. And a seat that called <b>nothing</b> in the first trick holds no sequence of three and no four of a kind — which rules out {pct} of the deals the engine would otherwise have imagined.",
+    "wt.ruled.legend": "{pct}% contradict what the table said",
+    "wt.tree.h": "4. One tree, many worlds",
+    "wt.tree.p":
+      "Here is the part that makes it a player rather than a calculator. All those imagined deals share <b>one</b> tree. A branch is a card, and its statistics are pooled across every world in which that card was playable — so it has to choose one move that serves every deal it cannot tell apart, which is exactly the constraint you play under.",
+    "wt.tree.legend": "visits, shared across worlds",
+    "wt.roll.h": "5. It finishes the imagined round",
+    "wt.roll.p":
+      "From the end of a branch it just plays the imagined deal out to the last trick and counts the points. Crude, and deliberately so: the error in a random finish is as often high as low, so across thousands of them it averages away. A cleverer guess that is <b>consistently</b> wrong would not.",
+    "wt.rollout.start": "from here",
+    "wt.rollout.end": "…to the last trick",
+    "wt.vote.h": "6. The card it visited most",
+    "wt.vote.p":
+      "Not the card with the best average — the one the search kept coming back to. A move that looks brilliant in one lucky deal gets visited once; a move that holds up across thousands gets visited constantly. That is the answer.",
+    "wt.votes.note": "share of visits",
+    "wt.endg.h": "7. Near the end it stops guessing",
+    "wt.endg.p":
+      "With five cards each the round is small enough to solve <b>exactly</b> — every line, both sides playing perfectly. No sampling, no error. It costs about fifteen times more per extra card, which is why it replaces the search rather than running alongside it.",
+    "wt.endgame.legend": "positions examined",
+
     "tab.play": "How it plays",
     "tab.strength": "Is it good?",
     "tab.internals": "Under the hood",
@@ -135,6 +182,53 @@ export const ABOUT = {
   },
 
   de: {
+    "play.advice.h": "Willst du seine Meinung sehen?",
+    "play.advice.p":
+      "In den Einstellungen gibt es einen Schalter <b>Empfehlungen</b>. Schalte ihn ein, und "
+      "deine eigenen Karten bekommen die Nummern 1\u20133 \u2014 was ein vierter Bot von deinem "
+      "Platz aus spielen w\u00fcrde, beste zuerst. Es ist dieselbe Suche, die auch deine drei "
+      "Gegen\u00fcber benutzen, auf deine Hand angewendet: Sie sieht genau, was du siehst, und "
+      "r\u00e4t genauso wie sie. Nimm es als zweite Meinung, nicht als L\u00f6sung \u2014 gegen "
+      "jemanden, der alle Karten sieht, verliert sie ein Drittel der Runden.",
+
+    "tab.walk": "Nerd-Doc",
+    "wt.h": "Eine Entscheidung, von vorn bis hinten",
+    "wt.intro":
+      "Sieben Schritte, in der Reihenfolge, in der die Engine sie wirklich ausführt — von «ich sehe deine Karten nicht» bis «ich spiele diese». Klick dich durch.",
+    "wt.prev": "← Zurück",
+    "wt.next": "Weiter →",
+    "wt.replay": "Nochmal",
+    "wt.seat.left": "links",
+    "wt.seat.partner": "Partner",
+    "wt.seat.right": "rechts",
+    "wt.info.h": "1. Was er wissen darf",
+    "wt.info.p":
+      "Neun Karten auf der Hand und was offen auf dem Tisch liegt. Die anderen siebenundzwanzig sind ein <b>Fragezeichen</b> — drei Viertel des Decks. Eine einzige Funktion entscheidet, was ein Sitz sehen darf, und ein Test durchsucht jede Beobachtung nach einer Karte, die nicht darin vorkommen dürfte.",
+    "wt.deal.h": "2. Er erfindet eine Verteilung",
+    "wt.deal.p":
+      "Weil er es nicht wissen kann, <b>rät</b> er: die ungesehenen Karten werden zufällig auf die drei anderen Hände verteilt. Jetzt hat er eine vollständige Verteilung, die er perfekt durchrechnen kann — und die mit ziemlicher Sicherheit falsch ist. Drück <b>Nochmal</b>, und es kommt eine andere. Er baut Tausende davon.",
+    "wt.rule.h": "3. Die meisten Vermutungen sind längst unmöglich",
+    "wt.rule.p":
+      "Eine Vermutung muss zu dem passen, was der Tisch gezeigt hat. Wer nicht bedient hat, hat diese Farbe nicht. Ein aufgedecktes Weis nagelt genau diese Karten an genau diese Hand. Und wer im ersten Stich <b>nichts</b> angesagt hat, hat keine Dreierfolge und keinen Vierer — das schliesst {pct} der Verteilungen aus, die die Engine sonst durchgerechnet hätte.",
+    "wt.ruled.legend": "{pct}% widersprechen dem, was angesagt wurde",
+    "wt.tree.h": "4. Ein Baum, viele Welten",
+    "wt.tree.p":
+      "Hier wird aus dem Rechner ein Mitspieler. Alle erfundenen Verteilungen teilen sich <b>einen</b> Baum. Ein Ast ist eine Karte, und seine Statistik wird über alle Welten gepoolt, in denen diese Karte spielbar war — er muss also einen Zug wählen, der zu jeder Verteilung passt, die er nicht unterscheiden kann. Genau unter dieser Bedingung spielst du auch.",
+    "wt.tree.legend": "Besuche, über Welten geteilt",
+    "wt.roll.h": "5. Er spielt die erfundene Runde zu Ende",
+    "wt.roll.p":
+      "Vom Ende eines Astes spielt er die erfundene Verteilung einfach bis zum letzten Stich durch und zählt die Punkte. Grob, und zwar mit Absicht: der Fehler eines zufälligen Ausspielens liegt gleich oft zu hoch wie zu tief und mittelt sich über Tausende weg. Eine klügere Schätzung, die <b>systematisch</b> danebenliegt, täte das nicht.",
+    "wt.rollout.start": "von hier",
+    "wt.rollout.end": "…bis zum letzten Stich",
+    "wt.vote.h": "6. Die Karte, die er am häufigsten besucht hat",
+    "wt.vote.p":
+      "Nicht die mit dem besten Schnitt — die, zu der die Suche immer wieder zurückkam. Ein Zug, der in einer glücklichen Verteilung genial aussieht, wird einmal besucht; einer, der über Tausende hält, ständig. Das ist die Antwort.",
+    "wt.votes.note": "Anteil der Besuche",
+    "wt.endg.h": "7. Gegen Schluss hört das Raten auf",
+    "wt.endg.p":
+      "Bei fünf Karten pro Hand ist die Runde klein genug, um sie <b>exakt</b> zu lösen — jede Linie, beide Seiten perfekt. Kein Sampling, kein Fehler. Pro zusätzliche Karte kostet das rund fünfzehnmal mehr, deshalb ersetzt es die Suche, statt neben ihr zu laufen.",
+    "wt.endgame.legend": "untersuchte Stellungen",
+
     "tab.play": "Wie es spielt",
     "tab.strength": "Ist es gut?",
     "tab.internals": "Unter der Haube",
@@ -266,6 +360,53 @@ export const ABOUT = {
   },
 
   fr: {
+    "play.advice.h": "Envie de conna\u00eetre son avis ?",
+    "play.advice.p":
+      "Les r\u00e9glages ont un interrupteur <b>Recommandations</b>. Activez-le et vos propres "
+      "cartes re\u00e7oivent les num\u00e9ros 1\u20133 \u2014 ce qu'un quatri\u00e8me bot jouerait "
+      "\u00e0 votre place, la meilleure d'abord. C'est la m\u00eame recherche que celle de vos "
+      "trois adversaires, appliqu\u00e9e \u00e0 votre main : elle voit exactement ce que vous "
+      "voyez et devine comme eux. Un deuxi\u00e8me avis, pas un corrig\u00e9 \u2014 face \u00e0 qui "
+      "voit tout, elle perd un tiers des manches.",
+
+    "tab.walk": "Nerd-Doc",
+    "wt.h": "Une décision, de bout en bout",
+    "wt.intro":
+      "Sept étapes, dans l'ordre où le moteur les exécute vraiment — de « je ne vois pas tes cartes » à « je joue celle-ci ». Parcourez-les.",
+    "wt.prev": "← Retour",
+    "wt.next": "Suivant →",
+    "wt.replay": "Rejouer",
+    "wt.seat.left": "gauche",
+    "wt.seat.partner": "partenaire",
+    "wt.seat.right": "droite",
+    "wt.info.h": "1. Ce qu'il a le droit de savoir",
+    "wt.info.p":
+      "Neuf cartes en main, et ce qui est visible sur la table. Les vingt-sept autres sont un <b>point d'interrogation</b> — trois quarts du jeu. Une seule fonction décide de ce qu'une place peut voir, et un test passe chaque observation au crible pour y chercher une carte qui ne devrait pas s'y trouver.",
+    "wt.deal.h": "2. Il invente une donne",
+    "wt.deal.p":
+      "Faute de savoir, il <b>devine</b> : les cartes invisibles sont réparties au hasard entre les trois autres mains. Il tient alors une donne complète qu'il peut analyser parfaitement — et qui est presque certainement fausse. Appuyez sur <b>Rejouer</b> : il en sort une autre. Il en construira des milliers.",
+    "wt.rule.h": "3. La plupart des suppositions sont déjà impossibles",
+    "wt.rule.p":
+      "Une supposition doit coller à ce que la table a montré. Qui n'a pas fourni n'a pas cette couleur. Un Weis retourné épingle ces cartes précises à cette main précise. Et qui n'a <b>rien</b> annoncé au premier pli n'a ni suite de trois ni carré — ce qui élimine {pct} des donnes que le moteur aurait sinon imaginées.",
+    "wt.ruled.legend": "{pct} % contredisent ce qui a été annoncé",
+    "wt.tree.h": "4. Un arbre, plusieurs mondes",
+    "wt.tree.p":
+      "Voilà ce qui en fait un joueur plutôt qu'une calculatrice. Toutes ces donnes imaginées partagent <b>un seul</b> arbre. Une branche est une carte, et ses statistiques sont mises en commun sur tous les mondes où cette carte était jouable — il doit donc choisir un coup qui serve chaque donne qu'il ne peut distinguer. C'est exactement votre contrainte à vous.",
+    "wt.tree.legend": "visites, partagées entre les mondes",
+    "wt.roll.h": "5. Il termine la manche imaginée",
+    "wt.roll.p":
+      "Depuis le bout d'une branche, il joue simplement la donne imaginée jusqu'au dernier pli et compte les points. Grossier, et volontairement : l'erreur d'une fin au hasard tombe aussi souvent trop haut que trop bas, et s'annule sur des milliers d'essais. Une estimation plus fine mais <b>systématiquement</b> biaisée, non.",
+    "wt.rollout.start": "d'ici",
+    "wt.rollout.end": "…jusqu'au dernier pli",
+    "wt.vote.h": "6. La carte la plus visitée",
+    "wt.vote.p":
+      "Pas celle qui a la meilleure moyenne — celle sur laquelle la recherche est sans cesse revenue. Un coup brillant dans une donne chanceuse est visité une fois ; un coup qui tient sur des milliers l'est constamment. Voilà la réponse.",
+    "wt.votes.note": "part des visites",
+    "wt.endg.h": "7. Vers la fin, il cesse de deviner",
+    "wt.endg.p":
+      "À cinq cartes chacun, la manche est assez petite pour être résolue <b>exactement</b> — toutes les lignes, les deux camps parfaits. Aucun échantillonnage, aucune erreur. Chaque carte supplémentaire coûte environ quinze fois plus, d'où le remplacement de la recherche plutôt qu'une exécution en parallèle.",
+    "wt.endgame.legend": "positions examinées",
+
     "tab.play": "Comment il joue",
     "tab.strength": "Est-il bon ?",
     "tab.internals": "Sous le capot",
@@ -402,6 +543,53 @@ export const ABOUT = {
   },
 
   it: {
+    "play.advice.h": "Vuoi sapere che ne pensa?",
+    "play.advice.p":
+      "Nelle impostazioni c'\u00e8 un interruttore <b>Consigli</b>. Attivalo e le tue carte "
+      "ricevono i numeri 1\u20133 \u2014 quello che un quarto bot giocherebbe dal tuo posto, la "
+      "migliore per prima. \u00c8 la stessa ricerca dei tre contro cui giochi, applicata alla "
+      "tua mano: vede esattamente quello che vedi tu e tira a indovinare come loro. Un "
+      "secondo parere, non la soluzione \u2014 contro chi vede tutte le carte perde un terzo "
+      "dei giri.",
+
+    "tab.walk": "Nerd-Doc",
+    "wt.h": "Una decisione, dall'inizio alla fine",
+    "wt.intro":
+      "Sette passi, nell'ordine in cui il motore li esegue davvero — da «non vedo le tue carte» a «gioco questa». Scorrili.",
+    "wt.prev": "← Indietro",
+    "wt.next": "Avanti →",
+    "wt.replay": "Di nuovo",
+    "wt.seat.left": "sinistra",
+    "wt.seat.partner": "compagno",
+    "wt.seat.right": "destra",
+    "wt.info.h": "1. Che cosa gli è permesso sapere",
+    "wt.info.p":
+      "Nove carte in mano e quello che è scoperto sul tavolo. Le altre ventisette sono un <b>punto interrogativo</b> — tre quarti del mazzo. Una sola funzione decide che cosa un posto può vedere, e un test setaccia ogni osservazione in cerca di una carta che non dovrebbe esserci.",
+    "wt.deal.h": "2. Si inventa una distribuzione",
+    "wt.deal.p":
+      "Non potendo sapere, <b>tira a indovinare</b>: le carte non viste vengono distribuite a caso nelle altre tre mani. Ora ha una distribuzione completa su cui ragionare alla perfezione — e quasi certamente sbagliata. Premi <b>Di nuovo</b> e ne esce un'altra. Ne costruirà migliaia.",
+    "wt.rule.h": "3. Gran parte delle ipotesi è già impossibile",
+    "wt.rule.p":
+      "Un'ipotesi deve stare con quello che il tavolo ha mostrato. Chi non ha risposto al seme non ce l'ha. Un Weis scoperto inchioda proprio quelle carte a quella mano. E chi non ha dichiarato <b>nulla</b> nella prima presa non ha né una sequenza di tre né un poker — il che esclude il {pct} delle distribuzioni che il motore avrebbe altrimenti immaginato.",
+    "wt.ruled.legend": "il {pct}% contraddice quanto dichiarato",
+    "wt.tree.h": "4. Un albero, molti mondi",
+    "wt.tree.p":
+      "Qui da calcolatrice diventa giocatore. Tutte le distribuzioni immaginate condividono <b>un solo</b> albero. Un ramo è una carta, e le sue statistiche sono messe in comune su ogni mondo in cui quella carta era giocabile — deve quindi scegliere una mossa che vada bene per ogni distribuzione che non sa distinguere. È esattamente il vincolo sotto cui giochi tu.",
+    "wt.tree.legend": "visite, condivise tra i mondi",
+    "wt.roll.h": "5. Finisce il giro immaginato",
+    "wt.roll.p":
+      "Dalla punta di un ramo gioca la distribuzione immaginata fino all'ultima presa e conta i punti. Grezzo, e di proposito: l'errore di un finale casuale cade tanto in alto quanto in basso e su migliaia di prove si annulla. Una stima più fine ma <b>sistematicamente</b> storta, no.",
+    "wt.rollout.start": "da qui",
+    "wt.rollout.end": "…fino all'ultima presa",
+    "wt.vote.h": "6. La carta visitata più spesso",
+    "wt.vote.p":
+      "Non quella con la media migliore — quella su cui la ricerca è tornata di continuo. Una mossa che brilla in una distribuzione fortunata viene visitata una volta; una che regge su migliaia, di continuo. Questa è la risposta.",
+    "wt.votes.note": "quota di visite",
+    "wt.endg.h": "7. Verso la fine smette di indovinare",
+    "wt.endg.p":
+      "Con cinque carte a testa il giro è abbastanza piccolo da risolverlo <b>esattamente</b> — ogni linea, entrambe le parti perfette. Nessun campionamento, nessun errore. Ogni carta in più costa circa quindici volte tanto: per questo sostituisce la ricerca invece di affiancarla.",
+    "wt.endgame.legend": "posizioni esaminate",
+
     "tab.play": "Come gioca",
     "tab.strength": "È forte?",
     "tab.internals": "Sotto il cofano",
