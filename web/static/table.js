@@ -324,12 +324,13 @@ function renderWeis(view) {
   // at a real table the losing holdings are never turned over at all — a value is called,
   // the best one shows its cards, the rest stay in the hand. Showing every announcement at
   // once, struck through, told you things the table would not have.
-  // It appears by itself when the first time round the table is finished, and is gone once
-  // the next one is. Exactly one trick of reading time — long enough without a tap, and off
-  // the felt before it turns into furniture. No timer: the trick count is the clock, so a
-  // redraw can never resurrect it or cut it short.
+  // It belongs to the first trick's cards, and lives exactly as long as they do: it appears
+  // when that trick completes and leaves the table together with them. Keyed to the trick
+  // count *and* to the finished trick still being on the felt, because the count alone
+  // stays at one for the whole of the second trick — which left the Weis hanging over a
+  // table whose first trick had already been cleared away.
   const tricksDone = (view.tricks_won || [0, 0]).reduce((a, b) => a + b, 0);
-  const showing = tricksDone === 1;
+  const showing = tricksDone === 1 && !!view.trick_complete;
   const weis = view.phase === "bidding" || view.phase === "weis" || !showing
     ? []
     : (view.weis || []).filter((entry) => entry.winner);
