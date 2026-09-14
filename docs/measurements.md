@@ -308,6 +308,44 @@ person to wonder should be able to re-run it rather than rebuild it.
 
 ---
 
+## 3f. The pre-§5h sweep: what else changed when the algorithm did
+
+§3b, §3d and §3e were all the same failure — a figure taken on the voting search and left
+standing after §5h replaced it. So the rest of the pre-§5h results were re-run against
+today's engine (shared tree, no endgame solver, 153,600 iterations).
+
+| | then, on PIMC | now, on the shared tree | deals | p |
+|---|---|---|---|---|
+| `signal_reading` on | null, twice (§5c) | **49.645% ± 0.075** | 3,000 | **2.3e-06** |
+| `read_bidding` on | null (§5e) | 50.03% ± 5.72 | 1,500 | 0.82 |
+
+**`signal_reading` is not null any more — it is a loss.** Reading the discard convention into
+which worlds get imagined costs **0.36** of a round's share, replicated across two seeds at
+chi-squared 0.36 on 1 df. It has been off since §5c on the strength of two nulls; it stays
+off, now for a positive reason rather than an absence of one. The mechanism is presumably the
+one §3e made vivid: the shared tree pools statistics across worlds, so skewing *which* worlds
+turn up biases one policy rather than being averaged out across independent votes. A prior
+that was harmless noise to a voting search is a systematic tilt to this one.
+
+**`read_bidding` survives unchanged.** Still null, and still on — the one pre-§5h verdict in
+this sweep that transfers. §5e's reasoning about why (a prior only flips decisions the
+search already rates within 0.008 of each other) is untouched by any of tonight's results.
+
+### Where the bot stands against perfect information
+
+| | share | deals |
+|---|---|---|
+| cheating vs us, both with no endgame solver, 153,600 iterations | 57.35% ± 6.46 | 800 |
+
+**This is not comparable to §4's 56.01%** and must not be read as the gap having widened.
+§4 ran both sides on the voting search with the solver in and at very different budgets; this
+runs both on the shared tree with it out. Two numbers measured on two engines. Restating §4
+properly means re-running its whole ladder, which is the obvious next job and has not been
+done. What can be said is the narrow thing: measured today, against this bot, seeing all four
+hands is worth about seven points of a round's share.
+
+---
+
 ## 4. The cost of hidden information, and search does not pay it
 
 | Matchup | Share | n |

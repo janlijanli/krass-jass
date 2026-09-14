@@ -279,6 +279,15 @@
     "verdict": "+1.71 of a round's share, the largest gain in this file, at every budget tried. A deletion rather than a feature."
   },
 
+  "post_ismcts_recheck": {
+    "note": "Pre-§5h results re-run against today's engine — shared tree, no endgame solver, 153,600 iterations. See measurements.md §3f.",
+    "rows": [
+      { "lever": "signal_reading on", "was": "null twice (§5c)", "share": 49.645, "se": 0.075, "deals": 3000, "p": 2.3e-06 },
+      { "lever": "read_bidding on", "was": "null (§5e)", "share": 50.03, "std": 5.72, "deals": 1500, "p": 0.816 }
+    ],
+    "cheating_gap": { "share": 57.35, "std": 6.46, "deals": 800, "note": "Not comparable with the ladder in §4: different engine on both sides and a different budget. Restating §4 needs its whole ladder re-run." }
+  },
+
   "throughput": {
     "note": "Search budget 2,400 iterations — the measured saturation point.",
     "rows": [
