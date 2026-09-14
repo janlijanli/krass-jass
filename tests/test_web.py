@@ -211,7 +211,13 @@ def test_the_best_weis_reveals_its_cards_once_the_calls_are_in():
     assert len(visible) == 4, "everyone's call stays on the table for the comparison"
 
 
-def test_weis_leaves_the_table_after_the_first_trick():
+def test_the_winning_weis_survives_the_first_trick_being_acknowledged():
+    """It used to vanish the moment the finished trick was tapped away.
+
+    That pause is one the player taps straight through, so in practice the winning Weis was
+    never on screen at all. The engine now offers it for the rest of the round and the client
+    decides how long to show it — `renderWeis` gives it the next two tricks.
+    """
     from krass_jass.cards import card_list
     from web.app import visible_weis
 
@@ -220,7 +226,28 @@ def test_weis_leaves_the_table_after_the_first_trick():
         seat = game.round.to_play
         game.play(seat, card_list(game.round.legal_moves(seat))[0])
     table.acked_tricks = table.completed_tricks()
-    assert visible_weis(table, 0) == []
+
+    visible = visible_weis(table, 0)
+    assert visible, "the winning Weis has to outlive the tap that clears the trick"
+    shown = [e for e in visible if e["cards"]]
+    assert [e["seat"] for e in shown] == [2], "only the best Weis ever shows its cards"
+
+
+def test_a_losing_hand_never_shows_its_cards():
+    """The one property that must not move: a call that was beaten is a *value* the table
+    heard, never a holding it saw. Checked for the whole round, not just the first trick."""
+    from krass_jass.cards import card_list
+    from web.app import visible_weis
+
+    game, table = _weis_table()
+    for trick in range(4):
+        for _ in range(4):
+            seat = game.round.to_play
+            game.play(seat, card_list(game.round.legal_moves(seat))[0])
+        table.acked_tricks = table.completed_tricks()
+        for entry in visible_weis(table, 0):
+            if not entry.get("best"):
+                assert entry["cards"] is None, f"trick {trick}: exposed a hand nobody showed"
 
 
 def test_stoeck_shows_only_for_the_trick_it_was_announced_in():

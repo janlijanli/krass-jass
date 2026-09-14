@@ -523,7 +523,12 @@ fn sorted_hand(hand: u64) -> Vec<usize> {
 }
 
 fn weis_json(game: &Game, awaiting: bool, played: usize) -> String {
-    let in_window = played == 0 || (played == 1 && awaiting);
+    // The engine publishes for the whole round; the client decides how long to *show* it.
+    // It used to close the moment the first trick was tapped away, so the winning Weis was
+    // only ever on screen during the pause nobody waits through — which read as it never
+    // appearing at all.
+    let in_window = true;
+    let _ = awaiting;
     if !in_window || game.round.is_none() {
         return "[]".into();
     }

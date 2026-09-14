@@ -324,8 +324,12 @@ function renderWeis(view) {
   // at a real table the losing holdings are never turned over at all — a value is called,
   // the best one shows its cards, the rest stay in the hand. Showing every announcement at
   // once, struck through, told you things the table would not have.
+  // It appears by itself when the first trick completes and stays for the next two — long
+  // enough to read without a tap, and gone before it starts cluttering the felt. No timer:
+  // the trick count is the clock, so a redraw can never resurrect it or cut it short.
   const tricksDone = (view.tricks_won || [0, 0]).reduce((a, b) => a + b, 0);
-  const weis = view.phase === "bidding" || view.phase === "weis" || tricksDone < 1
+  const showing = tricksDone >= 1 && tricksDone <= 2;
+  const weis = view.phase === "bidding" || view.phase === "weis" || !showing
     ? []
     : (view.weis || []).filter((entry) => entry.winner);
 
@@ -345,7 +349,15 @@ function renderWeis(view) {
       ? entry.cards.map((c) => `${SUIT_GLYPHS[c[0]]}${c[1] === "T" ? "10" : c[1]}`).join(" ")
       : "";
     // Until the calls are all in, a player says a number and nothing else.
-    const label = cards ? `${WEIS_LABEL[entry.points] || "Weis"} ${entry.points}` : entry.points;
+    // `WEIS_LABEL` was a hardcoded German table that the i18n change replaced with
+    // `weis.<points>` keys — but this reference survived the deletion, so rendering a Weis
+    // with cards threw a ReferenceError and took the whole redraw down with it. It almost
+    // never fired, because the old display window was the pause after the first trick and
+    // players tap straight through that.
+    const name = t(`weis.${entry.points}`);
+    const label = cards
+      ? `${name === `weis.${entry.points}` ? t("weis.generic") : name} ${entry.points}`
+      : entry.points;
     // Colour alone did not say which one won. The rule is unusual enough to be worth
     // spelling out: the single best Weis at the table decides, and then that player's whole
     // *team* scores everything it holds — a partner's smaller Weis included, even when the

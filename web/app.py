@@ -282,12 +282,14 @@ def create_app() -> FastAPI:
 
 
 def in_weis_window(table: Table) -> bool:
-    """Weis is on the table during the first trick, and during the pause after it."""
-    game = table.game
-    if game.round is None:
-        return False
-    played = len(game.round.tricks_played)
-    return played == 0 or (played == 1 and table.awaiting_ack())
+    """Weis is available for the whole round; the client decides how long to show it.
+
+    This used to close as soon as the first trick was acknowledged, which meant the winning
+    Weis was only ever on screen during a pause the player taps straight through — so in
+    practice it never appeared. What may be *seen* is unchanged: a losing hand's cards are
+    still never exposed, only its called value.
+    """
+    return table.game.round is not None
 
 
 def visible_stoeck(table: Table) -> list[dict]:
