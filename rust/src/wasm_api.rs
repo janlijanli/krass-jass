@@ -273,13 +273,19 @@ fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u
         };
         // The browser plays the same search the measurements were taken with. ISMCTS above
         // the endgame threshold, the exact solve below it — see measurements.md §5h.
+        // ISMCTS all the way to the last card. The exact endgame solver used to take over
+        // at five each; `docs/measurements.md` §3e measured that costing **1.71** of a
+        // round's share over 4,000 deals, at every budget tried. A double-dummy solve is
+        // perfect information inside one imagined world, so a vote between several of them
+        // is the strategy fusion §5h built the shared tree to avoid — the solver replaced
+        // the one part of the design that handles hidden information with the one that
+        // does not. It was written before ISMCTS existed and was never re-measured after.
         let total = (determinizations * iterations) as usize;
-        let out = if round.hands[seat].count_ones() > 5 {
-            crate::ismcts::ismcts(&position, &kernel, total, 1.5, seed as u64 | 1, 4, false, 0.0, &[], &[0u64; NUM_SEATS], 0.0)
-        } else {
-            dmcts(&position, &kernel, determinizations as usize, iterations as usize,
-                  1.5, seed as u64 | 1, 1, 5)
-        };
+        let out = crate::ismcts::ismcts(
+            &position, &kernel, total, 1.5, seed as u64 | 1, 4, false, 0.0, &[],
+            &[0u64; NUM_SEATS], 0.0,
+        );
+        let _ = dmcts;   // still reachable from the Python bridge, where the flag lives
         // The search has spoken; this only orders the moves it rated the same. See
         // krass_jass/convention.py for why that restriction is the whole design.
         let pick = convention::choose(

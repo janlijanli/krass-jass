@@ -266,6 +266,19 @@
     ]
   },
 
+  "endgame_depth": {
+    "note": "How deep the exact solver should take over from ISMCTS. Monotone: less is better, and none is best. A solve is perfect information inside one imagined world, so voting between several of them is the strategy fusion the shared tree exists to avoid. See measurements.md §3e.",
+    "baseline": 5,
+    "ships": 0,
+    "rows": [
+      { "endgame_cards": 6, "share": 49.350, "se": 0.110, "deals": 2000, "p": 3.2e-09 },
+      { "endgame_cards": 4, "share": 50.50, "std": 3.70, "deals": 1000, "p": 1.75e-05 },
+      { "endgame_cards": 0, "share": 51.707, "se": 0.074, "deals": 4000, "p": 1e-118 },
+      { "endgame_cards": 0, "share": 51.41, "std": 4.86, "deals": 1000, "p": 1e-16, "at_budget": 2400 }
+    ],
+    "verdict": "+1.71 of a round's share, the largest gain in this file, at every budget tried. A deletion rather than a feature."
+  },
+
   "throughput": {
     "note": "Search budget 2,400 iterations — the measured saturation point.",
     "rows": [
@@ -276,7 +289,7 @@
   },
 
   "endgame": {
-    "note": "Exact double-dummy solve, median nodes visited. Roughly 15x per extra card, which is why the solver replaces the search rather than running at every leaf.",
+    "status": "OFF by default since measurements.md §3e — turning it off is worth +1.71 of a round's share (n=4000). The costs below are what it *would* cost, kept because the solver is still correct for a search that votes.", "note": "Exact double-dummy solve, median nodes visited. Roughly 15x per extra card, which is why the solver replaces the search rather than running at every leaf.",
     "points": [
       { "cards_each": 2, "nodes": 33, "ms": 0.01 },
       { "cards_each": 3, "nodes": 339, "ms": 0.02 },

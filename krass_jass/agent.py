@@ -79,14 +79,24 @@ class DmctsAgent(Agent):
 
     `determinizations` x `iterations` is the search budget. `PLAN.md` §3.1 puts the sweet
     spot near 1000 x 800 with exploration ~1.5; beyond ~1000 determinizations the returns
-    flatten. `endgame_cards` switches the search off entirely in favour of an exact solve
-    once the round is small enough.
+    flatten. `endgame_cards` switches the search off in favour of an exact solve once the
+    round is small enough — **off**, see the field.
     """
 
     determinizations: int = 1000
     iterations: int = 800
     exploration: float = 1.5
-    endgame_cards: int = 5
+    #: Hand size at which an exact double-dummy solve replaces the search. **0 — off.**
+    #:
+    #: It was written for the voting search and is a liability against a shared tree:
+    #: turning it off is worth **+1.71** of a round's share over 4,000 deals
+    #: (`docs/measurements.md` §3e), the largest measured gain in the file. A solve is
+    #: perfect information *inside one imagined world*, so voting between several of them
+    #: is exactly the strategy fusion §5h built ISMCTS to avoid.
+    #:
+    #: Kept as a flag rather than deleted so the comparison stays runnable — and because
+    #: the solver is still the right answer for a search that votes.
+    endgame_cards: int = 0
     threads: int = 1
     cfg: RulesConfig = HOUSE
     trump_policy: str = "rules"

@@ -267,6 +267,47 @@ That run is in flight.
 
 ---
 
+## 3e. The exact endgame solver was the single biggest thing wrong
+
+§3d found a *deeper* exact solve losing two thirds of a point and asked the obvious next
+question: if six is worse than five, is five too deep? It is. So is four. So is one.
+
+| `endgame_cards` | vs 5, at 153,600 | deals | p |
+|---|---|---|---|
+| 6 | 49.350% ± 0.110 | 2,000 | 3.2e-09 |
+| 4 | 50.50% ± 3.70 | 1,000 | 1.8e-05 |
+| **0 — no solver at all** | **51.707% ± 0.074** | **4,000** | **~1e-118** |
+
+Monotone in depth, three seeds at zero agreeing to chi-squared 1.47 on 2 df, and **+1.71 of
+a round's share** — larger than ISMCTS's +1.15 (§5h), larger than everything else in this
+file put together. It is also not a budget artefact: at the *old* 2,400-iteration budget it
+is +1.41 (n=1,000). It has been true the whole time.
+
+### Why a provably optimal component made the bot worse
+
+The solver is not wrong. Given four hands it returns the exact double-dummy value, and
+nothing beats exact. The error is in what it is exact *about*.
+
+Below the threshold the search stops being ISMCTS and becomes: deal a world, solve it
+perfectly, vote. That is PIMC — the design §5h measured ISMCTS beating by 1.15 — and making
+each vote *perfect* does not fix it, it sharpens it. Every world yields a confident answer
+to a question about a deal that is mostly wrong, and the election between confident wrong
+answers is worse than one shared, hedged policy over all of them. The solver replaced the
+one part of the engine that handles hidden information with the one part that cannot.
+
+**The same root cause as §3b, for the third time tonight.** The endgame solver was written
+when the search voted, and against a voting search it was a clear improvement. §5h changed
+the algorithm and nothing that depended on the old one was re-taken: not §3's saturation,
+not this. Both survived because they were correct when written and nobody asked the question
+again.
+
+What ships is a deletion: `endgame_cards` defaults to **0**, the browser bot runs ISMCTS to
+the last card, and a move gets *cheaper* as well as stronger. The flag and `endgame.rs` stay,
+because the solver remains the right answer for a search that votes — and because the next
+person to wonder should be able to re-run it rather than rebuild it.
+
+---
+
 ## 4. The cost of hidden information, and search does not pay it
 
 | Matchup | Share | n |
