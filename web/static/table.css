@@ -95,6 +95,7 @@ body {
   background: rgba(0, 0, 0, .2);
   transition: opacity .2s, background .2s;
 }
+.seat-marker { z-index: 2; }        /* the pill is a nameplate over its own fan */
 .seat-marker.north { top: 6px; left: 50%; transform: translateX(-50%); }
 .seat-marker.west  { left: 6px; top: 50%; transform: translateY(-50%); }
 .seat-marker.east  { right: 6px; top: 50%; transform: translateY(-50%); }
@@ -120,7 +121,7 @@ body {
    quieter than `.winner`: one is a running total, the other is the result. */
 .trick .card.leading { box-shadow: 0 0 0 2px rgba(216, 180, 90, .45), 0 4px 12px rgba(0,0,0,.4); }
 
-.trick-take {
+.trick-take { z-index: 7;
   /* Anchored to the trick, not to the felt: it is a caption on those four cards, and at the
      bottom of a tall felt it reads as a caption on the hand instead. */
   position: absolute; left: 50%; top: 50%;
@@ -669,3 +670,80 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
 }
 .card.advised-2 .advice-rank { background: rgba(216,180,90,.78); }
 .card.advised-3 .advice-rank { background: rgba(216,180,90,.55); }
+
+/* -- the other three hands, face down ------------------------------------ */
+/* Counts only. A real table shows you how many cards everybody still holds, and these
+   shrink as the round goes on. Backs are drawn rather than imaged so they cost nothing and
+   theme with the felt. */
+.covered {
+  position: absolute;
+  display: flex;
+  pointer-events: none;
+  z-index: 0;
+}
+.covered.north { top: 3px; left: 50%; transform: translateX(-50%); }
+.covered.west  { left: -2px;  top: 50%; transform: translateY(-50%) rotate(90deg); }
+.covered.east  { right: -2px; top: 50%; transform: translateY(-50%) rotate(90deg); }
+
+.card-back {
+  width: 26px; height: 38px;
+  border-radius: 4px;
+  margin-left: -15px;                 /* tight, but each card still shows an edge to count */
+  border: 1px solid rgba(255, 255, 255, .16);
+  background:
+    repeating-linear-gradient(45deg,
+      rgba(255,255,255,.07) 0 3px, transparent 3px 6px),
+    linear-gradient(160deg, #2e6b53, #1b4735);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+  transition: opacity .25s ease-out;
+}
+.card-back:first-child { margin-left: 0; }
+
+@media (max-width: 560px) {
+  /* The side fans sit where the trick wants to be on a narrow screen, so shrink them
+     rather than let them overlap the cards that matter. */
+  .card-back { width: 18px; height: 26px; margin-left: -12px; }
+  .covered.west { left: 4px; }
+  .covered.east { right: 4px; }
+}
+
+/* -- Jass-Sprüche -------------------------------------------------------- */
+/* A remark from a seat. Atmosphere: it never reports anything about the cards, and it never
+   appears while you are on turn.
+
+   Positioned inside the felt rather than on the seat pill, because the pills are centred
+   with a transform and a transformed element becomes the containing block for anything
+   positioned inside it. Each bubble sits near its speaker but out of the trick's way. */
+.speech {
+  position: absolute;
+  width: max-content;
+  max-width: min(168px, 46vw);      /* clear of the centred trick-taker pill */
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(20, 32, 28, .93);
+  border: 1px solid rgba(216, 180, 90, .3);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .45);
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity .3s ease-out, transform .3s ease-out;
+  pointer-events: none;
+  z-index: 6;
+  text-align: left;
+}
+.speech.in { opacity: 1; transform: translateY(0); }
+.speech-say { display: block; font-size: 12.5px; font-weight: 600; color: var(--paper); }
+.speech-why { display: block; margin-top: 3px; font-size: 10.5px; opacity: .55; line-height: 1.35; }
+
+/* Bottom-left of the felt, always. The trick sits centred and nearly fills a 260px felt,
+   and the trick-taker pill owns the bottom-right — this is the one spot that is free at
+   every seat and every viewport width. Only one bubble exists at a time. */
+.speech { bottom: 10px; left: 8px; }
+.speech-who {
+  display: block;
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--gold); opacity: .75; margin-bottom: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .speech { transition: none; }
+}

@@ -447,6 +447,17 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
             )),
             None => out.push_str(",\"contract\":null,\"multiplier\":null"),
         }
+        // How many cards each seat still holds. Public — everyone at a real table can see a
+        // fan shrink — and the only thing the covered cards in the UI need. Deliberately a
+        // count and never a hand: `krass_jass/observation.py` is the boundary this mirrors.
+        if let Some(round) = game.round.as_ref() {
+            let counts: Vec<String> = (0..NUM_SEATS)
+                .map(|s| round.hands[s].count_ones().to_string())
+                .collect();
+            out.push_str(&format!(",\"hand_sizes\":[{}]", counts.join(",")));
+        } else {
+            out.push_str(",\"hand_sizes\":null");
+        }
         out.push_str(&format!(",\"declarer\":{}", game.declarer));
         out.push_str(&format!(",\"scores\":[{},{}]", game.scores[0], game.scores[1]));
         out.push_str(&format!(

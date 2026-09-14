@@ -60,6 +60,22 @@
 
       <!-- Shown only by the offline build, which has an engine on the page to ask. Unlike
            everything else in this form it takes effect immediately, so it says so. -->
+      <!-- Atmosphere, not assistance: on by default, and it says nothing about the cards. -->
+      <fieldset id="talk-toggle" hidden>
+        <legend data-i18n="menu.talk">Jass-Sprüche</legend>
+        <div class="chips">
+          <label class="chip">
+            <input type="radio" name="talk" value="on" checked>
+            <span data-i18n="menu.on">On</span>
+          </label>
+          <label class="chip">
+            <input type="radio" name="talk" value="off">
+            <span data-i18n="menu.off">Off</span>
+          </label>
+        </div>
+        <p class="menu-note" data-i18n="menu.talkNote">The table says something now and then.</p>
+      </fieldset>
+
       <fieldset id="advice-toggle" hidden>
         <legend data-i18n="menu.advice">Recommendations</legend>
         <div class="chips">
@@ -121,8 +137,11 @@
   </div>
 
   <section class="felt">
+    <div class="covered north" data-seat="2" aria-hidden="true"></div>
     <div class="seat-marker north" data-seat="2"><span data-i18n="seat.partner">Partner</span><i class="turn"></i></div>
+    <div class="covered east" data-seat="1" aria-hidden="true"></div>
     <div class="seat-marker east"  data-seat="1"><span data-i18n="seat.right">Right</span><i class="turn"></i></div>
+    <div class="covered west" data-seat="3" aria-hidden="true"></div>
     <div class="seat-marker west"  data-seat="3"><span data-i18n="seat.left">Left</span><i class="turn"></i></div>
 
     <div class="trick" id="trick"></div>

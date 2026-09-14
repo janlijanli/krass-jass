@@ -11,10 +11,13 @@
  */
 
 import { loadEngine, CARD_INDEX } from "./engine.js";
-import { render, setSender } from "./render.js";
-import { initMenu, adviceOn } from "./menu.js";
+import { render, setSender, speak } from "./render.js";
+import { initMenu, adviceOn, talkOn } from "./menu.js";
+import { maybeSay, resetTalk } from "./talk.js";
 
 const HUMAN_SEAT = 0;
+//: Only the bots talk. Putting words in the player's mouth is a different feature.
+const BOT_SEATS = [1, 2, 3];
 // 153,600 iterations — `docs/measurements.md` §3b. §3 measured this search saturating at
 // 2,400 and that finding does not transfer here: it was taken under EVAL, where Weis does
 // not exist, so the belief constraints that make extra worlds worth drawing were not there
@@ -121,7 +124,12 @@ async function drive() {
   try {
     for (let guard = 0; guard < 500; guard++) {
       const v = view();
-      if (v.trick_complete) break;            // waiting on a tap
+      if (v.trick_complete) {
+        // A remark belongs to the pause after a trick, when nobody is waiting on you.
+        // Driven from here rather than from render(), because a redraw must not repeat it.
+        if (talkOn()) speak(maybeSay(acked, BOT_SEATS));
+        break;                                // waiting on a tap
+      }
       if (v.to_act === null || v.to_act === HUMAN_SEAT) break;
       const seat = v.to_act;
       const trick = Math.max(0, v.round);
@@ -175,6 +183,7 @@ setSender((message) => {
     case "next_round":
       engine.nextRound(handle);
       acked = 0;
+      resetTalk();        // a new deal starts the table's conversation fresh
       break;
     default:
       return;
@@ -197,6 +206,7 @@ initMenu({
   // The chrome is static text, the table is not — redraw it in the new language too.
   onLanguageChange: () => draw(),
   onAdviceChange: () => draw(),
+  onTalkChange: () => {},
 });
 
 newGame();

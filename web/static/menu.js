@@ -26,6 +26,19 @@ try {
 
 export const adviceOn = () => advice;
 
+/* Jass-Sprüche — the table talking. **On** by default, unlike advice mode: it is
+ * atmosphere rather than assistance, it tells you nothing about the cards, and a silent
+ * table is the poorer default. Remembered like the rest. */
+const TALK_KEY = "kj_talk";
+let talk = true;
+try {
+  talk = localStorage.getItem(TALK_KEY) !== "off";
+} catch {
+  talk = true;
+}
+
+export const talkOn = () => talk;
+
 /** The language chips. Browser detection is a guess; this is how a wrong guess is fixed. */
 function buildLanguagePicker(onChange) {
   const host = document.getElementById("lang-chips");
@@ -57,6 +70,7 @@ export function initMenu({
   onNewGame = null,
   onLanguageChange = null,
   onAdviceChange = null,
+  onTalkChange = null,
 }) {
   const menu = document.getElementById("menu");
   const opener = document.getElementById("menu-open");
@@ -149,6 +163,25 @@ export function initMenu({
           /* not being able to remember it is not a reason to refuse to do it */
         }
         onAdviceChange();
+      });
+    });
+  }
+
+  const talkHost = document.getElementById("talk-toggle");
+  if (talkHost) {
+    talkHost.hidden = false;
+    talkHost.querySelectorAll('input[name="talk"]').forEach((input) => {
+      input.checked = (input.value === "on") === talk;
+      input.addEventListener("change", () => {
+        talk = input.value === "on";
+        try {
+          localStorage.setItem(TALK_KEY, talk ? "on" : "off");
+        } catch {
+          /* forgetting the preference is not a reason to refuse it */
+        }
+        // Silence takes effect now, not after the current bubble times out.
+        if (!talk) document.querySelectorAll(".speech").forEach((n) => n.remove());
+        onTalkChange?.();
       });
     });
   }

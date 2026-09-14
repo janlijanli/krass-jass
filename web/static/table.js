@@ -178,6 +178,42 @@ function renderHand(view) {
   });
 }
 
+/* A saying, over the seat that said it.
+ *
+ * Positioned against the seat marker rather than the covered fan, because the marker is
+ * where your eye already is when you are wondering whose turn it is. It clears itself; no
+ * state is kept in the view, so a redraw never resurrects a remark that has faded.
+ */
+let talkTimer = null;
+
+function showTalk(view, remark) {
+  const rel = (remark.seat - view.seat + 4) % 4;
+  // Onto the felt, not onto the seat pill. The pills carry a `translate(-50%)` to centre
+  // them, and a transformed element becomes the containing block for absolutely- and
+  // fixed-positioned descendants — so a bubble anchored to the pill could not be placed
+  // relative to the felt at all, and ran off the right edge on a phone.
+  const host = document.querySelector(".felt");
+  if (!host) return;
+  clearTimeout(talkTimer);
+  document.querySelectorAll(".speech").forEach((n) => n.remove());
+
+  const bubble = html("div", "speech");
+  // Who said it, because the bubble no longer sits on its speaker. The felt is 260px tall
+  // and the trick fills most of it, so there is no corner near the partner that a bubble
+  // can occupy without covering a played card — naming the seat is better than obscuring
+  // the cards the remark is about.
+  bubble.append(html("span", "speech-who", seatName(view, remark.seat)));
+  bubble.append(html("span", "speech-say", remark.say));
+  const why = t(remark.why);
+  if (why && why !== remark.why) bubble.append(html("span", "speech-why", why));
+  host.append(bubble);
+  requestAnimationFrame(() => bubble.classList.add("in"));
+  talkTimer = setTimeout(() => {
+    bubble.classList.remove("in");
+    setTimeout(() => bubble.remove(), 350);
+  }, 4200);
+}
+
 function renderTrick(view) {
   el.trick.replaceChildren();
   // Swiss Jass runs anticlockwise, so rel 1 (next to play) sits to your right. The CSS
@@ -316,10 +352,46 @@ function renderScorecard(view) {
   el.scorecard.hidden = false;
 }
 
+/** Called by the controller when a trick completes. Kept off the render path on purpose:
+ *  a remark is an event, and folding it into a redraw would repeat it on every repaint. */
+export function speak(remark) {
+  if (remark) showTalk(lastView, remark);
+}
+
 function renderSeats(view) {
   document.querySelectorAll(".seat-marker").forEach((marker) => {
     const seat = (view.seat + Number(marker.dataset.seat)) % 4;
     marker.classList.toggle("active", view.to_act === seat && view.phase !== "round_over");
+  });
+  renderCovered(view);
+}
+
+/* The other three hands, face down.
+ *
+ * A real table tells you how many cards everybody still holds — you watch the fan shrink —
+ * and this was the one thing the app hid that it had no reason to. These are backs and
+ * nothing else: the count comes from `hand_sizes`, which the engine publishes as a number
+ * per seat and never as a hand. Reading the DOM tells you how many cards Left holds, which
+ * is exactly what sitting opposite them would.
+ */
+function renderCovered(view) {
+  const sizes = view.hand_sizes;
+  document.querySelectorAll(".covered").forEach((host) => {
+    const seat = (view.seat + Number(host.dataset.seat)) % 4;
+    const want = Array.isArray(sizes) ? sizes[seat] : 0;
+    const have = host.childElementCount;
+    if (want === have) return;            // nothing to redraw between tricks
+    if (want < have) {
+      // Take from the front, so the cards that remain keep their place in the fan instead
+      // of every one of them shifting each time a card is played.
+      for (let i = 0; i < have - want; i++) host.firstElementChild?.remove();
+      return;
+    }
+    for (let i = have; i < want; i++) {
+      const back = document.createElement("div");
+      back.className = "card-back";
+      host.appendChild(back);
+    }
   });
 }
 

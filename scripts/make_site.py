@@ -59,7 +59,7 @@ def asset_version() -> str:
     for name in sorted(
         (
             "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
-            "i18n.js", "about-i18n.js", "walkthrough.js",
+            "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js",
             "render.js", "solo.js", "engine.js", "krass_jass_core.wasm",
         )
     ):
@@ -157,7 +157,7 @@ def build_index() -> None:
         text = path.read_text()
         for dep in (
             "engine.js", "render.js", "menu.js", "cards.js", "about.js", "tafel.js",
-            "i18n.js", "about-i18n.js", "walkthrough.js",
+            "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js",
         ):
             text = text.replace(f'"./{dep}"', f'"./{dep}?v={version}"')
         text = text.replace('"measurements.json"', f'"measurements.json?v={version}"')
@@ -178,7 +178,7 @@ def copy_assets() -> None:
     """
     for name in (
         "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
-        "i18n.js", "about-i18n.js", "walkthrough.js",
+        "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js",
     ):
         (SITE / name).write_text((ROOT / "web/static" / name).read_text())
     for name in ("engine.js", "solo.js", "README.md"):

@@ -396,6 +396,13 @@ def view(table: Table, seat: int) -> dict:
         # `is not None`: Contract.DIAMONDS == 0 is falsy
         "contract": game.contract.name if game.contract is not None else None,
         "multiplier": game.cfg.multiplier(game.contract) if game.contract is not None else None,
+        # How many cards each seat still holds. Public — everyone at a real table watches a
+        # fan shrink — and a count, never a hand. The information boundary is unmoved.
+        "hand_sizes": (
+            [bin(game.round.hands[s]).count("1") for s in range(4)]
+            if game.round is not None
+            else None
+        ),
         "declarer": game.declarer,
         "scores": list(game.scores),
         "round": game.round_index,
