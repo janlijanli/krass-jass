@@ -117,6 +117,15 @@
     </div>
   </div>
 
+  <!-- Purely a display mode: it changes how the table looks and nothing about how the bots
+       play. The banner it raises says so. -->
+  <button class="ai-btn" id="ai-toggle" type="button" aria-pressed="false"
+          data-i18n-aria="ai.toggle" aria-label="AI mode">
+    <span class="ai-dot"></span>AI
+  </button>
+  <div class="ai-frame" id="ai-frame" aria-hidden="true"></div>
+  <div class="ai-banner" id="ai-banner" role="status" hidden></div>
+
   <header class="scoreboard" id="scoreboard" role="button" tabindex="0" aria-label="Show the board">
     <div class="score us"><span class="label" data-i18n="team.us">Us</span><span class="value" id="score-us">0</span></div>
     <div class="meta">

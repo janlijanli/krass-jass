@@ -61,6 +61,58 @@ function html(tag, cls, text) {
   return node;
 }
 
+/* AI mode — a display mode, and only that.
+ *
+ * It paints the table: the viewport gets a pulsing blue frame and each of the other three
+ * seats gets a rotating blue ring. It changes **nothing** about how the bots decide a card —
+ * no flag reaches the engine, no budget changes, `botPlay` is called exactly as before.
+ *
+ * The bots have always been running a search (ISMCTS, `docs/measurements.md` §5h), so the
+ * banner is not claiming they became something they were not. It is also careful not to
+ * claim they got better, because they did not: the second line says so, and it says so for
+ * whoever picks up the phone next rather than for the person who switched it on.
+ */
+const AI_KEY = "kj_ai";
+let aiOn = false;
+try {
+  aiOn = localStorage.getItem(AI_KEY) === "on";
+} catch {
+  aiOn = false;
+}
+
+function applyAi(announce) {
+  document.body.classList.toggle("ai-mode", aiOn);
+  const button = document.getElementById("ai-toggle");
+  if (button) {
+    button.setAttribute("aria-pressed", aiOn ? "true" : "false");
+    button.classList.toggle("on", aiOn);
+  }
+  const banner = document.getElementById("ai-banner");
+  if (!banner || !announce) return;
+  if (!aiOn) {
+    banner.hidden = true;
+    return;
+  }
+  banner.replaceChildren(
+    html("strong", null, t("ai.banner")),
+    html("span", null, t("ai.banner.sub"))
+  );
+  banner.hidden = false;
+  clearTimeout(applyAi.timer);
+  applyAi.timer = setTimeout(() => { banner.hidden = true; }, 3600);
+}
+
+document.getElementById("ai-toggle")?.addEventListener("click", () => {
+  aiOn = !aiOn;
+  try {
+    localStorage.setItem(AI_KEY, aiOn ? "on" : "off");
+  } catch {
+    /* not remembering it is not a reason to refuse it */
+  }
+  applyAi(true);
+});
+applyAi(false);
+
 /* The Jasstafel — the board on the wall.
  *
  * Rounds are recorded here as they finish rather than asked of the engine, because both
