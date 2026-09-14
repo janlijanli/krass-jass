@@ -234,6 +234,39 @@ compromises, and the thing they traded away turns out not to have been worth muc
 
 ---
 
+## 3d. A deeper exact solve makes it worse
+
+The endgame solver replaces the search with an exact double-dummy solve once few enough
+cards remain, at five each. With 64x the budget available, six looked affordable — a 6-card
+solve is roughly 20x a 5-card one, about 2.4 s a move at 40 determinizations, which the
+paradigm now allows.
+
+| | share | deals | p |
+|---|---|---|---|
+| `endgame_cards` 5 -> 6 | **49.350% ± 0.110** | 2,000 | **3.2e-09** |
+
+**-0.65 of a round's share, and consistent across both seeds** (chi-squared 0.41 on 1 df).
+Not a null — a loss, and a large one by this file's standards. It is the mirror image of
+§5h and the same mechanism read backwards.
+
+An exact solve is *perfect information inside the world it is given*. Deepening it does not
+reduce error, it buys certainty about worlds that are mostly wrong, and then holds an
+election between those certainties. That is precisely the strategy fusion §5h measured
+ISMCTS beating: a shared tree has to commit to one move across every world it cannot tell
+apart, and a vote over exact solves does not. Solving each imagined deal *better* makes the
+fusion worse, because the per-world answers grow more confident and more divergent at once.
+
+So the thing to be careful about generalising from §3b is this: more thinking is not
+uniformly good. More thinking **in the shared tree** pays to 64x. The same compute spent
+making each imagined world individually exact costs two thirds of a point.
+
+**The open question this opens.** If six is worse than five, five may already be too deep.
+`endgame_cards=0` — no solver at all, ISMCTS to the last card — is the test that says whether
+the solver is earning its place or has been a small standing liability since it was written.
+That run is in flight.
+
+---
+
 ## 4. The cost of hidden information, and search does not pay it
 
 | Matchup | Share | n |

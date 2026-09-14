@@ -261,7 +261,8 @@
     "note": "Constants set when a move had to cost milliseconds, re-asked at 153,600 iterations. Both survive. See measurements.md §3c.",
     "rows": [
       { "lever": "resample_every 4 -> 1", "share": 50.125, "se": 0.098, "deals": 2000, "p": 0.20 },
-      { "lever": "weis_draws 16 -> 64", "share": 50.06, "std": 4.60, "deals": 1000, "p": 0.661 }
+      { "lever": "weis_draws 16 -> 64", "share": 50.06, "std": 4.60, "deals": 1000, "p": 0.661 },
+      { "lever": "endgame_cards 5 -> 6", "share": 49.350, "se": 0.110, "deals": 2000, "p": 3.2e-09, "note": "A loss, not a null. An exact solve is perfect information inside a world that is mostly wrong; deepening it sharpens the per-world answers and worsens the fusion between them. See measurements.md §3d." }
     ]
   },
 
