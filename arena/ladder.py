@@ -34,14 +34,22 @@ def main() -> int:
 
     workers = args.workers or (os.cpu_count() or 1)
 
+    # The ladder's whole claim is that its rungs compare *card play*. RandomAgent's own
+    # default is to bid at random, which makes every rung above it a measurement of bidding
+    # as well — and the recorded figures in docs/measurements.json describe the opposite
+    # ("rule-based trump selection for all agents"). Code and artifact disagreed; the code
+    # now does what the artifact says.
+    floor = RandomAgent()
+    floor.trump_policy = "rules"
+
     small = DmctsAgent(determinizations=40, iterations=60, cfg=EVAL, label="dmcts(small)")
     large = DmctsAgent(determinizations=200, iterations=200, cfg=EVAL, label="dmcts(large)")
 
     cheat = CheatingAgent(iterations=4000, cfg=EVAL)
 
     pairs = [
-        (GreedyAgent(), RandomAgent()),
-        (small, RandomAgent()),
+        (GreedyAgent(), floor),
+        (small, floor),
         (small, GreedyAgent()),
         (large, small),
         # The gap here is the cost of hidden information — the part search cannot fix.

@@ -6,13 +6,15 @@
 
   "ladder": {
     "deals": 300,
-    "note": "Rule-based trump selection for all agents, so these compare card play only.",
+    "engine": "ISMCTS, no endgame solver — re-taken after measurements.md §3e",
+    "note": "Rule-based trump selection for all agents, so these compare card play only. `arena/ladder.py` now *enforces* that: RandomAgent's own default is to bid at random, which made every rung above it a measurement of bidding too, and contradicted this note. The figures recorded before 2026-09-14 were taken on the voting search with the endgame solver in and do not reconcile with independently replicated deltas — they are not carried forward.",
     "matchups": [
-      { "a": "greedy", "b": "random", "share": 49.90, "std": 8.82, "p": 0.84 },
-      { "a": "dmcts(2.4k)", "b": "random", "share": 65.33, "std": 8.11, "p": 0.0 },
-      { "a": "dmcts(2.4k)", "b": "greedy", "share": 66.75, "std": 7.54, "p": 0.0 },
-      { "a": "cheating", "b": "dmcts(2.4k)", "share": 56.01, "std": 7.40, "p": 0.0 },
-      { "a": "cheating", "b": "dmcts(40k)", "share": 55.73, "std": 6.73, "p": 0.0 }
+      { "a": "greedy", "b": "random", "share": 50.46, "std": 8.70, "p": 0.363 },
+      { "a": "dmcts(2.4k)", "b": "random", "share": 67.27, "std": 8.04, "p": 0.0 },
+      { "a": "dmcts(2.4k)", "b": "greedy", "share": 67.79, "std": 8.22, "p": 0.0 },
+      { "a": "dmcts(40k)", "b": "dmcts(2.4k)", "share": 50.31, "std": 6.26, "p": 0.390 },
+      { "a": "cheating", "b": "dmcts(2.4k)", "share": 58.59, "std": 6.55, "p": 0.0 },
+      { "a": "cheating", "b": "dmcts(40k)", "share": 57.58, "std": 6.05, "p": 0.0 }
     ]
   },
 

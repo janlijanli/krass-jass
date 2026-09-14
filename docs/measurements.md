@@ -331,6 +331,39 @@ that was harmless noise to a voting search is a systematic tilt to this one.
 this sweep that transfers. §5e's reasoning about why (a prior only flips decisions the
 search already rates within 0.008 of each other) is untouched by any of tonight's results.
 
+### The ladder, re-taken — and why its old figures are not carried forward
+
+`arena/ladder.py` describes its rungs as comparing *card play*, and
+`docs/measurements.json` says so: "rule-based trump selection for all agents". The code did
+not do that. `RandomAgent` bids at random by default, so every rung above the floor was
+measuring bidding as well. Running the ladder as it stood put `greedy vs random` at 57.55%
+against a recorded 49.90% — a seven-point move in a rung where neither side searches at all.
+Forcing the stated condition brings the floor back to **50.46%**, which is the recorded
+number. The code now enforces what the artifact claims.
+
+Re-taken at n=300, seed 1, on today's engine:
+
+| | share | p |
+|---|---|---|
+| greedy vs random | 50.46% ± 8.70 | 0.36 |
+| dmcts(2.4k) vs random | 67.27% ± 8.04 | ~0 |
+| dmcts(2.4k) vs greedy | 67.79% ± 8.22 | ~0 |
+| dmcts(40k) vs dmcts(2.4k) | 50.31% ± 6.26 | 0.39 |
+| cheating vs dmcts(2.4k) | 58.59% ± 6.55 | ~0 |
+| cheating vs dmcts(40k) | 57.58% ± 6.05 | ~0 |
+
+**The old figures are not carried forward, and no trend should be read against them.** They
+do not reconcile: this bot is independently measured as 1.75 stronger than the one those
+numbers describe (`endgame_cards` 0 vs 5 under EVAL at 2,400 — 51.75% ± 4.89, n=1,500), which
+should have *narrowed* the cheating rung, and instead it reads wider. Either the recorded run
+used a configuration nobody wrote down, or something else moved with it. The provenance is
+not recoverable from the artifact, so the honest thing is to replace the numbers and say why
+rather than to explain the difference.
+
+One number from it does survive being re-asked, and it is the one worth keeping: **40,000
+iterations still beats 2,400 by nothing** (50.31%, p=0.39) — while 153,600 beats it by 0.56
+(§3b). The budget curve is real but shallow until it is large.
+
 ### Where the bot stands against perfect information
 
 | | share | deals |
