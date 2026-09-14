@@ -446,11 +446,43 @@ export function speak(remark) {
   if (remark) showTalk(lastView, remark);
 }
 
+/** The pip that marks who chose trump: the suit itself, or the direction for a no-trump
+ *  contract. Empty while nobody has chosen yet. */
+function declarerPip(view) {
+  if (view.contract === null || view.contract === undefined) return "";
+  return CONTRACT_PIPS[view.contract] ?? (view.contract === "UNDENUFE" ? "↓" : "↑");
+}
+
 function renderSeats(view) {
+  // Who made trump, on the corner of their own nameplate. Without it the new opening rule —
+  // whoever holds the Ecken 10 starts the first round, so it is not always the same seat —
+  // is invisible: the bidding happens before you can see anything and then nothing on the
+  // table says who won it.
+  const pip = declarerPip(view);
   document.querySelectorAll(".seat-marker").forEach((marker) => {
     const seat = (view.seat + Number(marker.dataset.seat)) % 4;
     marker.classList.toggle("active", view.to_act === seat && view.phase !== "round_over");
+
+    const isDeclarer = pip !== "" && view.declarer === seat;
+    let badge = marker.querySelector(".declarer-pip");
+    if (isDeclarer && !badge) {
+      badge = html("span", "declarer-pip");
+      marker.append(badge);
+    }
+    if (badge) {
+      badge.textContent = pip;
+      badge.title = t("seat.trumpMaker");
+      badge.hidden = !isDeclarer;
+    }
   });
+
+  // And on the status line when it was you, since you have no pill to put it on.
+  const mine = document.getElementById("my-declarer");
+  if (mine) {
+    mine.textContent = pip;
+    mine.title = t("seat.trumpMaker");
+    mine.hidden = !(pip !== "" && view.declarer === view.seat);
+  }
   renderCovered(view);
 }
 

@@ -870,3 +870,27 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
   .ai-mode .ai-frame { box-shadow: inset 0 0 34px rgba(88,166,255,.45); }
   .ai-banner { animation: none; }
 }
+
+/* -- who chose trump ----------------------------------------------------- */
+/* A pip on the corner of the nameplate. The opening seat is no longer fixed — whoever holds
+   the Ecken 10 starts the first round — and the bidding is over before anything is on the
+   table, so without this there is nothing that says who won it. */
+.declarer-pip {
+  position: absolute;
+  top: -6px; right: -6px;
+  width: 16px; height: 16px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  font-size: 10px; line-height: 1;
+  color: var(--ink);
+  background: var(--gold);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .45);
+  pointer-events: none;
+}
+/* On the status line instead, for the one seat with no pill: yours. */
+.declarer-pip.mine {
+  position: static;
+  display: inline-grid;
+  margin-left: 6px;
+  vertical-align: middle;
+}
