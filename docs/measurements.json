@@ -257,6 +257,14 @@
     "verdict": "+0.56 of a round's share at 64x under HOUSE, +0.70 under EVAL. 256x buys at most +0.08 more, inside its own noise, for 4.7x the time — so 153,600 is the top of the curve rather than the limit of patience."
   },
 
+  "levers_at_the_new_budget": {
+    "note": "Constants set when a move had to cost milliseconds, re-asked at 153,600 iterations. Both survive. See measurements.md §3c.",
+    "rows": [
+      { "lever": "resample_every 4 -> 1", "share": 50.125, "se": 0.098, "deals": 2000, "p": 0.20 },
+      { "lever": "weis_draws 16 -> 64", "share": 50.06, "std": 4.60, "deals": 1000, "p": 0.661 }
+    ]
+  },
+
   "throughput": {
     "note": "Search budget 2,400 iterations — the measured saturation point.",
     "rows": [

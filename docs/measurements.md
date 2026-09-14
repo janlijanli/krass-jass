@@ -204,6 +204,36 @@ trade; this one does not feel different at all.
 
 ---
 
+## 3c. What the bigger budget did *not* unlock
+
+§3b raised the budget 64x, so two constants that were set when a move had to cost
+milliseconds were worth re-asking at the new one. Both survive unchanged.
+
+| lever | at 153,600 | share | deals | p |
+|---|---|---|---|---|
+| `resample_every` 4 -> 1 | a fresh world every iteration | 50.125% ± 0.098 | 2,000 | 0.20 |
+| `weis_draws` 16 -> 64 | buy down the worlds that ignore the calls | 50.06% ± 4.60 | 1,000 | 0.66 |
+
+**`resample_every` stays at 4.** §5h set it there as a *cost* compromise — drawing a world
+costs far more than an iteration, and 1 was 1.95x the price for the same gain. The obvious
+guess was that with 64x the budget the compromise had stopped being necessary and world
+diversity would now be cheap enough to buy. It is cheap enough, and it is worth nothing:
+the search already sees 38,400 distinct worlds at `resample_every=4`, which is evidently
+past the point where more of them tell it anything.
+
+**`weis_draws` stays at 16.** §5m capped the rejection sampling at 16 draws and noted that
+at 80.4% rejection this leaves ~3% of worlds contradicting what the table called. Quadrupling
+the cap removes most of that 3% and changes nothing measurable — the residue is concentrated
+in the rare loud calls, which are exactly the ones where a single seat's holding is nearly
+pinned by the shown cards anyway.
+
+Both are the same shape of result and worth naming as such: a constant chosen under a
+constraint does not automatically become wrong when the constraint lifts. §3b's budget was
+stale because the *algorithm* underneath it changed; these two were only ever cost
+compromises, and the thing they traded away turns out not to have been worth much.
+
+---
+
 ## 4. The cost of hidden information, and search does not pay it
 
 | Matchup | Share | n |
