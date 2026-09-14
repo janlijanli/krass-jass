@@ -46,6 +46,10 @@ pub enum GameError {
     Play(PlayError),
 }
 
+/// Ecken 10 — the card that decides who opens the first round of a game.
+/// Suit-major indexing: diamonds is suit 0, the ten is rank 4.
+const ECKEN_TEN: usize = 4;
+
 #[derive(Clone, Debug)]
 pub struct WeisEntry {
     pub seat: usize,
@@ -121,6 +125,18 @@ impl Game {
     pub fn start_round(&mut self) {
         let hands = deal(self.seed, self.round_index);
         self.dealt = hands;
+        // Who opens the very first round is decided by the cards, not by the seat numbering:
+        // whoever was dealt the Ecken 10 starts, which is how a table settles it when nobody
+        // has dealt yet. `dealer` is set backwards from that seat so the usual rotation
+        // carries on untouched. Mirrors `krass_jass/game.py`.
+        if self.round_index == 0 {
+            for seat in 0..NUM_SEATS {
+                if self.dealt[seat] & (1u64 << ECKEN_TEN) != 0 {
+                    self.dealer = (seat + NUM_SEATS - 1) % NUM_SEATS;
+                    break;
+                }
+            }
+        }
         self.forehand = (self.dealer + 1) % NUM_SEATS;
         self.declarer = self.forehand;
         self.shoved = false;

@@ -198,3 +198,44 @@ def test_the_rust_engine_refuses_out_of_turn_and_illegal_actions():
     if illegal:
         with pytest.raises(ValueError):
             rs.play(seat, card_list(illegal)[0])
+
+
+def test_the_first_round_is_opened_by_whoever_holds_ecken_ten():
+    """Who starts a *game* is decided by the cards, not by the seat numbering.
+
+    Seat 0 opening every first round is an artefact of `dealer` defaulting to 3. A table
+    settles it with a card instead, and this one uses the Ecken 10. From the second round
+    the deal just passes on, so only the first is special — and both engines have to agree,
+    because the seat that opens changes who bids and therefore the whole round.
+    """
+    from krass_jass.cards import card_list
+    from krass_jass.deal import deal as deal_hands
+    from krass_jass.game import ECKEN_TEN, Game
+    from krass_jass.rules import HOUSE
+
+    for seed in range(40):
+        hands = deal_hands(seed, 0)
+        holder = next(s for s in range(4) if hands[s] & (1 << ECKEN_TEN))
+
+        py = Game(cfg=HOUSE, seed=seed)
+        py.start_round()
+        assert py.forehand == holder, f"seed {seed}: forehand {py.forehand} != holder {holder}"
+        assert ECKEN_TEN in card_list(py.hand_of(py.forehand))
+
+        rs = core.RsGame(seed, target_score=1000, multipliers=MULTS)
+        assert rs.forehand == holder, f"seed {seed}: rust disagrees ({rs.forehand})"
+
+
+def test_only_the_first_round_is_decided_by_the_card():
+    """After the first, the deal passes on as it always did — otherwise the same seat would
+    open whenever the Ecken 10 happened to land there again."""
+    from krass_jass.game import Game
+    from krass_jass.rules import HOUSE
+
+    game = Game(cfg=HOUSE, seed=7)
+    game.start_round()
+    first = game.forehand
+    game.round_index = 1
+    game.dealer = (game.dealer + 1) % 4
+    game.start_round()
+    assert game.forehand == (first + 1) % 4, "the rotation stopped rotating"

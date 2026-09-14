@@ -22,6 +22,9 @@ from .rules import HOUSE, SHOVE, Contract, RulesConfig
 from .scoring import NUM_TEAMS, team_of
 from .state import IllegalMove, RoundState
 from .trick import NUM_SEATS
+
+#: Ecken 10 — the card that decides who opens the first round of a game.
+ECKEN_TEN = 4
 from .tables import STOECK_MASK
 from .weis import STOECK_POINTS, best_weis, find_weis, score_stoeck, score_weis
 
@@ -75,6 +78,15 @@ class Game:
         hands = deal_hands(self.seed, self.round_index)
 
         self._dealt = list(hands)
+        # Who opens the very first round is decided by the cards, not by the seat numbering:
+        # whoever was dealt the **Ecken 10** starts, which is how a table settles it when
+        # nobody has dealt yet. After that the deal simply passes on, so `dealer` is set
+        # backwards from the seat that holds it and the rotation carries on as before.
+        if self.round_index == 0:
+            for seat in range(NUM_SEATS):
+                if hands[seat] & (1 << ECKEN_TEN):
+                    self.dealer = (seat - 1) % NUM_SEATS
+                    break
         self.forehand = (self.dealer + 1) % NUM_SEATS
         self.declarer = self.forehand
         self.shoved = False

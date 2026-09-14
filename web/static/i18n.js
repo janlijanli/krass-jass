@@ -179,9 +179,9 @@ const STRINGS = {
     "team.us": "Wir",
     "team.them": "Sie",
 
-    "contract.DIAMONDS": "Karo",
+    "contract.DIAMONDS": "Ecken",
     "contract.HEARTS": "Herz",
-    "contract.SPADES": "Pik",
+    "contract.SPADES": "Schaufel",
     "contract.CLUBS": "Kreuz",
     "contract.OBENABE": "Obenabe",
     "contract.UNDENUFE": "Undenufe",

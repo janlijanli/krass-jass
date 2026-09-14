@@ -314,19 +314,29 @@ const weisLabel = (points) =>
     : t("weis.generic");
 
 function renderWeis(view) {
-  // What each seat announced, positioned on the same anticlockwise rotation as the trick.
-  // Losing announcements stay visible but struck through — seeing that your partner's 50
-  // was beaten is most of what makes Weis legible at the table.
+  // What the winning team holds, positioned on the same anticlockwise rotation as the
+  // trick.
   el.weis.replaceChildren();
-  if (view.phase === "bidding" || view.phase === "weis") return;
-  // Stöck can fire in any trick, so it is rendered whether or not Weis is still showing.
 
-  for (const entry of view.weis || []) {
+  // Only the Weis that actually scores, and only once the first trick is over.
+  //
+  // Two reasons it waits. The table does not know who won until everyone has called, and
+  // at a real table the losing holdings are never turned over at all — a value is called,
+  // the best one shows its cards, the rest stay in the hand. Showing every announcement at
+  // once, struck through, told you things the table would not have.
+  const tricksDone = (view.tricks_won || [0, 0]).reduce((a, b) => a + b, 0);
+  const weis = view.phase === "bidding" || view.phase === "weis" || tricksDone < 1
+    ? []
+    : (view.weis || []).filter((entry) => entry.winner);
+
+  for (const entry of weis) {
     const bubble = document.createElement("div");
     // Three states, and the difference matters. `best` is the one Weis that had to be
     // proved. `counts` is a partner's — it scores, but is never shown. `lost` scores
     // nothing at all.
-    const state = entry.best ? "best" : entry.winner ? "counts" : "lost";
+    // Only two states survive the filter above: the one Weis that had to be proved, and a
+    // partner's, which scores without ever being shown.
+    const state = entry.best ? "best" : "counts";
     bubble.className = `weis-bubble ${state}`;
     bubble.dataset.rel = String((entry.seat - view.seat + 4) % 4);
 
@@ -340,15 +350,15 @@ function renderWeis(view) {
     // spelling out: the single best Weis at the table decides, and then that player's whole
     // *team* scores everything it holds — a partner's smaller Weis included, even when the
     // losing side held a bigger one.
-    const tag = cards
-      ? { best: t("weis.tag.best"), counts: t("weis.tag.counts"), lost: t("weis.tag.lost") }[state]
-      : "";
+    const tag = cards ? t(`weis.tag.${state}`) : "";
     bubble.innerHTML =
       `<span class="value">${label}</span>` +
       (cards ? `<span class="cards">${cards}</span>` : "") +
       (tag ? `<span class="tag">${tag}</span>` : "");
     el.weis.appendChild(bubble);
   }
+  // Stöck is on its own clock: it is announced when the second of King and Queen is played,
+  // which can be any trick, and it is not part of the Weis contest at all.
   for (const entry of view.stoeck || []) {
     const bubble = document.createElement("div");
     bubble.className = "weis-bubble stoeck";
