@@ -197,7 +197,13 @@ function showTalk(view, remark) {
   clearTimeout(talkTimer);
   document.querySelectorAll(".speech").forEach((n) => n.remove());
 
-  const bubble = html("div", "speech");
+  // Light up the speaker's nameplate for as long as the bubble is there. The felt has room
+  // for only three bubble positions and none of them is *on* a seat, so the pill is what
+  // makes it unambiguous who is talking.
+  document.querySelectorAll(".seat-marker.talking").forEach((n) => n.classList.remove("talking"));
+  document.querySelector(`.seat-marker[data-seat="${rel}"]`)?.classList.add("talking");
+
+  const bubble = html("div", `speech speech-${rel}`);
   // Who said it, because the bubble no longer sits on its speaker. The felt is 260px tall
   // and the trick fills most of it, so there is no corner near the partner that a bubble
   // can occupy without covering a played card — naming the seat is better than obscuring
@@ -213,6 +219,7 @@ function showTalk(view, remark) {
   requestAnimationFrame(() => bubble.classList.add("in"));
   talkTimer = setTimeout(() => {
     bubble.classList.remove("in");
+    document.querySelectorAll(".seat-marker.talking").forEach((n) => n.classList.remove("talking"));
     setTimeout(() => bubble.remove(), 350);
   }, 4200);
 }

@@ -102,6 +102,8 @@ body {
 .seat-marker .turn { width: 7px; height: 7px; border-radius: 50%; background: transparent; }
 .seat-marker.active { opacity: 1; background: rgba(216, 180, 90, .22); }
 .seat-marker.active .turn { background: var(--gold); animation: pulse 1.1s ease-in-out infinite; }
+/* Saying something, as opposed to being on turn. */
+.seat-marker.talking { opacity: 1; background: rgba(216, 180, 90, .3); box-shadow: 0 0 0 1px rgba(216,180,90,.45); }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 
 /* Cards on the table, positioned by who played them relative to the viewer.
@@ -734,10 +736,13 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
 .speech-say { display: block; font-size: 12.5px; font-weight: 600; color: var(--paper); }
 .speech-why { display: block; margin-top: 3px; font-size: 10.5px; opacity: .55; line-height: 1.35; }
 
-/* Bottom-left of the felt, always. The trick sits centred and nearly fills a 260px felt,
-   and the trick-taker pill owns the bottom-right — this is the one spot that is free at
-   every seat and every viewport width. Only one bubble exists at a time. */
-.speech { bottom: 10px; left: 8px; }
+/* One position per speaker. The trick is a 190px diamond in the middle of a 260px felt, so
+   the middle is unusable — but its *corners* are empty, and that is where these go. Putting
+   every remark in the same corner made it look as though one seat did all the talking.
+   2 = partner (top), 1 = right, 3 = left — the anticlockwise mapping the trick uses. */
+.speech-3 { bottom: 10px; left: 8px; }
+.speech-1 { bottom: 10px; right: 8px; }
+.speech-2 { top: 8px; right: 8px; }
 .speech-who {
   display: block;
   font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em;
