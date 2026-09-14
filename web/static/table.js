@@ -6,7 +6,7 @@
  */
 
 import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js";
-import { applyStatic, contractName, t } from "./i18n.js";
+import { applyStatic, contractName, getLang, t } from "./i18n.js";
 import { drawTafel } from "./tafel.js";
 
 const MEASUREMENTS_URL = "/static/measurements.json";
@@ -204,7 +204,10 @@ function showTalk(view, remark) {
   // the cards the remark is about.
   bubble.append(html("span", "speech-who", seatName(view, remark.seat)));
   bubble.append(html("span", "speech-say", remark.say));
-  const why = t(remark.why);
+  // The gloss explains the dialect to a reader who does not have it. In German it would be
+  // explaining Swiss German in High German to someone who just read it fine — so the saying
+  // stands on its own there, the way it does at a table.
+  const why = getLang() === "de" ? "" : t(remark.why);
   if (why && why !== remark.why) bubble.append(html("span", "speech-why", why));
   host.append(bubble);
   requestAnimationFrame(() => bubble.classList.add("in"));
