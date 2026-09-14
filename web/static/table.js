@@ -68,9 +68,8 @@ function html(tag, cls, text) {
  * no flag reaches the engine, no budget changes, `botPlay` is called exactly as before.
  *
  * The bots have always been running a search (ISMCTS, `docs/measurements.md` §5h), so the
- * banner is not claiming they became something they were not. It is also careful not to
- * claim they got better, because they did not: the second line says so, and it says so for
- * whoever picks up the phone next rather than for the person who switched it on.
+ * banner is not inventing an AI that was not there. It is still only a paint job, and this
+ * comment is where that is written down — the banner says nothing about it by request.
  */
 const AI_KEY = "kj_ai";
 let aiOn = false;
@@ -93,10 +92,7 @@ function applyAi(announce) {
     banner.hidden = true;
     return;
   }
-  banner.replaceChildren(
-    html("strong", null, t("ai.banner")),
-    html("span", null, t("ai.banner.sub"))
-  );
+  banner.replaceChildren(html("strong", null, t("ai.banner")));
   banner.hidden = false;
   clearTimeout(applyAi.timer);
   applyAi.timer = setTimeout(() => { banner.hidden = true; }, 3600);
@@ -340,9 +336,17 @@ function renderWeis(view) {
       : "";
     // Until the calls are all in, a player says a number and nothing else.
     const label = cards ? `${WEIS_LABEL[entry.points] || "Weis"} ${entry.points}` : entry.points;
+    // Colour alone did not say which one won. The rule is unusual enough to be worth
+    // spelling out: the single best Weis at the table decides, and then that player's whole
+    // *team* scores everything it holds — a partner's smaller Weis included, even when the
+    // losing side held a bigger one.
+    const tag = cards
+      ? { best: t("weis.tag.best"), counts: t("weis.tag.counts"), lost: t("weis.tag.lost") }[state]
+      : "";
     bubble.innerHTML =
       `<span class="value">${label}</span>` +
-      (cards ? `<span class="cards">${cards}</span>` : "");
+      (cards ? `<span class="cards">${cards}</span>` : "") +
+      (tag ? `<span class="tag">${tag}</span>` : "");
     el.weis.appendChild(bubble);
   }
   for (const entry of view.stoeck || []) {

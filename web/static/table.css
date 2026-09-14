@@ -258,6 +258,14 @@ body {
 .weis-bubble[data-rel="3"] { left: 4px; top: 14%; }
 /* Called but beaten: scores nothing, which is the whole point of showing it. */
 .weis-bubble.lost { opacity: .45; text-decoration: line-through; }
+/* The outcome in words. The Weis rule surprises people — the single best one decides,
+   then the winner's whole team scores — and colour alone was not saying so. */
+.weis-bubble .tag {
+  display: block; margin-top: 2px;
+  font-size: 8.5px; letter-spacing: .07em; text-transform: uppercase;
+  opacity: .75; text-decoration: none;
+}
+.weis-bubble.best .tag { color: var(--gold); opacity: 1; font-weight: 700; }
 /* A partner's Weis. It scores, but it is never shown — only the best one is proved. */
 .weis-bubble.counts { background: rgba(216, 180, 90, .16); border-color: rgba(216, 180, 90, .4); }
 /* The one that won and had to be shown. */
@@ -799,27 +807,40 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
   50%      { box-shadow: inset 0 0 52px rgba(88,166,255,.60); border-color: rgba(88,166,255,.95); }
 }
 
-/* The other three seats, ringed. `conic-gradient` in a rotating pseudo-element is the
-   Copilot-ish look: a bright arc travelling around a blue ring. */
+/* The other three seats, ringed.
+ *
+ * The beam travels *around* the pill; the pill does not turn. Rotating the pseudo-element
+ * with `transform` spins the whole rounded rectangle, which on a non-circular pill reads as
+ * the nameplate tumbling. Animating the conic gradient's own start angle instead leaves the
+ * box still and moves only the light — which is the Copilot effect and what a "beam" is.
+ *
+ * `@property` is what makes an angle animatable at all; without it the custom property is
+ * just a string and the gradient would jump. Browsers without it get a static ring that
+ * still breathes, which is a fair degradation. */
+@property --ai-beam {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
 .ai-mode .seat-marker { position: absolute; }
 .ai-mode .seat-marker::before {
   content: "";
   position: absolute; inset: -4px;
   border-radius: 999px;
   padding: 2px;
-  background: conic-gradient(from 0deg,
-    rgba(88,166,255,0) 0deg, rgba(88,166,255,.15) 90deg,
-    #58a6ff 200deg, #9ad1ff 250deg, rgba(88,166,255,.15) 320deg, rgba(88,166,255,0) 360deg);
+  background: conic-gradient(from var(--ai-beam),
+    rgba(88,166,255,.12) 0deg, rgba(88,166,255,.12) 200deg,
+    #58a6ff 268deg, #bfe1ff 300deg, #58a6ff 330deg, rgba(88,166,255,.12) 360deg);
   /* Mask out the middle so only the ring paints — the pill's own text stays readable. */
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
           mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
           mask-composite: exclude;
-  animation: ai-ring-spin 2.6s linear infinite, ai-ring-breathe 2.2s ease-in-out infinite;
+  animation: ai-beam-travel 2.8s linear infinite, ai-ring-breathe 2.2s ease-in-out infinite;
   pointer-events: none;
 }
-@keyframes ai-ring-spin { to { transform: rotate(360deg); } }
-@keyframes ai-ring-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes ai-beam-travel { to { --ai-beam: 360deg; } }
+@keyframes ai-ring-breathe { 0%, 100% { opacity: .6; } 50% { opacity: 1; } }
 
 /* The covered fans pick up the tint so the seat reads as one object. */
 .ai-mode .card-back {
@@ -845,6 +866,7 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
 @media (prefers-reduced-motion: reduce) {
   /* The mode still reads as blue and lit; it simply stops moving. */
   .ai-mode .ai-frame, .ai-mode .seat-marker::before { animation: none; }
+  .ai-mode .seat-marker::before { background: conic-gradient(from 270deg, rgba(88,166,255,.12), #58a6ff, rgba(88,166,255,.12)); }
   .ai-mode .ai-frame { box-shadow: inset 0 0 34px rgba(88,166,255,.45); }
   .ai-banner { animation: none; }
 }

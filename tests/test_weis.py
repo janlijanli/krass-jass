@@ -178,3 +178,67 @@ def test_large_weis_never_scores_less_than_small(seed):
     assert sum(m.points for m in find_weis(hand, LARGE)) >= sum(
         m.points for m in find_weis(hand, HOUSE)
     )
+
+
+def test_the_team_with_the_best_weis_takes_all_of_its_weis():
+    """The four rules of the Weis contest, in one deal.
+
+    1. The single best Weis at the table decides which *team* scores.
+    2. That team scores **all** of its Weis — the partner's included, even when the partner's
+       own Weis is smaller than one the losing team held.
+    3. The losing team scores nothing at all, however much it was holding.
+    4. One player may hold several Weis and every one of them counts.
+
+    Built as a single deal because the rules only interact: seat 0 holds the best Weis *and*
+    a second one, seat 2 holds a small one that would lose on its own, and the opposing pair
+    holds more Weis between them than seat 2 does and still scores zero.
+    """
+    from krass_jass.cards import FULL_DECK, parse_hand as H
+    from krass_jass.rules import HOUSE
+    from krass_jass.weis import find_weis, score_weis
+
+    seat0 = H("DA DK DQ DJ DT S9 S8 S7 C6")   # 100 (five-sequence) + 20 (three-sequence)
+    seat1 = H("HA HK HQ HJ C9 C7 S6 D6 H6")   # 50 — the best the other team has
+    seat2 = H("CK CQ CJ D9 D7 ST H8 H7 SA")   # 20 — smaller than the opponents' 50
+    seat3 = FULL_DECK & ~(seat0 | seat1 | seat2)
+    hands = [seat0, seat1, seat2, seat3]
+    assert all(bin(h).count("1") == 9 for h in hands), "not a legal deal"
+
+    per_seat = [sum(m.points for m in find_weis(h, HOUSE, 0)) for h in hands]
+    assert per_seat == [120, 50, 20, 20], per_seat
+    assert len(find_weis(seat0, HOUSE, 0)) == 2, "rule 4 needs two melds in one hand"
+
+    points, winner = score_weis(hands, trump=0, cfg=HOUSE, forehand=0)
+
+    assert winner == 0, "the 100 is the best single Weis at the table"
+    # 120 from seat 0 and 20 from the partner: rules 1, 2 and 4 at once.
+    assert points[0] == 140, points
+    # Seats 1 and 3 hold 70 between them, including one bigger than the partner's. Nothing.
+    assert points[1] == 0, points
+
+
+def test_the_best_weis_wins_for_its_team_even_from_the_weaker_hand():
+    """The contest is decided by the best *single* Weis, not by either side's total.
+
+    A team can hold more Weis points in aggregate and still score nothing, which is the
+    rule players most often expect to work the other way.
+    """
+    from krass_jass.cards import FULL_DECK, parse_hand as H
+    from krass_jass.rules import HOUSE
+    from krass_jass.weis import find_weis, score_weis
+
+    seat0 = H("DA DK DQ DJ DT S9 S8 S7 C6")   # 100 + 20 = 120 for team 0
+    seat1 = H("HA HK HQ HJ HT H9 C9 C7 S6")  # a long hearts run for team 1
+    seat2 = H("CK CQ CJ D9 D7 SA SK SQ SJ")
+    seat3 = FULL_DECK & ~(seat0 | seat1 | seat2)
+    hands = [seat0, seat1, seat2, seat3]
+    assert all(bin(h).count("1") == 9 for h in hands)
+
+    totals = [sum(m.points for m in find_weis(h, HOUSE, 0)) for h in hands]
+    points, winner = score_weis(hands, trump=0, cfg=HOUSE, forehand=0)
+    team_totals = [totals[0] + totals[2], totals[1] + totals[3]]
+
+    # Whichever side actually won, it is the side holding the single best meld — and the
+    # other side scores nothing even if it was holding more in total.
+    assert points[1 - (winner % 2)] == 0
+    assert sum(points) == team_totals[winner % 2]
