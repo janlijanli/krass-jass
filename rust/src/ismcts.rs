@@ -30,6 +30,7 @@
 use crate::cards::{card_suit, NUM_SEATS, SUIT_MASK};
 use crate::cards::NUM_CARDS;
 use crate::leafeval::top_live;
+use crate::playmodel::{model, PlayCtx};
 use crate::policy::{learned_prior, N_POLICY_FEATURES};
 use crate::announce::determinize_consistent;
 use crate::legal::legal_moves;
@@ -169,6 +170,13 @@ pub fn ismcts(
     let every = resample_every.max(1);
     let mut dealt = [0u64; NUM_SEATS];
     let mut have_world = false;
+    // Beliefs from behaviour: worlds drawn and weighted by the table's plays once per decision,
+    // then sampled in proportion for the whole search. See belief.rs.
+    let pool = if pos.play.weighting() {
+        crate::belief::Pool::build(pos, k, &counts, &mut rng)
+    } else {
+        None
+    };
 
     for iter in 0..iterations {
         // A fresh world every `every` iterations, and always the *same* tree. The shared tree
@@ -181,6 +189,8 @@ pub fn ismcts(
             let use_oracle = oracle_p > 0.0 && (rng.below(10_000) as f64) < oracle_p * 10_000.0;
             if use_oracle {
                 dealt = *oracle_hands;
+            } else if let Some(p) = &pool {
+                dealt = p.draw(&mut rng);
             } else if !determinize_consistent(
                 pos.unseen, &counts, &pos.forbidden, &pos.affinity, &pos.rank_bias,
                 &pos.announcements, pos.seat, pos.hand, &mut dealt, &mut rng,
@@ -257,6 +267,31 @@ pub fn ismcts(
                 }
             }
 
+            // The other three seats by the play model, holding their own hand in this world,
+            // rather than by UCT over statistics pooled across worlds — pooled statistics are
+            // conditioned on the searcher's real hand and blind to theirs.
+            if pos.play.tree_policy && w.to_play != pos.seat && legal.count_ones() > 1 {
+                let live = w.hands.iter().fold(0u64, |a, h| a | h);
+                let ctx = PlayCtx::new(
+                    w.hands[w.to_play], live, &w.trick, w.trick_leader, w.to_play, k.contract,
+                    pos.play.declarer,
+                );
+                let c = model().sample(&ctx, legal, pos.play.policy_temperature, &mut rng);
+                let existing = present[..n_present].iter().find(|&&(card, _)| card == c);
+                if let Some(&(_, child)) = existing {
+                    path.push(child);
+                    node = child;
+                    advance(&mut w, c, k);
+                    continue;
+                }
+                let child = nodes.len();
+                nodes.push(Node { visits: 0, available: 1, total: 0.0, children: Vec::new() });
+                nodes[node].children.push((c, child));
+                path.push(child);
+                advance(&mut w, c, k);
+                break; // expanded: stop descending and evaluate
+            }
+
             let card = if untried != 0 {
                 // Expansion order matters at this budget: the tree is shared and shallow, so
                 // a good move examined early gets the visits to prove itself.
@@ -323,18 +358,51 @@ pub fn ismcts(
             advance(&mut w, card, k);
         }
 
-        // Finish the round at random and score it, exactly as the determinized search does.
-        while !w.trick.is_empty() {
-            let legal = legal_at(&w, k);
-            if legal == 0 {
-                break;
+        if pos.play.rollout_temperature > 0.0 {
+            // Finish the round by the play model instead of by chance. A random playout is an
+            // unbiased estimate of what the position is worth *if everyone then plays at
+            // random*; this estimates what it is worth under play like the table's.
+            let m = model();
+            let mut had_tricks = false;
+            loop {
+                if w.trick.is_empty() && !had_tricks {
+                    // Scored the way `play_out` scores: the last-trick bonus only when the
+                    // rollout itself plays at least one whole trick.
+                    had_tricks = w.hands[w.to_play] != 0;
+                }
+                let legal = legal_at(&w, k);
+                if legal == 0 {
+                    break;
+                }
+                let card = if legal.count_ones() == 1 {
+                    legal.trailing_zeros() as usize
+                } else {
+                    let live = w.hands.iter().fold(0u64, |a, h| a | h);
+                    let ctx = PlayCtx::new(
+                        w.hands[w.to_play], live, &w.trick, w.trick_leader, w.to_play,
+                        k.contract, pos.play.declarer,
+                    );
+                    m.sample(&ctx, legal, pos.play.rollout_temperature, &mut rng)
+                };
+                advance(&mut w, card, k);
             }
-            let card = pick_random(legal, &mut rng);
-            advance(&mut w, card, k);
+            if had_tricks {
+                w.pts[w.trick_leader & 1] += k.last_trick_bonus;
+            }
+        } else {
+            // Finish the round at random and score it, exactly as the determinized search does.
+            while !w.trick.is_empty() {
+                let legal = legal_at(&w, k);
+                if legal == 0 {
+                    break;
+                }
+                let card = pick_random(legal, &mut rng);
+                advance(&mut w, card, k);
+            }
+            let (a, b) = play_out(&mut w.hands, w.to_play, k, &mut rng);
+            w.pts[0] += a;
+            w.pts[1] += b;
         }
-        let (a, b) = play_out(&mut w.hands, w.to_play, k, &mut rng);
-        w.pts[0] += a;
-        w.pts[1] += b;
         let result = reward(w.pts[root_team], w.pts[1 - root_team], root_team, &pos.stakes);
 
         for &n in &path {

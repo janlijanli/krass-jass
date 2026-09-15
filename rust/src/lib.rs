@@ -16,6 +16,8 @@ use pyo3::exceptions::PyValueError;
 
 pub mod announce;
 pub mod awareness;
+pub mod belief;
+pub mod beliefnet;
 pub mod bidding;
 pub mod cards;
 pub mod config;
@@ -29,6 +31,7 @@ pub mod ismcts;
 pub mod leafeval;
 pub mod legal;
 pub mod objective;
+pub mod playmodel;
 pub mod policy;
 pub mod reading;
 pub mod rng;
@@ -165,7 +168,9 @@ fn play_out_many(
     determinizations=1000, iterations=800, exploration=1.5, seed=0, threads=1,
     endgame_cards=5, strict_undertrump=true, puur_exempt=true,
     scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true, risk_lambda=0.0, leaf_weights=None, ismcts=false, resample_every=1, order_moves=false, prior_weight=0.0, policy_weights=None, oracle_hands=None, oracle_p=0.0,
-    weis_called=None, weis_played=None, weis_large=false, weis_four_nines=true, weis_four_beats_sequence=true, weis_draws=16
+    weis_called=None, weis_played=None, weis_large=false, weis_four_nines=true, weis_four_beats_sequence=true, weis_draws=16,
+    declarer=4, history=None, belief_alpha=0.0, belief_pool=0, bid_alpha=0.0, bid_temperature=3.0,
+    rollout_temperature=0.0, tree_policy=false, policy_temperature=1.0, belief_gamma=0.0, known=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -211,6 +216,18 @@ fn dmcts(
     weis_four_nines: bool,
     weis_four_beats_sequence: bool,
     weis_draws: usize,
+    // The round so far and the play model's settings — see `belief.rs`. All off by default.
+    declarer: usize,
+    history: Option<Vec<(usize, usize)>>,
+    belief_alpha: f32,
+    belief_pool: usize,
+    bid_alpha: f32,
+    bid_temperature: f32,
+    rollout_temperature: f32,
+    tree_policy: bool,
+    policy_temperature: f32,
+    belief_gamma: f32,
+    known: Option<Vec<u64>>,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -285,6 +302,25 @@ fn dmcts(
         adversarial,
         leaf_weights: leaf_weights.unwrap_or_default(),
         announcements: ann,
+        play: crate::belief::PlayInfo {
+            declarer,
+            history: history.unwrap_or_default(),
+            belief_alpha,
+            belief_pool,
+            bid_alpha,
+            bid_temperature,
+            rollout_temperature,
+            tree_policy,
+            policy_temperature,
+            belief_gamma,
+            known: {
+                let mut kk = [0u64; NUM_SEATS];
+                if let Some(v) = &known {
+                    kk.copy_from_slice(&v[..NUM_SEATS.min(v.len())]);
+                }
+                kk
+            },
+        },
     };
     // Long CPU-bound work: release the GIL so the caller stays responsive and rayon can
     // actually use the cores.

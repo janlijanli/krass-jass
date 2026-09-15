@@ -328,6 +328,204 @@ fn rs_card_features(
     out.to_vec()
 }
 
+/// Features of every legal card at one decision, ascending by card — the training set for
+/// `playmodel.rs` is built from these, so the model is fitted on exactly what it will see.
+#[pyfunction]
+#[pyo3(signature = (hand, live, trick, trick_leader, seat, contract, declarer, legal))]
+#[allow(clippy::too_many_arguments)]
+fn rs_play_features(
+    hand: u64,
+    live: u64,
+    trick: Vec<usize>,
+    trick_leader: usize,
+    seat: usize,
+    contract: usize,
+    declarer: usize,
+    legal: u64,
+) -> Vec<Vec<f32>> {
+    use crate::playmodel::{PlayCtx, N_PLAY_FEATURES};
+    let ctx = PlayCtx::new(hand, live, &trick, trick_leader & 3, seat & 3, contract, declarer);
+    let mut out = Vec::new();
+    let mut f = [0.0f32; N_PLAY_FEATURES];
+    for c in crate::cards::card_list(legal) {
+        ctx.features(c, &mut f);
+        out.push(f.to_vec());
+    }
+    out
+}
+
+/// log π(card) for every legal card, ascending by card. `model_json` of None uses the shipped
+/// model; passing one lets Python check a freshly trained model against the Rust evaluation.
+#[pyfunction]
+#[pyo3(signature = (hand, live, trick, trick_leader, seat, contract, declarer, legal, temperature=1.0, model_json=None))]
+#[allow(clippy::too_many_arguments)]
+fn rs_play_log_probs(
+    hand: u64,
+    live: u64,
+    trick: Vec<usize>,
+    trick_leader: usize,
+    seat: usize,
+    contract: usize,
+    declarer: usize,
+    legal: u64,
+    temperature: f32,
+    model_json: Option<String>,
+) -> Vec<(usize, f32)> {
+    use crate::playmodel::{model, PlayCtx, PlayModel};
+    let owned = model_json.map(|t| PlayModel::from_json(&t));
+    let m = owned.as_ref().unwrap_or_else(|| model());
+    let ctx = PlayCtx::new(hand, live, &trick, trick_leader & 3, seat & 3, contract, declarer);
+    crate::cards::card_list(legal)
+        .into_iter()
+        .map(|c| (c, m.log_prob(&ctx, legal, c, temperature)))
+        .collect()
+}
+
+/// Imagined worlds for one decision, with the evidence for each kept apart: the log-likelihood
+/// of the other seats' plays and of the bid. Measurement only — `arena/belief_quality.py` sweeps
+/// the weights on these offline, so tuning beliefs does not need a match per setting.
+#[pyfunction]
+#[pyo3(signature = (seat, hand, unseen, trick, trick_leader, contract, forbidden, declarer, history, pool, seed, policy_temperature=1.0, bid_temperature=3.0, weis_called=None, weis_played=None))]
+#[allow(clippy::too_many_arguments)]
+fn rs_belief_pool(
+    seat: usize,
+    hand: u64,
+    unseen: u64,
+    trick: Vec<usize>,
+    trick_leader: usize,
+    contract: usize,
+    forbidden: Vec<u64>,
+    declarer: usize,
+    history: Vec<(usize, usize)>,
+    pool: usize,
+    seed: u64,
+    policy_temperature: f32,
+    bid_temperature: f32,
+    weis_called: Option<Vec<i32>>,
+    weis_played: Option<Vec<u64>>,
+) -> (Vec<Vec<u64>>, Vec<f32>, Vec<f32>) {
+    use crate::announce::{determinize_consistent, Announcements};
+    use crate::belief::{bid_log_likelihood, play_log_likelihood, PlayInfo};
+    let seat = seat & 3;
+    let k = Kernel::new(contract, true, true, 5, 0);
+    let base = hand.count_ones() as usize;
+    let mut counts = [0usize; 4];
+    for s in 0..4 {
+        if s == seat {
+            continue;
+        }
+        let played = (0..trick.len()).any(|i| (trick_leader + i) & 3 == s);
+        counts[s] = if played { base - 1 } else { base };
+    }
+    let mut fb = [0u64; 4];
+    fb.copy_from_slice(&forbidden[..4]);
+    let mut info = PlayInfo::off();
+    info.declarer = declarer;
+    info.history = history;
+    info.policy_temperature = policy_temperature;
+    info.bid_temperature = bid_temperature;
+    // The calls filter worlds exactly as the search does, so the pool is the search's own
+    // baseline and not a looser one.
+    let mut ann = Announcements::none();
+    if let Some(called) = weis_called {
+        ann.called.copy_from_slice(&called[..4]);
+        ann.called[seat] = -1;
+        ann.rules = Rules { weis_enabled: true, ..Rules::default() };
+        ann.trump = if contract < 4 { contract as i32 } else { -1 };
+        ann.draws = 16;
+    }
+    if let Some(played) = weis_played {
+        ann.played.copy_from_slice(&played[..4]);
+    }
+    let mut rng = Rng::new(seed | 1);
+    let (mut worlds, mut play, mut bid) = (Vec::new(), Vec::new(), Vec::new());
+    for _ in 0..pool {
+        let mut dealt = [0u64; 4];
+        if !determinize_consistent(unseen, &counts, &fb, &[[0i8; 4]; 4], &[0i8; 4], &ann, seat,
+                                   hand, &mut dealt, &mut rng) {
+            continue;
+        }
+        dealt[seat] = hand;
+        worlds.push(dealt.to_vec());
+        play.push(play_log_likelihood(&dealt, &info, seat, &k));
+        bid.push(bid_log_likelihood(&dealt, &info, seat, trick_leader & 3, contract));
+    }
+    (worlds, play, bid)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn belief_input<'a>(
+    seat: usize,
+    hand: u64,
+    history: &'a [(usize, usize)],
+    contract: usize,
+    declarer: usize,
+    forehand: usize,
+    forbidden: &[u64],
+    known: &[u64],
+    weis_called: &[i32],
+) -> crate::beliefnet::BeliefInput<'a> {
+    let mut f = [0u64; 4];
+    let mut k = [0u64; 4];
+    let mut w = [-1i32; 4];
+    f.copy_from_slice(&forbidden[..4]);
+    k.copy_from_slice(&known[..4]);
+    w.copy_from_slice(&weis_called[..4]);
+    crate::beliefnet::BeliefInput {
+        seat: seat & 3, hand, history, contract, declarer, forehand,
+        forbidden: f, known: k, weis_called: w,
+    }
+}
+
+/// Belief-network inputs for one decision, as little-endian `f32` bytes — `np.frombuffer`
+/// reads them without building a Python list of 865 floats per decision.
+#[pyfunction]
+#[pyo3(signature = (seat, hand, history, contract, declarer, forehand, forbidden, known, weis_called))]
+#[allow(clippy::too_many_arguments)]
+fn rs_belief_features(
+    seat: usize,
+    hand: u64,
+    history: Vec<(usize, usize)>,
+    contract: usize,
+    declarer: usize,
+    forehand: usize,
+    forbidden: Vec<u64>,
+    known: Vec<u64>,
+    weis_called: Vec<i32>,
+) -> std::borrow::Cow<'static, [u8]> {
+    use crate::beliefnet::N_BELIEF_FEATURES;
+    let inp = belief_input(seat, hand, &history, contract, declarer, forehand, &forbidden, &known, &weis_called);
+    let mut x = [0.0f32; N_BELIEF_FEATURES];
+    inp.features(&mut x);
+    std::borrow::Cow::Owned(x.iter().flat_map(|v| v.to_le_bytes()).collect())
+}
+
+/// `[card][r - 1]` log-probabilities from the belief network. `model_json` of None uses the
+/// shipped network; passing one checks a freshly trained network against the Rust evaluation.
+#[pyfunction]
+#[pyo3(signature = (seat, hand, history, contract, declarer, forehand, forbidden, known, weis_called, model_json=None))]
+#[allow(clippy::too_many_arguments)]
+fn rs_belief_log_probs(
+    seat: usize,
+    hand: u64,
+    history: Vec<(usize, usize)>,
+    contract: usize,
+    declarer: usize,
+    forehand: usize,
+    forbidden: Vec<u64>,
+    known: Vec<u64>,
+    weis_called: Vec<i32>,
+    model_json: Option<String>,
+) -> Vec<Vec<f32>> {
+    use crate::beliefnet::{net, BeliefNet};
+    let owned = model_json.map(|t| BeliefNet::from_json(&t));
+    let n = owned.as_ref().unwrap_or_else(|| net());
+    let inp = belief_input(seat, hand, &history, contract, declarer, forehand, &forbidden, &known, &weis_called);
+    let mut out = [[0.0f32; 3]; 36];
+    n.log_probs(&inp, &mut out);
+    out.iter().map(|row| row.to_vec()).collect()
+}
+
 /// What the bidding says, exposed so the Python mirror can be held to the same answer.
 #[pyfunction]
 fn rs_infer_from_bid(
@@ -653,5 +851,10 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_determinize, m)?)?;
     m.add_function(wrap_pyfunction!(rs_select_trump, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trump_scores, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_play_features, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_play_log_probs, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_belief_pool, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_belief_features, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_belief_log_probs, m)?)?;
     Ok(())
 }

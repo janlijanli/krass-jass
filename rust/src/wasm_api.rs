@@ -234,6 +234,10 @@ fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u
         // rather than rebuild the machinery. Flipping this alone changes how the browser bot
         // plays, so it stays in step with the Python default in `agent.py`.
         const READ_SIGNALS: bool = false;
+        // Beliefs from the other seats' plays and the bid. A measured decision like the one
+        // above: +1.31 and +1.32 of a round's share on two seeds at 153,600 iterations
+        // (measurements.md §5o). In step with `belief_alpha` / `bid_alpha` in `agent.py`.
+        const BELIEFS: bool = true;
         let read = if READ_SIGNALS {
             infer_affinity(&round.tricks_played, &round.trick, round.leader, round.trump)
         } else {
@@ -270,6 +274,29 @@ fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u
             adversarial: true,
             leaf_weights: Vec::new(),
             announcements,
+            // Beliefs from behaviour — see belief.rs and measurements.md §5o. Weight each imagined
+            // deal by how likely the other seats' plays and the bid were, holding it. Kept in step
+            // with the Python defaults in `agent.py`.
+            play: {
+                let mut history = Vec::with_capacity(36);
+                for (leader, cards) in &round.tricks_played {
+                    for (i, &c) in cards.iter().enumerate() {
+                        history.push(((leader + i) & 3, c));
+                    }
+                }
+                for (i, &c) in round.trick.iter().enumerate() {
+                    history.push(((round.leader + i) & 3, c));
+                }
+                let mut info = crate::belief::PlayInfo::off();
+                info.declarer = game.declarer;
+                info.history = history;
+                if BELIEFS {
+                    info.belief_alpha = 1.0;
+                    info.bid_alpha = 1.0;
+                    info.belief_pool = 4096;
+                }
+                info
+            },
         };
         // The browser plays the same search the measurements were taken with. ISMCTS above
         // the endgame threshold, the exact solve below it — see measurements.md §5h.

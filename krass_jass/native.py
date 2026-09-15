@@ -69,6 +69,17 @@ def dmcts(
     weis_called: list[int] | None = None,
     weis_played: list[int] | None = None,
     weis_draws: int = 16,
+    declarer: int = 4,
+    history: list[tuple[int, int]] | None = None,
+    belief_alpha: float = 0.0,
+    belief_pool: int = 0,
+    bid_alpha: float = 0.0,
+    bid_temperature: float = 3.0,
+    rollout_temperature: float = 0.0,
+    tree_policy: bool = False,
+    policy_temperature: float = 1.0,
+    belief_gamma: float = 0.0,
+    known: list[int] | None = None,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -84,6 +95,9 @@ def dmcts(
     `CLAUDE.md` on the information boundary. Results are independent of `threads`.
     """
     require()
+    # Only when used: the belief network's weight is newer than some builds of the core that
+    # long-running measurement jobs still have loaded.
+    extra = {"belief_gamma": belief_gamma, "known": known} if belief_gamma > 0 else {}
     return _core.dmcts(
         seat=seat,
         hand=hand,
@@ -125,4 +139,17 @@ def dmcts(
         weis_four_nines=cfg.weis_four_nines,
         weis_four_beats_sequence=cfg.weis_four_beats_sequence,
         weis_draws=weis_draws,
+        # The round so far, and how the play model in `rust/src/playmodel.rs` is used: to
+        # weight imagined worlds by the table's plays and bid, to finish rollouts, and to move
+        # the other seats inside the tree. Public history only — see `rust/src/belief.rs`.
+        declarer=declarer,
+        history=history,
+        belief_alpha=belief_alpha,
+        belief_pool=belief_pool,
+        bid_alpha=bid_alpha,
+        bid_temperature=bid_temperature,
+        rollout_temperature=rollout_temperature,
+        tree_policy=tree_policy,
+        policy_temperature=policy_temperature,
+        **extra,
     )

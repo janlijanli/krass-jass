@@ -61,6 +61,7 @@ pub extern "C" fn bench_dmcts(determinizations: u32, iterations: u32, seed: u32)
         adversarial: true,
         leaf_weights: Vec::new(),
         announcements: crate::announce::Announcements::none(),
+        play: crate::belief::PlayInfo::off(),
     };
     let out = dmcts(
         &position,

@@ -161,6 +161,42 @@ class DmctsAgent(Agent):
     #: nothing. Row-major 36 x 127. Cached per node, because a prior over the information set
     #: is a function of the node alone.
     policy_weights: tuple | None = None
+    #: Beliefs from behaviour: weight each imagined world by how likely the other seats' plays
+    #: were holding that world's hands, under the play model in `rust/src/playmodel.rs`. 0 is
+    #: off. This is the common-practice form of the belief work §5k says is the largest lever;
+    #: the priors that measured nothing were bounded per-suit tilts. See `rust/src/belief.rs`.
+    #:
+    #: **On.** With `bid_alpha` below: 51.31% and 51.32% of a round's share against the search
+    #: without it, on two seeds at 153,600 iterations (`docs/measurements.md` §5o). α = 2 buys
+    #: accuracy by collapsing onto too few worlds, which is why this is 1.
+    belief_alpha: float = 1.0
+    #: Worlds drawn and weighted per decision when either likelihood is on.
+    belief_pool: int = 4096
+    #: The same for the bid: P(the call | the bidder's hand) under a softmax over the rule
+    #: selector's own contract scores.
+    bid_alpha: float = 1.0
+    bid_temperature: float = 3.0
+    #: Finish rollouts with the play model at this temperature instead of at random. 0 is off.
+    rollout_temperature: float = 0.0
+    #: Move the other three seats inside the tree by the play model, holding their own hand in
+    #: the imagined world, instead of by UCT over statistics pooled across worlds.
+    tree_policy: bool = False
+    policy_temperature: float = 1.0
+    #: Path to an alternative trump weights file. Empty uses `krass_jass/data/trump_weights.json`.
+    #: Measurement only — it lets the arena play two bidders against each other without
+    #: editing the file both implementations read.
+    trump_weights: str = ""
+    #: Weight on the belief network (`rust/src/beliefnet.rs`) in the same world pool. **0 — off.**
+    #: Offline it adds ~0.03 oracle-equivalent on top of plays and bid at weight 1; in play that
+    #: measured 50.15%, p = 0.24, over 2,000 deals (`docs/measurements.md` §5q).
+    belief_gamma: float = 0.0
+
+    def select_trump(self, hand: int, is_forehand: bool) -> Contract | str:
+        if self.trump_weights and self.trump_policy != "random":
+            from .trump import load_weights
+
+            return select_trump(hand, is_forehand, self.cfg, load_weights(self.trump_weights))
+        return super().select_trump(hand, is_forehand)
 
     @property
     def name(self) -> str:
@@ -190,6 +226,7 @@ class DmctsAgent(Agent):
             threads=self.threads,
             endgame_cards=self.endgame_cards,
             **self._stakes(obs),
+            **self._play(obs),
         )
         if not self.conventions:
             return candidates[0][0]
@@ -260,6 +297,30 @@ class DmctsAgent(Agent):
             "policy_weights": list(self.policy_weights) if self.policy_weights else None,
         }
 
+    def _play(self, obs: Observation) -> dict:
+        """The round's public history, and how the play model is to be used on it."""
+        history = []
+        for leader, cards in obs.tricks_played:
+            history.extend(((leader + i) % 4, c) for i, c in enumerate(cards))
+        history.extend(((obs.trick_leader + i) % 4, c) for i, c in enumerate(obs.trick))
+        weighting = self.belief_alpha > 0 or self.bid_alpha > 0 or self.belief_gamma > 0
+        known = [0, 0, 0, 0]
+        for s, c in obs.known_cards:
+            known[s] |= 1 << c
+        return {
+            "declarer": obs.declarer_seat,
+            "history": history,
+            "belief_alpha": self.belief_alpha,
+            "belief_pool": self.belief_pool if weighting else 0,
+            "bid_alpha": self.bid_alpha,
+            "bid_temperature": self.bid_temperature,
+            "rollout_temperature": self.rollout_temperature,
+            "tree_policy": self.tree_policy,
+            "policy_temperature": self.policy_temperature,
+            "belief_gamma": self.belief_gamma,
+            "known": known,
+        }
+
     def _priors(self, obs: Observation) -> dict:
         """Everything that tilts which worlds get imagined, and nothing that forbids one.
 
@@ -293,4 +354,5 @@ class DmctsAgent(Agent):
             iterations=self.iterations, exploration=self.exploration,
             seed=obs.decision_seed, threads=self.threads, endgame_cards=self.endgame_cards,
             **self._stakes(obs),
+            **self._play(obs),
         )

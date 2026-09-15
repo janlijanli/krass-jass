@@ -49,6 +49,9 @@ pub struct Position {
     /// What the table was told in the first trick. `Announcements::none()` is the behaviour
     /// every figure before `docs/measurements.md` §5m was measured with.
     pub announcements: Announcements,
+    /// The round's history and how to use the play model — beliefs from behaviour, policy
+    /// rollouts. `PlayInfo::off()` is the search as it was before `belief.rs`.
+    pub play: crate::belief::PlayInfo,
 }
 
 impl Position {
