@@ -42,9 +42,9 @@ services:
       AGENT_KIND: dmcts
       SEAT: "1"
       TIME_BUDGET_MS: "1500"
-      # docs/measurements.md §3: indistinguishable from 800,000 iterations.
+      # docs/measurements.md §3b: 153,600 iterations, the budget the browser build ships.
       DETERMINIZATIONS: "40"
-      ITERATIONS: "60"
+      ITERATIONS: "3840"
       MODEL_VERSION: ""
     networks: [bot1net]
     read_only: true
@@ -71,7 +71,7 @@ services:
       SEAT: "2"
       TIME_BUDGET_MS: "1500"
       DETERMINIZATIONS: "40"
-      ITERATIONS: "60"
+      ITERATIONS: "3840"
       MODEL_VERSION: ""
 
   bot-3:
@@ -82,7 +82,7 @@ services:
       SEAT: "3"
       TIME_BUDGET_MS: "1500"
       DETERMINIZATIONS: "40"
-      ITERATIONS: "60"
+      ITERATIONS: "3840"
       MODEL_VERSION: ""
 
 networks:

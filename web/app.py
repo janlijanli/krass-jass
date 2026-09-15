@@ -62,10 +62,12 @@ class RevalidatingStatic(StaticFiles):
         response.headers["Cache-Control"] = "no-cache"
         return response
 
-#: The measured saturation point. `docs/measurements.md` §3: indistinguishable from 800,000
-#: iterations, and single-digit milliseconds in the Rust core.
+#: 153,600 iterations, the budget the browser build ships. `docs/measurements.md` §3 put the
+#: saturation point at 2,400, but that was measured on the voting search; on the shared tree
+#: the budget keeps paying to 64x (§3b, +0.56 of a round's share). ~150 ms a move natively,
+#: which `pace` absorbs rather than adds to.
 BOT_DETERMINIZATIONS = 40
-BOT_ITERATIONS = 60
+BOT_ITERATIONS = 3840
 
 #: The search is now fast enough to answer instantly, which reads as a spreadsheet rather
 #: than an opponent (`docs/webapp-plan.md` §5). Pace deliberately, and take longer over hard
@@ -487,28 +489,36 @@ async def think(table: Table, actor: int) -> None:
 
     if game.phase is Phase.BIDDING:
         hand = game.hand_of(actor)
+        started = loop.time()
         action = await loop.run_in_executor(
             None, bot.select_trump, hand, actor == game.forehand
         )
-        await pace(1)
+        await pace(1, loop.time() - started)
         game.bid(actor, action)
         return
 
     observation = game.observation(actor)
     choices = len(observation.cards()) and observation.legal_moves.bit_count()
+    started = loop.time()
     card = await loop.run_in_executor(None, bot.decide, observation)
-    await pace(choices)
+    await pace(choices, loop.time() - started)
     game.play(actor, card)
 
 
-async def pace(choices: int) -> None:
-    """A forced card comes back fast; a real decision takes a moment."""
+async def pace(choices: int, spent: float = 0.0) -> None:
+    """A forced card comes back fast; a real decision takes a moment.
+
+    `spent` is the time the bot already took to answer. The pause absorbs it rather than
+    being added to it, so a bigger search budget makes the bot stronger without making it
+    feel slower.
+    """
     if choices <= 1:
-        await asyncio.sleep(random.uniform(0.15, 0.3))
-        return
-    span = min(1.0, (choices - 1) / 6)
-    base = THINK_MIN_S + span * (THINK_MAX_S - THINK_MIN_S)
-    await asyncio.sleep(random.uniform(base * 0.75, base))
+        delay = random.uniform(0.15, 0.3)
+    else:
+        span = min(1.0, (choices - 1) / 6)
+        base = THINK_MIN_S + span * (THINK_MAX_S - THINK_MIN_S)
+        delay = random.uniform(base * 0.75, base)
+    await asyncio.sleep(max(0.0, delay - spent))
 
 
 app = create_app()

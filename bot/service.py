@@ -32,10 +32,11 @@ from krass_jass.rules import HOUSE, Contract
 
 AGENT_VERSION = "0.1.0"
 
-#: Measured saturation point (`docs/measurements.md` §3): indistinguishable from 800,000
-#: iterations and single-digit milliseconds in the Rust core.
+#: 153,600 iterations, matching `web/app.py` and the browser build. §3's saturation at 2,400
+#: was measured on the voting search; on the shared tree the budget pays to 64x
+#: (`docs/measurements.md` §3b). ~150 ms a move natively, inside `TIME_BUDGET_MS`.
 DEFAULT_DETERMINIZATIONS = 40
-DEFAULT_ITERATIONS = 60
+DEFAULT_ITERATIONS = 3840
 
 
 def build_agent():
