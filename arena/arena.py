@@ -108,7 +108,7 @@ def play_round(
     game_seed: int,
     game_id: str = "arena",
 ) -> tuple[int, int]:
-    """One round. Returns team points.
+    """One round. Returns team points, already scaled by the contract multiplier.
 
     Every agent decision is seeded from a value derived from `game_seed`, so a round replays
     bit-for-bit — including the search — which is what turns a surprising move into a test
