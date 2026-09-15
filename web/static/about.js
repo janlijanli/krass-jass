@@ -257,6 +257,11 @@ function playerPanel(data, L) {
 function strengthPanel(data, L) {
   const wrap = html("div", "about-panel");
   const { ladder, budget_sweep, trump_selection } = data;
+  // The ladder was re-taken with different rows (measurements.md §3f), so nothing below reads a
+  // matchup by position any more.
+  const cheat = data.post_ismcts_recheck.cheating_gap;
+  const now = data.budget_under_house.points.find((p) => p.iterations === data.budget_under_house.ships);
+  const beliefs = data.belief_offline.match;
 
   wrap.append(
     html("h3", null, about(L, "strength.h")),
@@ -298,6 +303,9 @@ function strengthPanel(data, L) {
         n: high.deals,
         p: high.p,
         claim: data.literature.budget_claim,
+        ships: now.iterations.toLocaleString(L),
+        now: pct(now.share),
+        nowdeals: now.deals,
       })
     ),
 
@@ -310,6 +318,7 @@ function strengthPanel(data, L) {
         deals: trump_selection.deals,
         spread: (2 * (trump_selection.share - 50)).toFixed(0),
         claim: data.literature.trump_selection_claim,
+        games: pct(data.trump_fit.games.a_wins),
       })
     ),
 
@@ -318,8 +327,9 @@ function strengthPanel(data, L) {
       "p",
       null,
       about(L, "strength.gap.p", {
-        share: pct(ladder.matchups[3].share),
-        other: pct(100 - ladder.matchups[3].share),
+        share: pct(cheat.share),
+        other: pct(100 - cheat.share),
+        beliefs: (beliefs.share - 50).toFixed(1),
       })
     ),
 

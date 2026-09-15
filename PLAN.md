@@ -1,6 +1,9 @@
 # krass-jass — Project Plan & Research
 
-Status: planning only. No code yet.
+Status: the plan as written before any code (kept as the record of the reasoning). What was built
+and measured since is in `docs/engine-report.md` (summary) and `docs/measurements.md` (dated
+record); where they disagree with this file, they win — several recommendations below, including
+the budget figure and ISMCTS being "measured worse", did not hold on this engine.
 Scope: web app to play Schieber Jass (4 players, French deck) against 3 bot services, plus a training pipeline for the bot algorithm.
 
 ---

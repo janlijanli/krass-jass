@@ -64,7 +64,8 @@ export const ABOUT = {
     "play.doing.h": "What it is doing",
     "play.doing.p":
       "It cannot see your cards. So it <b>imagines</b> them — deals the unseen cards into " +
-      "the other three hands at random, plays that imaginary deal out thousands of times, " +
+      "the other three hands in every way that fits what the table has shown, favours the " +
+      "deals that best explain how the others have played and bid, plays them out thousands of times, " +
       "and repeats with a different guess. The card that does best across all those guesses " +
       "is the one it plays.",
     "play.knows.h": "What it knows, and what it doesn't",
@@ -87,9 +88,10 @@ export const ABOUT = {
     "play.weak.p":
       "Its individual card play is much stronger than its <b>team</b> play. It <b>sends</b> " +
       "one signal now — throwing the sister suit of the one it wants led, and cashing out " +
-      "when the opponents are proven out of trump — but it does not <b>read</b> yours: play " +
-      "the convention at it and it will not notice. Reading a partner is a known limit of " +
-      "this kind of search, not a bug, and more thinking time does not fix it.",
+      "when the opponents are proven out of trump — but it does not <b>read</b> that convention " +
+      "back: play it at it and it will not notice. It does read how everyone plays, through a " +
+      "model of play learned from its own games — which fits bots better than people. Reading " +
+      "a partner is a known limit of this kind of search, and more thinking time does not fix it.",
     "play.human.p":
       "It has also <b>never been measured against a human</b>. The published work on this " +
       "exact variant found a comparable bot scored {parity} — roughly par with strong " +
@@ -117,27 +119,31 @@ export const ABOUT = {
       "the test is paired.",
     "strength.budget.h": "What more thinking buys",
     "strength.budget.p":
-      "Nothing, past about 2,400 iterations. Each budget below played {deals} double rounds " +
-      "against a fixed 2,400-iteration opponent.",
+      "On the search the bots used first, nothing past about 2,400 iterations — the curve " +
+      "below. Each budget played {deals} double rounds against a fixed 2,400-iteration opponent.",
     "strength.budget.caption":
       "At the top end, {a} iterations against {b} scored {share} over {n} deals (p = {p}). " +
-      "<b>333× the computation, no measurable gain.</b> The published work suggests {claim}; " +
-      "that did not reproduce here, and we do not yet know why.",
+      "<b>333× the computation, no measurable gain.</b> The shared search tree that replaced " +
+      "that search keeps paying: {ships} iterations against 2,400 scored {now} over {nowdeals} " +
+      "deals — which is why the bots now search {ships} iterations a move.",
     "strength.trump.h": "What the bidding is worth",
     "strength.trump.p":
       "Identical card play on both sides, only the trump choice differing: <b>{share}</b> " +
       "over {deals} double rounds — a {spread}-point spread. The research predicted {claim}. " +
-      "<b>That one reproduced.</b>",
+      "<b>That one reproduced.</b> Re-tuning its weights by simulating every call later won " +
+      "<b>{games}</b> of whole games against the original weights.",
     "strength.gap.h": "The number that matters most",
     "strength.gap.p":
       "A bot that <b>sees all four hands</b> beats the real one {share} to {other}. That gap " +
-      "— about 6 points — is the price of playing with hidden information, and search does " +
-      "not close it: giving the real bot 16× more thinking moved it by less than half a " +
-      "standard error. Closing it needs a different kind of player, not a faster one.",
+      "— about 7 points — is the price of playing with hidden information, and more thinking " +
+      "barely moves it. What narrows it is reading the table better: weighting every imagined " +
+      "deal by how likely the other players' cards and bid were, holding it, is worth " +
+      "<b>+{beliefs} points</b> of a round's share, measured twice.",
     "strength.caveat":
-      "A caveat that applies to all of it: these are measured with Weis, Stöck and the match " +
-      "bonus switched off, because they swing scores hard enough to drown the difference " +
-      "between two agents. They are on when you play.",
+      "A caveat that applies to all of it: the older figures are measured with Weis, Stöck and " +
+      "the match bonus switched off, because they swing scores hard enough to drown the " +
+      "difference between two agents; the newer ones under the rules you play. And every " +
+      "number here is bots against bots — none has been measured against people.",
 
     "internals.h": "How it is built",
     "internals.p":
@@ -150,8 +156,8 @@ export const ABOUT = {
       "73% of the time — so porting only that would have capped the gain near 2.4×, and the " +
       "search tree had to move with it.",
     "internals.rust.caption":
-      "Per move at the 2,400-iteration serve budget. The browser build is 1.39× the native " +
-      "one — which is why this page can run the whole game with no server behind it.",
+      "Per move at 2,400 iterations. The browser build is 1.39× the native one — fast enough " +
+      "that the bots on this page now search 153,600 iterations a move, with no server behind it.",
     "internals.rules.h": "The three rules that make Jass different",
     "internals.rules.p":
       "Implementations of other trick-taking games get these wrong. <b>You may always " +
@@ -236,7 +242,9 @@ export const ABOUT = {
     "play.doing.h": "Was es tut",
     "play.doing.p":
       "Es sieht deine Karten nicht. Also <b>stellt es sie sich vor</b> — es verteilt die " +
-      "unbekannten Karten zufällig auf die drei anderen Hände, spielt diese erfundene " +
+      "unbekannten Karten passend zu allem, was am Tisch zu sehen war, auf die drei anderen " +
+      "Hände, bevorzugt Verteilungen, die erklären, wie die anderen gespielt und angesagt " +
+      "haben, spielt diese erfundene " +
       "Verteilung tausendfach aus und wiederholt das mit einer neuen Vermutung. Gespielt " +
       "wird die Karte, die über all diese Vermutungen hinweg am besten abschneidet.",
     "play.knows.h": "Was es weiss — und was nicht",
@@ -262,9 +270,10 @@ export const ABOUT = {
       "Sein Spiel mit den eigenen Karten ist deutlich stärker als sein <b>Zusammenspiel</b>. " +
       "Ein Zeichen <b>gibt</b> es inzwischen — es wirft die Schwesterfarbe jener Farbe ab, " +
       "die es gespielt haben will, und zieht durch, sobald die Gegner nachweislich keinen " +
-      "Trumpf mehr haben — deine <b>liest</b> es aber nicht: Spielst du die Konvention, " +
-      "merkt es das nicht. Einen Partner zu lesen ist eine bekannte Grenze dieser Art von " +
-      "Suche, kein Fehler, und mehr Bedenkzeit ändert nichts daran.",
+      "Trumpf mehr haben — diese Konvention <b>liest</b> es aber nicht zurück: Spielst du sie, " +
+      "merkt es das nicht. Dafür liest es, wie alle spielen, über ein Spielmodell aus seinen " +
+      "eigenen Partien — das passt besser auf Bots als auf Menschen. Einen Partner zu lesen " +
+      "ist eine bekannte Grenze dieser Art von Suche, und mehr Bedenkzeit ändert nichts daran.",
     "play.human.p":
       "Ausserdem wurde es <b>nie gegen Menschen gemessen</b>. Die veröffentlichte Arbeit zu " +
       "genau dieser Variante fand für einen vergleichbaren Bot {parity} — etwa auf Augenhöhe " +
@@ -292,29 +301,35 @@ export const ABOUT = {
       "Hälften als unabhängig testen, wäre der Gewinn wieder weg; der Test ist also gepaart.",
     "strength.budget.h": "Was mehr Nachdenken bringt",
     "strength.budget.p":
-      "Nichts mehr, jenseits von etwa 2400 Iterationen. Jedes Budget unten spielte {deals} " +
-      "Doppelrunden gegen einen festen Gegner mit 2400 Iterationen.",
+      "Beim Suchverfahren, das die Bots zuerst hatten, nichts mehr jenseits von etwa 2400 " +
+      "Iterationen – die Kurve unten. Jedes Budget spielte {deals} Doppelrunden gegen einen " +
+      "festen Gegner mit 2400 Iterationen.",
     "strength.budget.caption":
       "Am oberen Ende erreichten {a} Iterationen gegen {b} genau {share} über {n} " +
       "Verteilungen (p = {p}). <b>333-fache Rechenleistung, kein messbarer Gewinn.</b> Die " +
-      "veröffentlichte Arbeit legt {claim} nahe; das liess sich hier nicht reproduzieren, " +
-      "und wir wissen noch nicht, warum.",
+      "veröffentlichte Arbeit legt {claim} nahe. Der gemeinsame Suchbaum, der dieses " +
+      "Verfahren ersetzt hat, profitiert dagegen weiter: {ships} Iterationen gegen 2400 " +
+      "erreichten {now} über {nowdeals} Verteilungen – darum rechnen die Bots jetzt {ships} " +
+      "Iterationen pro Zug.",
     "strength.trump.h": "Was die Trumpfwahl wert ist",
     "strength.trump.p":
       "Gleiches Kartenspiel auf beiden Seiten, nur die Trumpfwahl unterscheidet sich: " +
       "<b>{share}</b> über {deals} Doppelrunden — ein Abstand von {spread} Punkten. Die " +
-      "Forschung sagte {claim} voraus. <b>Das liess sich reproduzieren.</b>",
+      "Forschung sagte {claim} voraus. <b>Das liess sich reproduzieren.</b> Später wurden die " +
+      "Gewichte durch Simulation jeder Ansage neu abgestimmt – die neuen gewannen <b>{games}</b> " +
+      "der ganzen Partien gegen die alten.",
     "strength.gap.h": "Die wichtigste Zahl",
     "strength.gap.p":
       "Ein Bot, der <b>alle vier Hände sieht</b>, schlägt den echten mit {share} zu {other}. " +
-      "Dieser Abstand — etwa 6 Punkte — ist der Preis dafür, mit verdeckter Information zu " +
-      "spielen, und Suche schliesst ihn nicht: 16-fache Bedenkzeit für den echten Bot " +
-      "verschob ihn um weniger als einen halben Standardfehler. Ihn zu schliessen braucht " +
-      "einen anderen Spieler, keinen schnelleren.",
+      "Dieser Abstand – etwa 7 Punkte – ist der Preis verdeckter Information, und mehr " +
+      "Bedenkzeit verschiebt ihn kaum. Was ihn verkleinert, ist den Tisch besser zu lesen: jede " +
+      "vorgestellte Verteilung danach zu gewichten, wie wahrscheinlich die Karten und die Ansage " +
+      "der anderen damit waren, bringt <b>+{beliefs} Punkte</b> Rundenanteil, zweimal gemessen.",
     "strength.caveat":
-      "Ein Vorbehalt, der für alles gilt: gemessen wurde mit ausgeschaltetem Weis, Stöck und " +
-      "Match-Bonus, weil diese die Punkte so stark schwanken lassen, dass der Unterschied " +
-      "zwischen zwei Bots darin untergeht. Beim Spielen sind sie eingeschaltet.",
+      "Ein Vorbehalt, der für alles gilt: Die älteren Zahlen wurden mit ausgeschaltetem Weis, " +
+      "Stöck und Match-Bonus gemessen, weil diese die Punkte so stark schwanken lassen, dass der " +
+      "Unterschied zwischen zwei Bots darin untergeht; die neueren mit den Regeln, mit denen du " +
+      "spielst. Und jede Zahl hier ist Bot gegen Bot – gegen Menschen ist noch nichts gemessen.",
 
     "internals.h": "Wie es gebaut ist",
     "internals.p":
@@ -328,8 +343,9 @@ export const ABOUT = {
       "Prozent der Zeit im zufälligen Ausspielen steckten — nur dieses zu portieren hätte " +
       "den Gewinn bei rund 2,4-fach gedeckelt, der Suchbaum musste mit.",
     "internals.rust.caption":
-      "Pro Zug beim Spielbudget von 2400 Iterationen. Die Browser-Variante ist 1,39-mal so " +
-      "langsam wie die native — darum kann diese Seite das ganze Spiel ohne Server ausführen.",
+      "Pro Zug bei 2400 Iterationen. Die Browser-Variante ist 1,39-mal so langsam wie die " +
+      "native – schnell genug, dass die Bots auf dieser Seite jetzt 153 600 Iterationen pro Zug " +
+      "rechnen, ohne Server dahinter.",
     "internals.rules.h": "Die drei Regeln, die Jass anders machen",
     "internals.rules.p":
       "Umsetzungen anderer Stichspiele machen genau hier Fehler. <b>Du darfst immer " +
@@ -413,8 +429,9 @@ export const ABOUT = {
 
     "play.doing.h": "Ce qu'il fait",
     "play.doing.p":
-      "Il ne voit pas tes cartes. Alors il les <b>imagine</b> — il répartit au hasard les " +
-      "cartes inconnues dans les trois autres mains, joue cette donne imaginaire des " +
+      "Il ne voit pas tes cartes. Alors il les <b>imagine</b> — il répartit les cartes " +
+      "inconnues dans les trois autres mains selon tout ce que la table a montré, en " +
+      "privilégiant les donnes qui expliquent le jeu et l'annonce des autres, joue cette donne imaginaire des " +
       "milliers de fois, puis recommence avec une autre hypothèse. La carte qui s'en sort le " +
       "mieux sur l'ensemble de ces hypothèses est celle qu'il joue.",
     "play.knows.h": "Ce qu'il sait, et ce qu'il ignore",
@@ -443,9 +460,10 @@ export const ABOUT = {
       "Son jeu de la carte est bien plus fort que son jeu <b>en équipe</b>. Il <b>envoie</b> " +
       "désormais un signal — il défausse la couleur sœur de celle qu'il veut voir jouer, et " +
       "il encaisse dès que les adversaires n'ont prouvablement plus d'atout — mais il ne " +
-      "<b>lit</b> pas les tiens : joue la convention, il ne la remarquera pas. Lire un " +
-      "partenaire est une limite connue de ce type de recherche, pas un défaut, et davantage " +
-      "de temps de réflexion n'y change rien.",
+      "<b>lit</b> pas cette convention en retour : joue-la, il ne la remarquera pas. Il lit en " +
+      "revanche comment chacun joue, grâce à un modèle de jeu appris sur ses propres parties — " +
+      "plus fidèle aux bots qu'aux humains. Lire un partenaire est une limite connue de ce " +
+      "type de recherche, et davantage de temps de réflexion n'y change rien.",
     "play.human.p":
       "Il n'a par ailleurs <b>jamais été mesuré contre des humains</b>. Les travaux publiés " +
       "sur cette variante précise ont relevé pour un bot comparable {parity} — à peu près au " +
@@ -473,28 +491,35 @@ export const ABOUT = {
       "indépendantes gâcherait ce gain ; le test est donc apparié.",
     "strength.budget.h": "Ce qu'apporte plus de réflexion",
     "strength.budget.p":
-      "Rien, au-delà d'environ 2400 itérations. Chaque budget ci-dessous a joué {deals} " +
-      "doubles manches contre un adversaire fixé à 2400 itérations.",
+      "Avec la première recherche des bots, plus rien au-delà d'environ 2400 itérations — " +
+      "la courbe ci-dessous. Chaque budget a joué {deals} doubles manches contre un adversaire " +
+      "fixé à 2400 itérations.",
     "strength.budget.caption":
       "Tout en haut, {a} itérations contre {b} ont obtenu {share} sur {n} donnes (p = {p}). " +
       "<b>333 fois le calcul, aucun gain mesurable.</b> Les travaux publiés suggèrent " +
-      "{claim} ; cela ne s'est pas reproduit ici, et nous ne savons pas encore pourquoi.",
+      "{claim}. L'arbre de recherche partagé qui l'a remplacée continue pourtant de " +
+      "progresser : {ships} itérations contre 2400 ont obtenu {now} sur {nowdeals} donnes — " +
+      "c'est pourquoi les bots cherchent désormais {ships} itérations par coup.",
     "strength.trump.h": "Ce que vaut l'annonce",
     "strength.trump.p":
       "Jeu de la carte identique des deux côtés, seul le choix de l'atout diffère : " +
       "<b>{share}</b> sur {deals} doubles manches — un écart de {spread} points. La " +
-      "recherche prédisait {claim}. <b>Celui-là s'est reproduit.</b>",
+      "recherche prédisait {claim}. <b>Celui-là s'est reproduit.</b> Réajustés plus tard en " +
+      "simulant chaque annonce, les nouveaux poids ont gagné <b>{games}</b> des parties " +
+      "complètes contre les anciens.",
     "strength.gap.h": "Le chiffre le plus important",
     "strength.gap.p":
       "Un bot qui <b>voit les quatre mains</b> bat le vrai par {share} contre {other}. Cet " +
-      "écart — environ 6 points — est le prix de l'information cachée, et la recherche ne le " +
-      "comble pas : donner au vrai bot 16 fois plus de réflexion l'a déplacé de moins d'une " +
-      "demi-erreur type. Le combler demande un joueur d'une autre nature, pas un joueur plus " +
-      "rapide.",
+      "écart — environ 7 points — est le prix de l'information cachée, et plus de réflexion ne " +
+      "le déplace guère. Ce qui le réduit, c'est mieux lire la table : pondérer chaque donne " +
+      "imaginée par la probabilité des cartes et de l'annonce des autres joueurs rapporte " +
+      "<b>+{beliefs} points</b> de part de la manche, mesuré deux fois.",
     "strength.caveat":
-      "Une réserve qui vaut pour tout : ces mesures sont prises avec le Weis, le Stöck et la " +
-      "prime de match désactivés, parce qu'ils font varier les scores au point de noyer la " +
-      "différence entre deux bots. Ils sont actifs quand tu joues.",
+      "Une réserve qui vaut pour tout : les mesures anciennes sont prises avec le Weis, le " +
+      "Stöck et la prime de match désactivés, parce qu'ils font varier les scores au point de " +
+      "noyer la différence entre deux bots ; les plus récentes avec les règles auxquelles tu " +
+      "joues. Et chaque chiffre ici est bot contre bot — rien n'a encore été mesuré contre des " +
+      "humains.",
 
     "internals.h": "Comment c'est construit",
     "internals.p":
@@ -508,9 +533,9 @@ export const ABOUT = {
       "déroulement aléatoire représentait 73 % du temps — n'en porter que cette partie " +
       "aurait plafonné le gain vers 2,4×, et l'arbre de recherche devait suivre.",
     "internals.rust.caption":
-      "Par coup, au budget de jeu de 2400 itérations. La version navigateur est 1,39 fois " +
-      "plus lente que la native — c'est pourquoi cette page fait tourner toute la partie " +
-      "sans serveur derrière.",
+      "Par coup, à 2400 itérations. La version navigateur est 1,39 fois plus lente que la " +
+      "native — assez rapide pour que les bots de cette page cherchent désormais 153 600 " +
+      "itérations par coup, sans serveur derrière.",
     "internals.rules.h": "Les trois règles qui distinguent le Jass",
     "internals.rules.p":
       "Les implémentations d'autres jeux de plis se trompent précisément là-dessus. <b>Tu " +
@@ -596,8 +621,10 @@ export const ABOUT = {
 
     "play.doing.h": "Che cosa fa",
     "play.doing.p":
-      "Non vede le tue carte. Quindi se le <b>immagina</b> — distribuisce a caso le carte " +
-      "sconosciute nelle altre tre mani, gioca migliaia di volte quella distribuzione " +
+      "Non vede le tue carte. Quindi se le <b>immagina</b> — distribuisce le carte " +
+      "sconosciute nelle altre tre mani secondo tutto ciò che il tavolo ha mostrato, " +
+      "preferendo le distribuzioni che spiegano come gli altri hanno giocato e dichiarato, " +
+      "gioca migliaia di volte quella distribuzione " +
       "immaginaria e ricomincia con un'altra ipotesi. La carta che se la cava meglio su " +
       "tutte queste ipotesi è quella che gioca.",
     "play.knows.h": "Che cosa sa e che cosa no",
@@ -622,9 +649,11 @@ export const ABOUT = {
     "play.weak.p":
       "Il suo gioco di carta è molto più forte del suo gioco <b>di squadra</b>. Un segnale " +
       "ora lo <b>manda</b> — scarta il seme gemello di quello che vuole si giochi, e incassa " +
-      "appena gli avversari sono provatamente senza briscola — ma i tuoi non li <b>legge</b>: " +
-      "gioca la convenzione e non se ne accorgerà. Leggere un compagno è un limite noto di " +
-      "questo tipo di ricerca, non un difetto, e più tempo di riflessione non lo risolve.",
+      "appena gli avversari sono provatamente senza briscola — ma quella convenzione non la " +
+      "<b>rilegge</b>: giocala e non se ne accorgerà. Legge invece come gioca ciascuno, con un " +
+      "modello di gioco appreso dalle sue partite — più fedele ai bot che alle persone. " +
+      "Leggere un compagno è un limite noto di questo tipo di ricerca, e più tempo di " +
+      "riflessione non lo risolve.",
     "play.human.p":
       "Inoltre <b>non è mai stato misurato contro esseri umani</b>. Il lavoro pubblicato su " +
       "questa esatta variante ha rilevato per un bot paragonabile {parity} — più o meno alla " +
@@ -652,28 +681,34 @@ export const ABOUT = {
       "appaiato.",
     "strength.budget.h": "Che cosa dà pensarci di più",
     "strength.budget.p":
-      "Nulla, oltre le 2400 iterazioni circa. Ogni budget qui sotto ha giocato {deals} mani " +
-      "doppie contro un avversario fisso a 2400 iterazioni.",
+      "Con la prima ricerca dei bot, nulla oltre le 2400 iterazioni circa — la curva qui " +
+      "sotto. Ogni budget ha giocato {deals} mani doppie contro un avversario fisso a 2400 " +
+      "iterazioni.",
     "strength.budget.caption":
       "In cima, {a} iterazioni contro {b} hanno ottenuto {share} su {n} distribuzioni " +
       "(p = {p}). <b>333 volte il calcolo, nessun guadagno misurabile.</b> Il lavoro " +
-      "pubblicato suggerisce {claim}; qui non si è riprodotto, e non sappiamo ancora perché.",
+      "pubblicato suggerisce {claim}. L'albero di ricerca condiviso che l'ha sostituita " +
+      "continua invece a migliorare: {ships} iterazioni contro 2400 hanno ottenuto {now} su " +
+      "{nowdeals} distribuzioni — per questo i bot ora cercano {ships} iterazioni a mossa.",
     "strength.trump.h": "Quanto vale la scelta della briscola",
     "strength.trump.p":
       "Gioco di carta identico da entrambe le parti, cambia solo la scelta della briscola: " +
       "<b>{share}</b> su {deals} mani doppie — uno scarto di {spread} punti. La ricerca " +
-      "prevedeva {claim}. <b>Quello si è riprodotto.</b>",
+      "prevedeva {claim}. <b>Quello si è riprodotto.</b> Ritarati poi simulando ogni " +
+      "dichiarazione, i nuovi pesi hanno vinto <b>{games}</b> delle partite intere contro quelli " +
+      "originali.",
     "strength.gap.h": "Il numero che conta di più",
     "strength.gap.p":
       "Un bot che <b>vede tutte e quattro le mani</b> batte quello vero {share} a {other}. " +
-      "Quello scarto — circa 6 punti — è il prezzo di giocare con informazione nascosta, e " +
-      "la ricerca non lo colma: dare al bot vero 16 volte più riflessione lo ha spostato di " +
-      "meno di mezzo errore standard. Colmarlo richiede un giocatore di altro tipo, non uno " +
-      "più veloce.",
+      "Quello scarto — circa 7 punti — è il prezzo dell'informazione nascosta, e pensarci di " +
+      "più lo sposta appena. Ciò che lo riduce è leggere meglio il tavolo: pesare ogni " +
+      "distribuzione immaginata per quanto erano probabili le carte e la dichiarazione degli " +
+      "altri vale <b>+{beliefs} punti</b> di quota della mano, misurato due volte.",
     "strength.caveat":
-      "Un'avvertenza che vale per tutto: queste misure sono prese con Weis, Stöck e bonus " +
-      "match disattivati, perché fanno oscillare i punteggi al punto da coprire la " +
-      "differenza fra due bot. Quando giochi sono attivi.",
+      "Un'avvertenza che vale per tutto: le misure più vecchie sono prese con Weis, Stöck e " +
+      "bonus match disattivati, perché fanno oscillare i punteggi al punto da coprire la " +
+      "differenza fra due bot; quelle più recenti con le regole con cui giochi. E ogni numero " +
+      "qui è bot contro bot — contro persone non è ancora stato misurato nulla.",
 
     "internals.h": "Com'è costruito",
     "internals.p":
@@ -687,9 +722,9 @@ export const ABOUT = {
       "svolgimento casuale era il 73% del tempo — portare solo quello avrebbe fermato il " +
       "guadagno attorno a 2,4×, e l'albero di ricerca doveva seguirlo.",
     "internals.rust.caption":
-      "Per mossa, al budget di gioco di 2400 iterazioni. La versione browser è 1,39 volte " +
-      "più lenta di quella nativa — ed è per questo che questa pagina fa girare l'intera " +
-      "partita senza alcun server dietro.",
+      "Per mossa, a 2400 iterazioni. La versione browser è 1,39 volte più lenta di quella " +
+      "nativa — abbastanza veloce perché i bot di questa pagina ora cerchino 153 600 " +
+      "iterazioni a mossa, senza alcun server dietro.",
     "internals.rules.h": "Le tre regole che rendono lo Jass diverso",
     "internals.rules.p":
       "Le implementazioni di altri giochi di prese sbagliano proprio qui. <b>Puoi sempre " +

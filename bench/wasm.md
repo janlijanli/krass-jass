@@ -20,8 +20,13 @@ rollout and measure the wrong thing.
 
 ## Results — 2026-09-10, M2, Chromium
 
-Search budget 40 × 60 = 2,400 iterations, the measured saturation point
+Search budget 40 × 60 = 2,400 iterations, then taken as the saturation point
 (`docs/measurements.md` §3). Thirty fixed seeds per rep, nine reps, median rep.
+
+> **Dated.** §3 measured the voting search; the shared tree that replaced it keeps paying to
+> 153,600 iterations (§3b), and the browser bots have searched that since, with belief
+> weighting on (§5o). These figures are kept as the like-for-like engine benchmark, not as the
+> cost of a move in the app today, which has not been re-measured in the browser.
 
 | | ms per move | iterations/sec |
 |---|---|---|
@@ -41,8 +46,8 @@ irrelevant.
 A move costs **2 ms in a browser tab**, against a bot pacing floor of 550 ms that exists to
 stop bots answering *too* fast. Performance is not the constraint on a client-side build.
 
-This only holds because search saturates at 2,400 iterations. At the literature's 800k the
-same engine would need ~670 ms per move in wasm — playable, but no longer free.
+This held because search was then believed to saturate at 2,400 iterations. It does not (§3b):
+the app now spends ~0.5 s of search at 153,600, which the bot pacing absorbs.
 
 ## Two traps in measuring this
 

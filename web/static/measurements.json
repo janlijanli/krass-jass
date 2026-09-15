@@ -1,8 +1,8 @@
 {
   "_comment": "The single source for every number shown to a reader. docs/documentation-plan.md §3: figures render from an artifact, never from typed prose, and each carries the date and sample size it was measured with. docs/measurements.md is the narrative version of this file; the in-app 'How it works' panels read this one. Regenerate from arena/ladder.py and bench/benchmark.py rather than editing by hand.",
-  "measured_on": "2026-09-10",
+  "measured_on": "2026-09-10 – 2026-09-15",
   "machine": "Apple M2, 8 cores",
-  "conditions": "EVAL rules (Weis, Stöck and the match bonus off), double rounds, paired t-test, agents bidding for trump",
+  "conditions": "double rounds, paired t-test, agents bidding for trump; EVAL rules (Weis, Stöck and the match bonus off) up to measurements.md §5k, HOUSE rules for most later results",
 
   "ladder": {
     "deals": 300,
@@ -230,7 +230,7 @@
   "budget_sweep": {
     "deals": 500,
     "reference": 2400,
-    "note": "Each budget played against a fixed 2,400-iteration reference, endgame solver off.",
+    "note": "Measured on the voting search that \u00a75h replaced. Each budget played against a fixed 2,400-iteration reference, endgame solver off. On the shared tree the budget keeps paying \u2014 see budget_under_house.",
     "points": [
       { "iterations": 60, "share": 43.71, "std": 7.71, "p": 0.0 },
       { "iterations": 800, "share": 49.14, "std": 7.58, "p": 0.011 },
@@ -291,7 +291,7 @@
   },
 
   "throughput": {
-    "note": "Search budget 2,400 iterations — the measured saturation point.",
+    "note": "Search budget 2,400 iterations, kept as the like-for-like benchmark. It was taken as the saturation point until measurements.md §3b; the bots have searched 153,600 since.",
     "rows": [
       { "engine": "Python", "iterations_per_sec": 35000, "ms_per_move": 68.6 },
       { "engine": "Rust", "iterations_per_sec": 1664246, "ms_per_move": 1.44 },
@@ -314,5 +314,170 @@
     "human_parity": "49.5% ± 14.2% of points, six experienced human teams over 136 rounds, against a DMCTS team",
     "trump_selection_claim": "~16 points of win rate over choosing at random",
     "budget_claim": "1000 determinizations × 800 iterations"
+  },
+
+  "trump_fit": {
+    "measured_on": "2026-09-15",
+    "engine": "ISMCTS, 2,400 iterations for the labels; card play at 2,400 for the games",
+    "note": "measurements.md §5n. Contracts priced by simulation (arena/contracts.py, 3,000 hands x 16 deals), weights fitted on half the hands (arena/fit_trump.py). Values are game points: RoundScore.total already carries the multiplier — a first pass that multiplied again was discarded.",
+    "regret": {
+      "shipped": 116.6,
+      "per_hand_best_cross_fitted": 132.3,
+      "regret": 15.7,
+      "regret_se": 1.4,
+      "deals": 48000
+    },
+    "fit_held_out": {
+      "gain": 34.8,
+      "se": 1.8,
+      "deals": 24000
+    },
+    "games": {
+      "a": "fitted weights",
+      "b": "shipped weights",
+      "target": 1000,
+      "games": 800,
+      "a_wins": 58.31,
+      "std": 26.76,
+      "p": 0.0
+    },
+    "rounds": {"a": "fitted weights", "b": "shipped weights", "cfg": "HOUSE", "iterations": 38400, "deals": 2000, "share": 51.73, "std": 9.61, "p": 8.9e-16}
+  },
+
+  "play_model": {
+    "measured_on": "2026-09-15",
+    "note": "measurements.md §5o. rust/src/playmodel.rs: 36 features, 32 hidden units, trained on the shipped search's own play at 38,400 iterations.",
+    "decisions": 161850,
+    "validation_nll": 0.885,
+    "uniform_nll": 1.289,
+    "top1": 61.4,
+    "previous_linear_top1": 48.0
+  },
+
+  "belief_offline": {
+    "measured_on": "2026-09-15",
+    "note": "measurements.md §5o. Oracle-equivalent p = (a - u)/(1 - u) on the axis of belief_value. Pool 2,048, 1,500 decisions.",
+    "rows": [
+      {
+        "alpha": 0.5,
+        "beta": 0.5,
+        "p_bots": 0.081,
+        "ess_bots": 933
+      },
+      {
+        "alpha": 1.0,
+        "beta": 0.0,
+        "p_bots": 0.096,
+        "p_random": 0.015,
+        "ess_bots": 504
+      },
+      {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "p_bots": 0.123,
+        "p_random": 0.048,
+        "ess_bots": 351
+      },
+      {
+        "alpha": 2.0,
+        "beta": 1.0,
+        "p_bots": 0.154,
+        "ess_bots": 91
+      }
+    ],
+    "match": {"a": "belief_alpha=1, bid_alpha=1, pool 4096", "b": "shipped", "cfg": "HOUSE", "iterations": 153600, "deals": 1000, "share": 51.31, "std": 5.91, "p": 2.4e-12},
+    "replication": {"seed": 8802, "deals": 1000, "share": 51.32, "std": 5.8, "p": 6.5e-13, "shipped": true}
+  },
+
+  "play_model_in_search": {
+    "measured_on": "2026-09-15",
+    "note": "measurements.md \u00a75p. Equal iterations, then equal time against the shipped 153,600. Neither ships.",
+    "equal_time": [{"a": "tree_policy", "iterations": 14400, "b_iterations": 153600, "deals": 1000, "share": 50.39, "std": 6.65, "p": 0.066}, {"a": "rollout_temperature=1", "iterations": 3840, "b_iterations": 153600, "deals": 1000, "share": 50.15, "std": 7.22, "p": 0.52}],
+    "matchups": [
+      {
+        "a": "tree_policy",
+        "b": "shipped",
+        "iterations": 38400,
+        "deals": 1000,
+        "share": 51.23,
+        "std": 6.08,
+        "p": 1.4e-10,
+        "cost": "~11x"
+      },
+      {
+        "a": "rollout_temperature=1",
+        "b": "shipped",
+        "iterations": 9600,
+        "deals": 1000,
+        "share": 51.1,
+        "std": 6.8,
+        "p": 3.3e-07,
+        "cost": "~40x"
+      }
+    ]
+  },
+
+  "exploration": {
+    "measured_on": "2026-09-15",
+    "note": "measurements.md \u00a75p. HOUSE, 153,600 iterations, against the shipped 1.5.",
+    "matchups": [
+      {
+        "a": "exploration=0.7",
+        "deals": 1000,
+        "share": 50.08,
+        "std": 5.48,
+        "p": 0.66
+      },
+      {
+        "a": "exploration=1.0",
+        "deals": 1000,
+        "share": 50.05,
+        "std": 5.15,
+        "p": 0.75
+      },
+      {
+        "a": "exploration=2.5",
+        "deals": 1000,
+        "share": 50.09,
+        "std": 5.2,
+        "p": 0.59
+      }
+    ]
+  },
+
+  "belief_network": {
+    "measured_on": "2026-09-15",
+    "note": "measurements.md \u00a75q. Oracle-equivalent p on the 1,500 decisions of belief_offline. Null in play (2,000 deals); off.",
+    "decisions": 210000,
+    "rounds": 6000,
+    "networks": [
+      {
+        "shape": "128-64",
+        "per_card_accuracy": 45.5,
+        "alone": 0.042,
+        "with_plays_bid_half": 0.137,
+        "with_plays_bid_full": 0.143
+      },
+      {
+        "shape": "64-32",
+        "per_card_accuracy": 46.0,
+        "alone": 0.055,
+        "with_plays_bid_half": 0.139,
+        "with_plays_bid_full": 0.149,
+        "ess_half": 343,
+        "ess_full": 205
+      },
+      {
+        "shape": "32-16",
+        "per_card_accuracy": 45.2,
+        "alone": 0.042,
+        "with_plays_bid_half": 0.136,
+        "with_plays_bid_full": 0.144
+      }
+    ],
+    "uniform_per_card_accuracy": 41.0,
+    "plays_bid_baseline": 0.124,
+    "more_data": {"rounds": 18000, "decisions": 630000, "shape": "64-32", "per_card_accuracy": 46.8, "uniform_per_card_accuracy": 40.8, "alone": 0.069, "with_plays_bid_half": 0.143, "ess_half": 325, "with_plays_bid_full": 0.155, "ess_full": 197},
+    "match": {"a": "belief_gamma=1 (with belief_alpha=1, bid_alpha=1)", "b": "shipped", "cfg": "HOUSE", "iterations": 153600, "deals": 2000, "share": 50.15, "std": 5.65, "p": 0.24, "shipped": false}
   }
 }

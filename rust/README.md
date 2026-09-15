@@ -17,7 +17,16 @@ whole exercise at ~2.4x by Amdahl. **The tree had to come with it.**
 
 The full rules, not just the hot path: legal moves, trick resolution, scoring, the
 Stöck-Weis-Stich claim ordering, Weis, Stöck, void inference, trump selection and round
-state — alongside the rollout kernel, the DMCTS tree and the exact endgame solver.
+state — alongside the rollout kernel and the search. The search is ISMCTS (`ismcts.rs`: one tree
+shared across imagined deals), with beliefs in `belief.rs` (a pool of consistent worlds weighted
+by the other seats' plays and bid), the play model those likelihoods come from (`playmodel.rs`),
+and a belief network trained on self-play with the true deal (`beliefnet.rs`, off by default).
+The voting DMCTS tree (`search.rs`) and the exact endgame solver (`endgame.rs`) are still here
+behind flags: both were measured and superseded (`docs/measurements.md` §5h, §3e).
+
+The play model and belief network weights are `include_str!`d from `krass_jass/data/`, like the
+trump weights. The wasm build leaves the belief network out: it is unused there and would triple
+the payload.
 
 That is more than the search needed. It is what a **client-side build** needs: the crate
 compiles to wasm32 at 1.39x native (`bench/wasm.md`), so the game can run with no server at

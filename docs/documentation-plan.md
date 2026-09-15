@@ -161,13 +161,17 @@ Mostly assembly. Order:
 3. Why the search is Rust — the profile, the 73/27 rollout/tree split, the Amdahl argument,
    and the corpus arithmetic that made it necessary. Already written up in
    `docs/plan-review.md` §1; this is a rewrite for an outside reader.
-4. DMCTS: determinization, void constraints, UCT, aggregation across determinizations.
-5. The exact endgame solver, including *why it replaces the search rather than running at
-   every leaf* — a nice, concrete cost-driven design decision.
-6. The three rules that make Jass different, since they are what a reader with
+4. ISMCTS: determinization, void constraints, one tree shared across worlds with
+   availability-counted UCT — and the voting DMCTS it replaced, since the difference is the
+   whole story of strategy fusion (`docs/engine-report.md` §3).
+5. Beliefs: exact constraints versus weights, the play model, and the measured result that
+   reading the table is the largest lever (`docs/engine-report.md` §4).
+6. The exact endgame solver, and why it was switched off: exact inside one imagined deal is
+   precisely what a shared tree exists to avoid.
+7. The three rules that make Jass different, since they are what a reader with
    Bridge/Hearts intuition will get wrong.
-7. Determinism and replay: one game seed, derived per-decision seeds, bit-for-bit replay.
-8. Testing: the independent reference implementation, property tests, mutation results.
+8. Determinism and replay: one game seed, derived per-decision seeds, bit-for-bit replay.
+9. Testing: the independent reference implementation, property tests, mutation results.
 
 ---
 

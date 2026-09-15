@@ -12,17 +12,19 @@ every session.
 
 ## Current state
 
-**M0, M1 and M4 are done.** Rule variants locked in `docs/rules-config.md`; the engine and
-its property tests are in; the search is Rust; DMCTS with void tracking and an exact
-endgame solver plays through `krass_jass.agent`, measured by `arena/`.
+**M0–M4 are done and the game is playable.** Rule variants locked in `docs/rules-config.md`;
+the engine and its property tests are in; the search is Rust. The bots run ISMCTS (one tree
+shared across imagined deals) at 153,600 iterations through `krass_jass.agent`, with beliefs
+weighted by the other seats' plays and bid, measured by `arena/`. **`docs/engine-report.md` is
+the current summary of how the bots play and what each part is worth; `docs/measurements.md` is
+the dated record behind it.**
 
-**M3 is partly skipped and owes work:** there is no trump selection yet, so the arena
-picks a contract at random per deal. `PLAN.md` §3.1 puts rule-based trump selection at
-~16 points of win rate — the largest single gain still on the table. Do it before tuning
-anything else.
+**Trump selection is in and tuned.** Rule-based, with weights fitted against simulated
+contract values (`arena/contracts.py`, `arena/fit_trump.py`): 58% of whole games against the
+hand-written weights (`docs/measurements.md` §5n). It now calls Obenabe/Undenufe about half
+the time — check that against human play before trusting it further.
 
-Next is **M2 (playable loop)** — FastAPI + WebSocket + bots in containers, and the mobile
-card-fan component, which `PLAN.md` §5.1 says to prototype before the rest of the layout.
+M2 is done (FastAPI + WebSocket, bots in containers, the card fan, and a serverless wasm build).
 
 **The search is Rust** (`rust/`, exposed via `krass_jass.native`). Measured: 1.48M DMCTS
 iterations/sec single-core, 6.19M on all cores — 42x the Python search. The tuned 800k
@@ -31,8 +33,8 @@ budget is 0.13s per move. Python remains the engine of record; only the search m
 
 Decisions still open. `PLAN.md` §9 has the full list of six; these two block architecture:
 
-- **Latency budget per bot move.** Determines whether DMCTS alone is shippable or
-  whether distillation to a network (M5) becomes mandatory before the app is playable.
+- **Latency budget per bot move.** *Settled 2026-09-15 by the owner:* strength over speed, a
+  few seconds a move is acceptable. The shipped search takes well under a second natively.
 - **CPU-only or GPU.** Determines whether M5 is a weekend or a fortnight, and whether
   the RL loop is realistic at all.
 
@@ -120,10 +122,12 @@ Do not design around an assumed answer to either. Ask.
   Postgres. Do not put millions of card decisions in Postgres rows.
 
 **Measured, and it changes things** (`docs/measurements.md`)
-- Search saturates near 2,400 iterations. Serve budget is not a constraint — 2,400
-  iterations costs single-digit milliseconds and is indistinguishable from 800,000.
-- The gap to a bot that sees every hand is ~6% of points, and **search does not close it**.
-  That is the strategy-fusion ceiling and the target for everything after M4.
+- The search budget pays to ~64× 2,400 iterations and is flat after (§3b). Serve 153,600. The
+  older "saturates at 2,400" was true of the voting search and was carried across the change to
+  ISMCTS without being re-taken — re-take any number whose algorithm has changed underneath it.
+- The gap to a bot that sees every hand is ~7 points of a round's share. Strategy fusion is only
+  ~0.7 of it (§5h); **belief accuracy is the largest lever** (§5k). Weighting imagined deals by
+  the other seats' plays and bid under a learned play model is worth +1.3, replicated (§5o).
 - Greedy is statistically indistinguishable from random even with trump held constant.
   Keep it as a floor, never cite it as a meaningful rung.
 - **M5 as written needs rethinking.** It distils a high-budget teacher for serving speed;
@@ -132,8 +136,15 @@ Do not design around an assumed answer to either. Ask.
 
 **Search**
 - `krass_jass.agent.DmctsAgent` is the agent; the search itself is in `rust/`.
-- The endgame solver **replaces** the search once hands are small, it does not decorate it.
-  A 5-card solve costs ~3ms; running one per MCTS leaf would cost 40 minutes a move.
+- The exact endgame solver is **off** (`endgame_cards = 0`): a perfect-information solve inside
+  each imagined deal is strategy fusion, and removing it was worth +1.71 (§3e). Kept behind the
+  flag because it is still right for a search that votes.
+- Beliefs are **weights on a pool of consistent worlds** (`rust/src/belief.rs`), never removals:
+  exact constraints (voids, shown Weis, called Weis) filter; models only weight. Keep the pool's
+  effective sample size in the hundreds — the shared tree needs ~300+ distinct worlds (§5h).
+- Priors that tilt *which* worlds are dealt measured null on the voting search and **negative** on
+  the shared tree (`signal_reading`, §3f). A policy prior in the selection rule is null because
+  every one of ~4 legal moves is already visited hundreds of times (§5j).
 - Void inference is in `voids.py` and must stay *sound* — never claim an unproven
   constraint. An unsound one does not crash, it just makes the bot quietly worse.
 
@@ -192,7 +203,7 @@ Do not design around an assumed answer to either. Ask.
 | M1 | Engine + tests | Bitboard state, legal moves, scoring, property tests, benchmark harness |
 | M2 | Playable loop | FastAPI + WebSocket + random bots in containers; mobile card-fan component |
 | M3 | Rule-based bot + arena | Rule-based trump selection; tournament harness with double rounds |
-| M4 | DMCTS | Void tracking, determinization, UCT, exact endgame solver (≤5 cards) |
+| M4 | Search | Void tracking, determinization, ISMCTS; beliefs from play, bid and Weis. Endgame solver built, measured harmful, off |
 | M5 | Distillation | High-budget self-play → Parquet → policy/value net → ONNX → served. **Gated:** needs a teacher ~100× the serve budget, so it needs a native rollout loop first. If throughput isn't there, ship DMCTS directly and skip M5. |
 | M6 | Polish | Debug/replay UI, security pass, difficulty levels (= search budget) |
 
@@ -209,11 +220,9 @@ From the Fribourg/HSLU work on this exact variant (sources in `PLAN.md`):
   agents and ISMCTS. **Search first, learning second.**
 - Sweet spot for a 800k-rollout budget: ~1000 determinizations × 800 iterations.
   More than ~1000 determinizations stops helping. Exploration constant ≈ 1.5.
-  **This did not reproduce.** Our sweep saturates near 2,400 iterations; 333× more compute
-  is worth nothing measurable. Three candidate explanations were tested and two are gone —
-  it is not the endgame solver and it is not the missing trump selector
-  (`docs/measurements.md` §3). Their figure may be budget *allocation* guidance rather than
-  a required total. Do not delete their number; do not treat ours as universal.
+  **Only half reproduced.** On the voting search ours saturated near 2,400 iterations; on the
+  shared tree that replaced it the budget pays to ~153,600 and is flat after (§3, §3b). Do not
+  delete their number; do not treat ours as universal.
 - ~25 random rollouts plateaus; 100 MCTS iterations beat 1000 random rollouts. Don't
   spend budget on flat Monte Carlo.
 - **Negative result:** sampling determinizations from a learned card-distribution model
@@ -221,12 +230,15 @@ From the Fribourg/HSLU work on this exact variant (sources in `PLAN.md`):
   **Reproduced with a non-learned prior.** `krass_jass/reading.py` reads the discard
   convention the table is deliberately playing and tilts sampling by a bounded factor (no
   world removed). Also worth nothing: two nulls and one p=0.049 that did not replicate
-  (`docs/measurements.md` §5c). Off by default, behind `DmctsAgent.signal_reading` and
-  `READ_SIGNALS` in `wasm_api.rs` — re-run the match before rebuilding it.
+  (`docs/measurements.md` §5c), and on the shared tree it is a measured *loss* (§3f). Off by
+  default, behind `DmctsAgent.signal_reading` and `READ_SIGNALS` in `wasm_api.rs`. What did
+  work is different in kind: weighting whole worlds by the likelihood of every observed play
+  (§5o), not tilting per-suit sampling.
 - **Negative result:** rule-based rollouts did *not* beat random rollouts in DMCTS.
 - Trump selection is worth ~16 points of win rate over random, and a simple ranked
   rule-based selector captures nearly all of it. Build that before any network.
-  **Reproduced:** our selector measures a 17-point spread (`docs/measurements.md` §2).
+  **Reproduced:** our selector measures a 17-point spread (`docs/measurements.md` §2). Its
+  hand-written weights were not near-optimal: tuned by simulation they win 58% of games (§5n).
 - MCTS-based trump selection underperforms because it rarely learns to shove.
 
 Both negative results are warnings against being clever before being fast.

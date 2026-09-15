@@ -1,7 +1,11 @@
 # Measurements — M3 / M4
 
-Measured 2026-09-10 on an M2 (8 cores), Python 3.12, Rust search core. `EVAL` rules
-(Weis/Stöck/match off), double rounds, paired t-test, agents bidding for trump.
+Measured 2026-09-10 to 2026-09-15 on an M2 (8 cores), Python 3.12, Rust search core. Double
+rounds, paired t-test, agents bidding for trump. Sections up to §5k ran under `EVAL`
+(Weis/Stöck/match off); from §5l on, most ran under `HOUSE`, and each table says which.
+
+**For the current state in one place, read `docs/engine-report.md`.** This file is the dated
+record, in the order things were measured, with superseded results left in and marked.
 
 **Hand-recorded and therefore perishable.** `docs/documentation-plan.md` §3 specifies the
 CI-artifact pipeline that should replace this file. Until it exists, read every number as
@@ -1144,9 +1148,248 @@ where the remaining cost is.
 
 ---
 
+## 5n. The trump selector, priced by simulation — and a unit bug that nearly shipped
+
+§2 measured the rule-based selector against *random* bidding and nothing else. Its weights were
+written by hand and the baseline and shove threshold had never been tuned. `arena/contracts.py`
+prices every call the way bridge and Skat engines do: hold forehand's hand, deal the other 27
+cards at random, play all six contracts out with the card-play bot (ISMCTS, 2,400 iterations,
+`read_bidding` off so that play does not depend on who declared), and record what each call
+moved the game score by. 3,000 hands × 16 deals = 48,000 deals, 288,000 rounds.
+
+### The unit bug, first
+
+The first pass multiplied `RoundScore.total` by the contract multiplier — but `total` is
+**already multiplied**. Every call was scored by the square of its multiplier. The fit that came
+out of it played Undenufe 41% of the time, beat the shipped weights by 53.25% in a round match
+scored the same wrong way, and chose Undenufe on six hearts headed by Puur, Nell, ace and king.
+That last one is what gave it away: the simulated value of Hearts on that hand was 600, and the
+most a ×2 contract can be worth is (157 + 100) × 2 = 514.
+
+It also corrects a claim made while planning this: that a round match's share cannot see the
+multiplier. It can. Shares are taken over multiplied totals, and the two halves of a double round
+bid independently, so a bidding change is priced in game points by the ordinary instrument.
+
+### What the corrected data says
+
+| | value per round (game points) |
+|---|---|
+| random contract | −2.6 ± 0.7 |
+| rule-based selector, shipped weights | 116.6 ± 1.5 |
+| per-hand best call, cross-fitted | 132.3 ± 1.9 |
+| best contract in hindsight (unattainable) | 240.1 ± 1.5 |
+
+The selector leaves **15.7 ± 1.4** a round against the best call per hand — and that estimate
+is conservative, because it chooses on 8 deals and scores on the other 8. The regret sits in the
+×1 suits: calling Ecken or Schaufel costs 46–56 a round against the alternative, calling Herz or
+Kreuz 12. Obenabe, Undenufe and the shove are, if anything, *under*-called.
+
+### Fitting the weights
+
+The selector is linear in its weights, so it can be evaluated on all 48,000 deals as one matrix
+product and the weights searched directly (`arena/fit_trump.py`, a coordinate walk, fitted on half
+the hands and scored on the other half). The shape of `trump_weights.json` does not change, so
+the Rust twin picks it up through `include_str!`.
+
+| | held-out, per round | calls played |
+|---|---|---|
+| shipped weights | 117.9 | Ecken 18%, Herz 24%, Schaufel 20%, Kreuz 25%, Obenabe 4%, Undenufe 9%; shove 27% |
+| fitted weights | 152.7 (**+34.8 ± 1.8**) | Ecken 11%, Herz 14%, Schaufel 11%, Kreuz 14%, Obenabe 18%, Undenufe 33%; shove 51% |
+
+It passes every judgement test in `tests/test_trump.py`, including the six-heart hand. Two weights
+are ugly and harmless — the length bonus for eight and nine trumps (65, 56) only decides hands
+that call trump anyway.
+
+| instrument | fitted vs shipped | n | p |
+|---|---|---|---|
+| whole games, target 1000, card play at 2,400 | **58.31% ± 26.76** of games | 800 pairs | ~0 |
+| rounds, HOUSE, card play at 38,400 | **51.73% ± 9.61** of game points | 2,000 deals | 9e-16 |
+
+t ≈ 8.8 and 8.1. By a wide margin the largest gain in this file, from a component that had been measured
+once, against random, and left alone.
+
+What it does not settle is whether the Obenabe/Undenufe share is a fact about Schieber or about
+how our bots defend a no-trump contract. Both teams in every figure here are the same bot, so a
+weakness in no-trump defence would be invisible to all of them. Against humans that is the first
+thing to check.
+
+---
+
+## 5o. A model of how a seat plays, and what it says about the hidden hands
+
+§5k measured belief accuracy as the largest lever in the engine, and every correction tried was a
+bounded per-suit tilt. The common practice in trick-taking engines is stronger: weight each
+imagined deal by how likely the table's actual plays would have been *holding that deal*. That
+needs a model of play conditioned on a seat's own hand.
+
+`rust/src/playmodel.rs` is one: 36 features of the (seat's view, card) pair, a linear term plus a
+32-unit ReLU layer, softmaxed over the legal cards. Trained on 161,850 decisions of the shipped
+search playing itself at 38,400 iterations, validated on held-out rounds:
+
+| | |
+|---|---|
+| validation cross-entropy | **0.885** (uniform 1.289) |
+| top-1 agreement with the search | **61.4%** (§5j's linear model: 48.0%) |
+| Rust vs numpy, largest probability difference | 5e-6 |
+
+### What the beliefs are worth, before playing a match
+
+Scoring a belief by the expected fraction of hidden cards it places in the right hand has an exact
+correspondence with §5k: mixing a fraction `p` of true worlds into a sampler of accuracy `u` gives
+`u + p(1 − u)`. So a weighted sampler of accuracy `a` is worth an oracle-equivalent
+`p = (a − u)/(1 − u)` (`arena/belief_quality.py`). 1,500 decisions, pool 2,048:
+
+| weight on plays α | weight on bid β | oracle-equivalent p, our bots | random card play | median ESS (bots) |
+|---|---|---|---|---|
+| 0.5 | 0.5 | 0.081 | — | 933 |
+| 1.0 | 0 | 0.096 | 0.015 | 504 |
+| 1.0 | 1.0 | **0.123** | 0.048 | 351 |
+| 2.0 | 1.0 | 0.154 | — | 91 |
+
+By §5k's curve p ≈ 0.12 is worth roughly +1.3–1.5 of a round's share — as much as ISMCTS — and it
+climbs through the round, from 0.06 after six cards to 0.21 after twenty-six. Against a table that
+plays at random the model is wrong about every play, and the weighting still never does worse than
+uniform: the bid carries most of what is left.
+
+### And in play
+
+| | share | deals | p |
+|---|---|---|---|
+| α = 1, β = 1, pool 4,096, vs shipped — HOUSE, 153,600 iterations | **51.31% ± 5.91** | 1,000 | 2.4e-12 |
+| *replication, fresh seed* | **51.32% ± 5.80** | 1,000 | 6.5e-13 |
+
+**+1.31 of a round's share, twice** — the offline number predicted +1.3–1.5 before either match
+was run, and it is the same size as ISMCTS. The two seeds agree to a hundredth of a point, which is
+the opposite shape from the six borderline results this file has watched die on a second look.
+**It ships on**: `belief_alpha = bid_alpha = 1` in `agent.py`, `BELIEFS` in `wasm_api.rs`.
+
+Two limits read off the table. α = 2 buys accuracy by collapsing onto ~90 effective worlds, below
+the few hundred §5h found the shared tree needs, so the shipped search uses α = 1 with a pool of
+4,096. And our own bots are the easy case — the model was fitted to them. The number that matters
+is against people.
+
+---
+
+## 5p. The play model inside the search, and the exploration constant
+
+Both uses of the play model that §5o did not cover: moving the other three seats inside the tree
+by the model — holding their own hand in the imagined world — instead of by UCT over statistics
+pooled across worlds (`tree_policy`), and finishing each rollout by the model instead of at
+random (`rollout_temperature`). Both measured at **equal iterations** against the shipped search,
+because both are far dearer per iteration.
+
+| change | iterations, both sides | share | deals | p | cost per move |
+|---|---|---|---|---|---|
+| `tree_policy` | 38,400 | **51.23% ± 6.08** | 1,000 | 1.4e-10 | ~11x |
+| `rollout_temperature = 1` | 9,600 | **51.10% ± 6.80** | 1,000 | 3.3e-07 | ~40x |
+
+Both are real at equal iterations. At ~11x and ~40x a move, what decides shipping is **equal time
+at the shipped budget** — the same seconds, not the same iterations. §5h's lesson applies: ISMCTS
+was +1.15 at equal iterations and +0.53 at equal time.
+
+| change, at roughly the shipped search's time per move | iterations | vs shipped 153,600 | deals | p |
+|---|---|---|---|---|
+| `tree_policy` | 14,400 | 50.39% ± 6.65 | 1,000 | 0.066 |
+| `rollout_temperature = 1` | 3,840 | 50.15% ± 7.22 | 1,000 | 0.52 |
+
+Both sides with beliefs on (§5o). **Neither survives the price.** Policy rollouts are a clean null:
++1.10 at equal iterations, and the ~40x cost spends all of it. The tree policy keeps a lean of
++0.39 that does not reach significance — the same shape as ISMCTS losing half its gain to its cost,
+but with less gain to lose. Both stay off. A tree policy is the one to revisit if the move budget
+grows: it is where more seconds would go first.
+
+Two things they say regardless. The pooled-statistics model of the other seats — conditioned on
+the searcher's real hand, blind to their own — was costing something, as reading the code
+suggested. And random rollouts were not the unbiased estimator they looked like in §5g: they are
+unbiased for play at random, and a model of the table's play measures better.
+
+### The exploration constant, finally asked
+
+1.5 was inherited from the published voting search and never tuned for the shared tree (§5f). At
+153,600 iterations against it:
+
+| exploration | share | deals | p |
+|---|---|---|---|
+| 0.7 | 50.08% ± 5.48 | 1,000 | 0.66 |
+| 1.0 | 50.05% ± 5.15 | 1,000 | 0.75 |
+| 2.5 | 50.09% ± 5.20 | 1,000 | 0.59 |
+
+Flat across 0.7–2.5, standard error ~0.17. **It stays at 1.5** — now for a measured reason.
+
+---
+
+## 5q. A belief network trained on the truth — worth a little, on top
+
+§5o reads the table through a model of play. The other common practice is to learn beliefs
+directly: every simulated round knows the true deal, so a network can be trained to say, for each
+hidden card, which of the other three seats holds it (`rust/src/beliefnet.rs`). No cheating agent
+is needed. Inputs are only what the deciding seat saw — who played what and how (led, followed,
+discarded, ruffed), proven voids, shown Weis cards, the value each seat called, the bid — relative
+to the observer; seats a card provably cannot be at are masked, not learned.
+
+Trained on 210,000 decisions from 6,000 self-play rounds under HOUSE (`arena/belief_data.py`,
+`arena/train_belief.py`), validated on held-out rounds:
+
+| network | per-card accuracy | validation loss | note |
+|---|---|---|---|
+| uniform over allowed seats | 41.0% | — | |
+| 128 → 64 | 45.5% | best at epoch 1, then rising | memorises: 6,000 rounds are 6,000 deals |
+| **64 → 32** | **46.0%** | 0.938, still falling | |
+| 32 → 16 | 45.2% | 0.943 | |
+
+Scored in worlds on the same 1,500 decisions as §5o (`belief_quality.py --load-probes`), as
+oracle-equivalent p:
+
+| weighting of the pool | 128 → 64 | **64 → 32** | 32 → 16 | median ESS (64 → 32) |
+|---|---|---|---|---|
+| network alone | 0.042 | **0.055** | 0.042 | 858 |
+| plays + bid (shipped) | 0.124 | 0.124 | 0.124 | 486 |
+| plays + bid + network × 0.5 | 0.137 | **0.139** | 0.136 | 343 |
+| plays + bid + network × 1 | 0.143 | 0.149 | 0.144 | 205 |
+
+On its own the network reads far less than the play-model likelihood — a marginal over single cards
+cannot carry "these two cards went together", which a replay of the round under a play model can.
+On top of it, it adds **+0.015** at a weight that keeps ~340 effective worlds; by §5k's curve that is
+roughly +0.15–0.2 of a round's share. Weight 1 buys a little more by dropping below the few hundred
+worlds §5h needs.
+
+The 64 → 32 network was still improving when training stopped, so it was limited by data rather
+than by size. Tripled — 12,000 more rounds, 630,000 decisions in all — it improves, slowly:
+
+| 64 → 32 network | 6,000 rounds | **18,000 rounds** |
+|---|---|---|
+| per-card accuracy (uniform 40.8%) | 46.0% | **46.8%** |
+| network alone | 0.055 | **0.069** |
+| plays + bid + network × 0.5 | 0.139 (ESS 343) | **0.143** (ESS 325) |
+| plays + bid + network × 1 | 0.149 (ESS 205) | **0.155** (ESS 197) |
+
++0.031 on top of plays and bid at weight 1 — roughly +0.3–0.4 of a round's share by §5k — with the
+pool at 2,048 here. The search draws 4,096, which roughly doubles the effective worlds and keeps
+weight 1 above the few hundred §5h needs.
+
+### In play
+
+| | share | deals | p |
+|---|---|---|---|
+| plays + bid + network × 1, vs plays + bid — HOUSE, 153,600 iterations | 50.15% ± 5.65 | 2,000 | 0.24 |
+
+**Null.** Standard error 0.126, so the 95% interval is −0.10 to +0.40: the offline prediction sits at
+its upper edge, and anything that large would usually have shown. The mapping from oracle-equivalent
+*p* to points that predicted §5o to a tenth of a point overstates this one — plausibly because a
+network trained on marginals adds accuracy on cards the search's decisions do not turn on, where the
+play likelihood sharpens exactly the cards a seat chose to play. Resolving an effect of +0.2 would
+take ~6,000 deals; not worth it at this size. It stays behind `DmctsAgent.belief_gamma`, **off**, with
+the trained weights in `krass_jass/data/belief_net.json` for native builds only.
+
+---
+
 ## 6. Open
 
-- Nothing measured against a human.
-- Weis and Stöck are off in every number here; they are on for human play.
-- The saturation result should be re-checked once a learned component exists, since a network
-  prior changes what the search is converging to.
+- **Nothing measured against a human.** Every figure is bots against bots, and two of the largest
+  gains — the play-model beliefs and the trump weights — were fitted to those same bots.
+- The tuned trump selector calls Obenabe or Undenufe about half the time. Whether that is a fact
+  about Schieber or about how our bots defend no-trump contracts cannot be seen bot against bot.
+- The belief network at weight 1 is in a match as this is written (§5q).
+- The tree policy keeps a +0.39 lean at equal time (§5p); it is where a larger move budget would go
+  first, and has not been measured at the full budget.
+- The cheating-agent gap (§3f, 57.35%) predates the trump fit and the beliefs; re-take it.
