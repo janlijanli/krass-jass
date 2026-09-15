@@ -9,6 +9,10 @@ dependencies = []
 dev = [
     "pytest>=8.0",
     "hypothesis>=6.100",
+    # The arena tooling that fits the trump weights, the play model and the belief network is
+    # numpy, and tests/test_belief_net.py imports it. Present in every working tree and missing
+    # here, so CI failed collection the first time it installed the declared set.
+    "numpy>=2.0",
 ]
 web = [
     "fastapi>=0.115",
