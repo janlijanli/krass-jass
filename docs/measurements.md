@@ -1292,11 +1292,36 @@ was +1.15 at equal iterations and +0.53 at equal time.
 | `tree_policy` | 14,400 | 50.39% ± 6.65 | 1,000 | 0.066 |
 | `rollout_temperature = 1` | 3,840 | 50.15% ± 7.22 | 1,000 | 0.52 |
 
-Both sides with beliefs on (§5o). **Neither survives the price.** Policy rollouts are a clean null:
-+1.10 at equal iterations, and the ~40x cost spends all of it. The tree policy keeps a lean of
-+0.39 that does not reach significance — the same shape as ISMCTS losing half its gain to its cost,
-but with less gain to lose. Both stay off. A tree policy is the one to revisit if the move budget
-grows: it is where more seconds would go first.
+Both sides with beliefs on (§5o). **Neither survives the price at 2,400-era budgets.** Policy
+rollouts are a clean null: +1.10 at equal iterations, and the ~40x cost spends all of it. The tree
+policy keeps a lean of +0.39 that does not reach significance.
+
+### The tree policy at the shipped budget
+
+Revisited once the owner settled the latency question (strength over speed, a few seconds a move
+acceptable). Equal *iterations* at 153,600 on both sides — the A side costs ~11x the wall clock,
+about 1.5–2 s a move natively:
+
+| | share | deals | p |
+|---|---|---|---|
+| `tree_policy` at 153,600 vs shipped at 153,600 | 50.62% ± 6.16 | 1,000 | 1.4e-03 |
+| *replication, fresh seed* | **51.10% ± 6.52** | 1,000 | 8.5e-08 |
+| **pooled** | **50.86%, SE 0.14** | 2,000 | ~1e-09 |
+
+**+0.86 of a round's share, replicated.** The effect shrinks with budget — +1.23 at 38,400, +0.86 at
+153,600 — which is what a search that eventually works the same thing out for itself should do, and
+it is still there at the budget that ships.
+
+**What it fixes.** In the shared tree a node holds one set of statistics for every world, so the
+other three seats' choices are pooled across worlds: they are effectively conditioned on the
+searcher's *real* hand (it is the same in every world) and blind to their own. Moving them by the
+play model, holding the hand that world deals them, is the first change to model the opponents as
+seats with their own information rather than as statistics of ours.
+
+**What it costs.** ~11x a move, about 1.5–2 s natively — inside the latency the owner allows, and
+the reason the equal-time column is not the gate here. It **ships on** in `agent.py`, which covers
+the server and the bot containers. The browser build leaves it off: at ~1.4x native it would be ~5 s
+a move and nothing has measured it there.
 
 Two things they say regardless. The pooled-statistics model of the other seats — conditioned on
 the searcher's real hand, blind to their own — was costing something, as reading the code
@@ -1480,6 +1505,66 @@ was worth +1.3; reading it better, by three different routes, is worth nothing m
 left of the ~7-point gap to a cheating agent is not reachable by improving *which worlds are
 imagined*.
 
+---
+
+## 5s. Distilling the search into a network: the flat head fails, and why
+
+`docs/neural-plan.md` candidate A: train a network on the search's **visit distributions** and play
+it with no search at all. Data: 311,756 decisions from 12,000 rounds of today's bot at 38,400
+iterations. Inputs: the ~900 the belief encoder builds. Head: 256 → 256 → **36 independent logits**,
+masked to the legal moves.
+
+| | |
+|---|---|
+| validation cross-entropy (uniform 1.296) | **1.236**, best at epoch 3, rising after |
+| top-1 agreement with the search | **51.0%** |
+
+| the network, no search, vs | share | deals | p |
+|---|---|---|---|
+| random | 59.94% ± 9.79 | 1,000 | ~0 |
+| greedy | 62.16% ± 8.87 | 1,000 | ~0 |
+| **the shipped search (153,600)** | **42.42% ± 7.36** | 1,000 | ~0 |
+
+It plays legally and beats the floor of the ladder, and it is **7.6 points worse than the search** —
+against a gate of 1%. It also loses to the 36-feature linear play model on the same task (63.5%
+top-1 versus 51.0%), which is the diagnosis: with 36 independent output logits the network has to
+learn what each card means separately, while the small model scores a **(state, card) pair** with
+shared weights, so "this is the highest card left" transfers across all 36. Parameter count is not
+the problem; the shape of the output is.
+
+### The conditioned head: better, still short, and now data-limited
+
+Same data, same encoder; the state is embedded once and **each legal card scored from that embedding
+plus its own 36 features** (`rs_play_features`), so what a card *is* transfers across all 36.
+
+| head | validation cross-entropy | top-1 vs the search |
+|---|---|---|
+| flat, 36 logits | 1.236 | 51.0% |
+| **conditioned** | **1.179** | **60.3%** |
+| (for scale) the 36-feature linear play model | — | 63.5% |
+
++9 points of agreement from the output shape alone, and still short of the 70% gate. Validation
+turns up after epoch 4 and training loss keeps falling: on 312k decisions this is now **limited by
+data, not by shape** — the published Jass network that matched search strength trained on ~1.8M
+human rounds, about a hundred times what is here, and a bigger network on this data would only
+overfit sooner.
+
+On the table, 1,000 deals each, no search at all:
+
+| the network vs | flat head | **conditioned head** |
+|---|---|---|
+| random | 59.94% ± 9.79 | **65.48% ± 9.38** |
+| greedy | 62.16% ± 8.87 | **67.66% ± 8.58** |
+| the shipped search | 42.42% ± 7.36 (−7.6) | **45.97% ± 7.04 (−4.0)** |
+
+Both gates are missed — the match gate was within 1% of the search — but the conditioned network is
+a long way above greedy at **0.18 ms a move** against the search's ~2 s, which is what a difficulty
+level is made of. Kept as that, not as a replacement.
+
+**Candidate A stops at its own gate**, without the data to clear it. Recording a hundred times more
+self-play is ~40 CPU-hours per 100k rounds at a budget worth distilling, which buys a *cheaper* bot,
+not a stronger one. The strength question moves to candidate B — a value network inside a search
+small enough for playout noise to still matter (`docs/neural-plan.md` §2B).
 ---
 
 ## 6. Open

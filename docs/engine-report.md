@@ -25,6 +25,7 @@ Where the two disagree, the record is the source and this report is wrong.
 | Hard constraints | voids, shown Weis cards, called Weis values | +0.62 and +0.40 (§5l, §5m) |
 | **Beliefs** | worlds weighted by the other seats' plays and the bid, α = β = 1, pool 4,096 | **+1.31, replicated +1.32** (§5o) |
 | **Trump selection** | rule-based, weights tuned by simulation | **58.3% of games** vs hand-written weights (§5n) |
+| **Tree policy** | the other three seats move by the play model inside the tree | **+0.86, replicated** at equal iterations, ~11× a move (§5p); off in the browser |
 | Table conventions | reorder only moves the search rated equal | null, kept for readability to humans (§5b) |
 | Game objective | play for the game near the finishing line | null, kept because it cannot hurt (§5d) |
 
@@ -36,7 +37,6 @@ Where the two disagree, the record is the source and this report is wrong.
 | sharper belief weights (α 1.5, β 2, bid T 1, pool 8,192) | +0.034 offline; **50.09%, p = 0.43** over 2,000 deals | null in play (§5r) |
 | play model retrained on today's bot (63.5% top-1) | +0.015 offline; **50.12%, p = 0.30** over 2,000 deals | null in play (§5r) |
 | trump refit on labels from a stronger card player | **+3.2 ± 1.6** game points a round, held out | a tenth of the first fit; not run in play (§5r) |
-| play model moving the other seats inside the tree | +1.23 at equal iterations, **+0.39, p = 0.066 at equal time** | does not survive its ~11× cost (§5p) |
 | play-model rollouts | +1.10 at equal iterations, **null at equal time** | ~40× cost spends all of it (§5p) |
 | discard-signal reading | null on the voting search, **−0.36** on the shared tree | §5c, §3f |
 | hand-written or learned policy prior (PUCT) | null (and −0.84 at high weight) | ~4 legal moves, each already visited ~570× (§5i, §5j) |
@@ -497,7 +497,7 @@ Two further uses, both measured against the shipped search (both sides with beli
 
 | variant | cost / move | equal iterations | **equal time (~153,600-iteration time)** |
 |---|---|---|---|
-| other three seats move by π inside the tree, holding their own hand in the world | ~11× | 51.23% ± 6.08 (38,400; p = 1.4e-10) | **50.39% ± 6.65** (14,400; p = 0.066) |
+| other three seats move by π inside the tree, holding their own hand in the world | ~11× | 51.23% ± 6.08 (38,400; p = 1.4e-10); **50.62% ± 6.16** (153,600; p = 1.4e-03) | **50.39% ± 6.65** (14,400; p = 0.066) |
 | rollouts by π instead of at random | ~40× | 51.10% ± 6.80 (9,600; p = 3.3e-07) | **50.15% ± 7.22** (3,840; p = 0.52) |
 
 n = 1,000 each. Both effects are real per iteration and both fail the equal-time gate, which is the

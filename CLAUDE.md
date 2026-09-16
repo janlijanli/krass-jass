@@ -35,10 +35,11 @@ Decisions still open. `PLAN.md` §9 has the full list of six; these two block ar
 
 - **Latency budget per bot move.** *Settled 2026-09-15 by the owner:* strength over speed, a
   few seconds a move is acceptable. The shipped search takes well under a second natively.
-- **CPU-only or GPU.** Determines whether M5 is a weekend or a fortnight, and whether
-  the RL loop is realistic at all.
+- **CPU-only or GPU.** *Settled 2026-09-16 by the owner:* **CPU only, this Mac (8 cores).** So the
+  network work is distillation and a value head for a *small* search; expert iteration is a week per
+  iteration and RL from scratch is out of reach. See `docs/neural-plan.md`.
 
-Do not design around an assumed answer to either. Ask.
+Do not design around an assumed answer to anything else here. Ask.
 
 ---
 
@@ -130,6 +131,9 @@ Do not design around an assumed answer to either. Ask.
   retrained on today's bot — is worth nothing measurable, four times over (§5q, §5r). The offline
   oracle-equivalent measure predicted only that first step and has predicted nothing since: use it
   to screen for signal, never as a forecast of points.
+- **The other seats are modelled by the play model inside the tree** (`tree_policy`, on): +0.86 of a
+  round's share, replicated, at the shipped budget (§5p). It costs ~11x a move (~2 s natively), which
+  the latency decision allows; the browser build leaves it off until measured there.
 - The gap to a bot that sees every hand is ~7 points of a round's share. Strategy fusion is only
   ~0.7 of it (§5h); **belief accuracy is the largest lever** (§5k). Weighting imagined deals by
   the other seats' plays and bid under a learned play model is worth +1.3, replicated (§5o).
