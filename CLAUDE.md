@@ -125,6 +125,11 @@ Do not design around an assumed answer to either. Ask.
 - The search budget pays to ~64× 2,400 iterations and is flat after (§3b). Serve 153,600. The
   older "saturates at 2,400" was true of the voting search and was carried across the change to
   ISMCTS without being re-taken — re-take any number whose algorithm has changed underneath it.
+- **Beliefs are saturated.** Reading the table (the play and bid likelihood) was worth +1.3,
+  replicated. Reading it *better* — sharper weights, a larger pool, a belief network, a play model
+  retrained on today's bot — is worth nothing measurable, four times over (§5q, §5r). The offline
+  oracle-equivalent measure predicted only that first step and has predicted nothing since: use it
+  to screen for signal, never as a forecast of points.
 - The gap to a bot that sees every hand is ~7 points of a round's share. Strategy fusion is only
   ~0.7 of it (§5h); **belief accuracy is the largest lever** (§5k). Weighting imagined deals by
   the other seats' plays and bid under a learned play model is worth +1.3, replicated (§5o).

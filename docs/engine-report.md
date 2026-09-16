@@ -33,6 +33,9 @@ Where the two disagree, the record is the source and this report is wrong.
 | tried | result | why it stays off |
 |---|---|---|
 | belief network (learned card locations), weight 1 | +0.03 oracle-equivalent offline; **50.15%, p = 0.24** over 2,000 deals | null in play (§5q) |
+| sharper belief weights (α 1.5, β 2, bid T 1, pool 8,192) | +0.034 offline; **50.09%, p = 0.43** over 2,000 deals | null in play (§5r) |
+| play model retrained on today's bot (63.5% top-1) | +0.015 offline; **50.12%, p = 0.30** over 2,000 deals | null in play (§5r) |
+| trump refit on labels from a stronger card player | **+3.2 ± 1.6** game points a round, held out | a tenth of the first fit; not run in play (§5r) |
 | play model moving the other seats inside the tree | +1.23 at equal iterations, **+0.39, p = 0.066 at equal time** | does not survive its ~11× cost (§5p) |
 | play-model rollouts | +1.10 at equal iterations, **null at equal time** | ~40× cost spends all of it (§5p) |
 | discard-signal reading | null on the voting search, **−0.36** on the shared tree | §5c, §3f |
@@ -405,6 +408,16 @@ not correctness.
 The offline prediction matched to a tenth of a point. Cost: median ~670 ms a move against ~420 ms
 without it, measured natively under load.
 
+**Sharper is not better, and neither is a better model.** Three further offline gains of the same
+size all measured null in play: the belief network's +0.031 (§4.5), +0.034 from sharper weights
+(α = 1.5, β = 2, bid temperature 1, pool 8,192) at 50.09% ± 5.20, p = 0.43, and +0.015 from a play
+model retrained on today's bot — 63.5% top-1 against 61.4% — at 50.12% ± 5.08, p = 0.30 (§5r, 2,000
+deals each). The offline measure predicted the *first* step, from uniform sampling to reading the
+table, to a tenth of a point; it has predicted nothing since. Treat it as a screen for whether a
+signal exists, not as a forecast of points — and read the three nulls together as **the belief
+channel being saturated at the shipped setting**: what remains of the gap to perfect information is
+not reachable by improving which worlds get imagined.
+
 ### 4.4 The bidding prior that did not work, and why this did
 
 §5e put the bid into the sampler as a bounded per-suit tilt (a suit-caller holds 3.7 of the suit
@@ -637,6 +650,7 @@ strength over speed, a few seconds a move is acceptable.
 | question | why it matters | what it takes |
 |---|---|---|
 | belief network at γ = 1 | offline +0.03, in play 50.15% (p = 0.24) | ~6,000 deals to resolve +0.2; not worth it unless the network improves |
+| better beliefs of any kind | three routes, all null in play (§5r) | closed for now: the channel is saturated at the shipped setting |
 | no-trump share of the tuned selector | largest unexplained behaviour change | human games, or a stronger defensive bot to re-price contracts |
 | tree policy at the full budget | +0.39 lean at equal time | ~6–8 h for 1,000 deals at 153,600 |
 | re-take the cheating-agent gap | the ceiling predates the two big gains | ~800 deals |

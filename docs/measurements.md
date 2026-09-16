@@ -1383,6 +1383,105 @@ the trained weights in `krass_jass/data/belief_net.json` for native builds only.
 
 ---
 
+## 5r. Round two: belief settings, a play model of today's bot, and trump re-priced
+
+Three cheap follow-ups from the research pass, each checked offline before any match.
+
+### Belief settings, swept on saved worlds
+
+`rs_belief_loglik` re-scores the 1,500 saved decisions' worlds under any play-model temperature,
+bid temperature and play model without replaying a round (`belief_quality.py --rescore`), so 270
+settings took minutes. Oracle-equivalent *p* against median ESS on the 2,048-world pool:
+
+| play T | bid T | α | β | *p* | ESS |
+|---|---|---|---|---|---|
+| 1.0 | 3.0 | 1.0 | 1.0 | 0.124 | 486 (shipped) |
+| 1.0 | 1.0 | 1.0 | 1.0 | 0.134 | 418 |
+| 1.0 | 1.0 | 1.5 | 2.0 | **0.158** | 207 |
+| 0.75 | 1.0 | 1.5 | 2.0 | 0.166 | 139 |
+
+A frontier, not a free lunch: play temperature and α are near-interchangeable (both scale the
+same log-likelihood), sharper weighting buys accuracy with effective worlds, and a **sharper bid
+model (T = 1 instead of 3) is better at every setting** — worth about +0.01 at equal ESS. ESS scales
+roughly with pool size, so the candidate taken to play is α = 1.5, β = 2, bid T = 1 with a pool of
+**8,192**: *p* 0.158, about as many effective worlds in the search as the shipped setting has.
+
+### The play model, retrained on today's bot
+
+§5o's model was fitted to the search *before* beliefs and the tuned trump weights. Re-recorded:
+311,683 decisions from 12,000 rounds of today's bot (38,400 iterations, beliefs on, pool 2,048).
+
+| model | validation loss (uniform 1.297) | top-1 |
+|---|---|---|
+| 32 hidden | 0.880 | 62.3% |
+| **64 hidden** | **0.867** | **63.5%** |
+
+Like for like on the same saved worlds (play T 1, bid T 3), the 64-hidden model reads the table
+better than the shipped one at every setting:
+
+| bid T | α | β | shipped model | 64 hidden |
+|---|---|---|---|---|
+| 3.0 | 1.25 | 2.0 | 0.144 (ESS 289) | **0.157** (253) |
+| 3.0 | 1.5 | 2.0 | 0.152 (219) | **0.165** (182) |
+| 1.0 | 1.5 | 2.0 | 0.158 (207) | **0.173** (169) |
+
++0.013 to +0.015 oracle-equivalent, at the queued match's settings included. The probes were recorded from our own bots with beliefs on, which is
+also who this model was fitted to, so part of the gain is the model matching the table better — as
+it would in play against the same bots.
+
+### Trump, re-priced by a card player that reads the table
+
+§5n's labels came from a card player at 2,400 iterations without beliefs. Re-priced with the play
+likelihood on (bid likelihood off, so the shove is still priced exactly — forehand and partner are
+one team, and the play model reads only the declaring *team*): 1,000 hands × 8 deals.
+
+| value per round, game points | |
+|---|---|
+| tuned selector (today's weights) | 159.4 ± 3.3 |
+| per-hand best call, cross-fitted on 4 deals | 140.7 ± 3.8 |
+| refit from today's weights, held out | **+3.2 ± 1.6** |
+
+A tenth of the first fit's +34.8, and within two standard errors of nothing. The no-trump shift
+survives the stronger labeller — its per-hand best calls are Obenabe 13%, Undenufe 21%, shove 41% —
+so it is not an artefact of a weak card player pricing the calls. **The selector's weights are
+near what this feature set and this data can support; no refit, and role-specific features are not
+justified by it.**
+
+### In play
+
+| | share | deals | p |
+|---|---|---|---|
+| α = 1.5, β = 2, bid T = 1, pool 8,192 vs shipped — HOUSE, 153,600 | 50.09% ± 5.20 | 2,000 | 0.43 |
+| the 64-hidden play model vs the shipped one, those settings on both sides | 50.12% ± 5.08 | 2,000 | 0.30 |
+
+**Both null.** Standard errors 0.116 and 0.114; the offline predictions (+0.3 to +0.45 and +0.15)
+sit at the top edge of the intervals. Nothing from round two ships: not the settings, not the better
+model of how the table plays, not a trump refit.
+
+### The offline measure predicts the first step and not the next ones
+
+Four data points now. The play-and-bid likelihood itself, worth +0.034 oracle-equivalent over
+uniform sampling, measured **+1.31 twice** and the offline curve predicted it to a tenth of a point
+(§5o). Since then: +0.031 from the belief network, **null** (§5q); +0.034 from sharper weights,
+**null**; +0.015 from a play model retrained on today's bot — a straightforwardly better model of
+the table, 63.5% top-1 against 61.4% — also **null**. The same size of offline gain, four times, and
+only the first was worth anything in play.
+
+What separates them is what the extra accuracy is *about*. The first step replaced uniform guessing
+with reading the table at all, which moves the worlds the search is unsure about. Sharpening the
+same signal, or adding per-card marginals on top, concentrates weight on worlds that are more
+likely without being more decision-relevant — and pays for it in effective worlds. So
+oracle-equivalent *p* stays a good screen for whether a signal exists at all, and is **not** a
+predictor of points beyond that first step. A match still decides, and the offline number no longer
+earns one on its own.
+
+The practical reading: **the belief channel is saturated at the shipped setting.** Reading the table
+was worth +1.3; reading it better, by three different routes, is worth nothing measurable. What is
+left of the ~7-point gap to a cheating agent is not reachable by improving *which worlds are
+imagined*.
+
+---
+
 ## 6. Open
 
 - **Nothing measured against a human.** Every figure is bots against bots, and two of the largest

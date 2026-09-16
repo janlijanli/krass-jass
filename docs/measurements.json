@@ -479,5 +479,52 @@
     "plays_bid_baseline": 0.124,
     "more_data": {"rounds": 18000, "decisions": 630000, "shape": "64-32", "per_card_accuracy": 46.8, "uniform_per_card_accuracy": 40.8, "alone": 0.069, "with_plays_bid_half": 0.143, "ess_half": 325, "with_plays_bid_full": 0.155, "ess_full": 197},
     "match": {"a": "belief_gamma=1 (with belief_alpha=1, bid_alpha=1)", "b": "shipped", "cfg": "HOUSE", "iterations": 153600, "deals": 2000, "share": 50.15, "std": 5.65, "p": 0.24, "shipped": false}
+  },
+
+  "belief_round_two": {
+    "measured_on": "2026-09-16",
+    "note": "measurements.md \u00a75r. Round two of the belief work: settings swept offline, the play model retrained on today's bot, trump re-priced by a labeller that reads the table.",
+    "belief_settings": {
+      "a": "belief_alpha=1.5, bid_alpha=2, bid_temperature=1, pool 8192",
+      "b": "shipped",
+      "offline_p": 0.158,
+      "shipped_offline_p": 0.124,
+      "cfg": "HOUSE",
+      "iterations": 153600,
+      "deals": 2000,
+      "share": 50.09,
+      "std": 5.2,
+      "p": 0.43,
+      "shipped_change": false
+    },
+    "play_model_retrained": {
+      "decisions": 311683,
+      "rounds": 12000,
+      "h32": {
+        "val_nll": 0.88,
+        "top1": 62.3
+      },
+      "h64": {
+        "val_nll": 0.867,
+        "top1": 63.5
+      },
+      "offline_p_vs_shipped_model": {
+        "at_alpha1.5_beta2_bidT1": [
+          0.158,
+          0.173
+        ]
+      },
+      "match": {"a": "64-hidden model", "b": "shipped model", "cfg": "HOUSE", "iterations": 153600, "deals": 2000, "share": 50.12, "std": 5.08, "p": 0.3, "shipped_change": false}
+    },
+    "trump_repriced": {
+      "labeller": "2,400 iterations with the play likelihood on",
+      "hands": 1000,
+      "deals": 8000,
+      "tuned_selector_value": 159.4,
+      "refit_held_out_gain": 3.2,
+      "refit_se": 1.6,
+      "shipped_change": false
+    },
+    "lesson": "Oracle-equivalent p predicted the first belief step (+1.31, twice) and has predicted nothing since: +0.031 and +0.034 more both measured null in play."
   }
 }
