@@ -136,6 +136,40 @@ def score_net(probes, net_path: str) -> None:
         pr["nl"], pr["net_acc"] = lw, float(np.mean(accs)) if accs else np.nan
 
 
+def _rescore(args):
+    x, worlds, policy_t, bid_t, model_text = args
+    pl, bl = core.rs_belief_loglik(worlds, x["seat"], x["forehand"], x["contract"], x["declarer"],
+                                   x["history"], policy_t, bid_t, model_text)
+    return np.array(pl), np.array(bl)
+
+
+def rescore(probes, args) -> None:
+    """Temperatures × α × β on saved worlds, under the shipped or a given play model."""
+    model_text = Path(args.play_model).read_text() if args.play_model else None
+    policy_ts = [float(v) for v in args.policy_temps.split(",")]
+    bid_ts = [float(v) for v in args.bid_temps.split(",")]
+    alphas, betas = (0.5, 0.75, 1.0, 1.25, 1.5, 2.0), (0.5, 1.0, 2.0)
+    print(f"re-scoring {len(probes)} saved decisions; play model: {args.play_model or 'shipped'}")
+    print("ESS here is for the saved pool (2,048 worlds); the search draws 4,096, roughly doubling it.\n")
+    print(f"  {'policy T':>8} {'bid T':>6} {'α':>5} {'β':>5}  {'oracle-equivalent p':>22}  {'median ESS':>10}")
+    rows = []
+    with ProcessPoolExecutor(max_workers=args.workers) as ex:
+        for pt in policy_ts:
+            for bt in bid_ts:
+                jobs = [(pr["x"], pr["worlds"].tolist(), pt, bt, model_text) for pr in probes]
+                scored = list(ex.map(_rescore, jobs, chunksize=16))
+                view = [dict(pr, pl=pl, bl=bl) for pr, (pl, bl) in zip(probes, scored)]
+                for a in alphas:
+                    for b in betas:
+                        _, _, p, se, ess = summarise(view, a, b, 0.0)
+                        rows.append((pt, bt, a, b, p, se, ess))
+                        print(f"  {pt:8.2f} {bt:6.2f} {a:5.2f} {b:5.2f}  {p:14.4f} ± {se:.4f}  {ess:10.0f}", flush=True)
+    ok = [r for r in rows if r[6] >= 150]
+    print("\n  best with median ESS ≥ 150 here (≈ 300 in the search):")
+    for r in sorted(ok, key=lambda r: -r[4])[:8]:
+        print(f"    policy T {r[0]:.2f}  bid T {r[1]:.2f}  α {r[2]:.2f}  β {r[3]:.2f}  p = {r[4]:.4f} ± {r[5]:.4f}  ESS {r[6]:.0f}")
+
+
 def summarise(probes, alpha, beta, gamma):
     acc_u, acc_w, ess = [], [], []
     for pr in probes:
@@ -172,6 +206,11 @@ def main() -> None:
                     help="keep the decisions, worlds and truth so networks can be scored later")
     ap.add_argument("--load-probes", type=Path, default=None,
                     help="score against saved decisions instead of replaying rounds")
+    ap.add_argument("--rescore", action="store_true",
+                    help="with --load-probes: sweep temperatures, α and β on the saved worlds")
+    ap.add_argument("--policy-temps", default="1.0")
+    ap.add_argument("--bid-temps", default="3.0")
+    ap.add_argument("--play-model", default="", help="play model JSON to read the table through")
     args = ap.parse_args()
 
     if args.load_probes:
@@ -187,6 +226,9 @@ def main() -> None:
         if args.save_probes:
             with args.save_probes.open("wb") as fh:
                 pickle.dump(probes, fh)
+    if args.rescore:
+        rescore(probes, args)
+        return
     if args.belief_net:
         score_net(probes, args.belief_net)
     print(f"{len(probes)} decisions from {args.rounds} rounds, {args.players} at the table, "

@@ -56,13 +56,21 @@ N_CONTRACTS = 6
 LABEL_CFG: RulesConfig = EVAL.variant(match_bonus=100)
 
 
-def label_agent(iterations: int = 2400) -> DmctsAgent:
-    """The card player that prices the calls. `read_bidding` off, for the reason above."""
+def label_agent(iterations: int = 2400, beliefs: bool = False, belief_pool: int = 1024) -> DmctsAgent:
+    """The card player that prices the calls.
+
+    Everything that reads *who* declared stays off, for the reason above: the bidding prior and
+    the bid likelihood. `beliefs` turns on the play likelihood, which only reads the declaring
+    *team* — and forehand and its partner are the same team, so the shove is still priced exactly.
+    """
     return DmctsAgent(
         determinizations=40,
         iterations=max(1, iterations // 40),
         cfg=LABEL_CFG,
         read_bidding=False,
+        bid_alpha=0.0,
+        belief_alpha=1.0 if beliefs else 0.0,
+        belief_pool=belief_pool,
         label="contract-labeller",
     )
 
@@ -83,8 +91,8 @@ def _deal(seed: int, hand_index: int, deals: int) -> tuple[int, list[list[int]]]
 
 
 def _label_chunk(args) -> list[tuple[int, int, list[int], list[int]]]:
-    seed, indices, deals, iterations = args
-    agent = label_agent(iterations)
+    seed, indices, deals, iterations, beliefs, belief_pool = args
+    agent = label_agent(iterations, beliefs, belief_pool)
     seats = {s: agent for s in range(4)}
     rows = []
     for h in indices:
@@ -103,10 +111,11 @@ def _label_chunk(args) -> list[tuple[int, int, list[int], list[int]]]:
     return rows
 
 
-def generate(hands: int, deals: int, seed: int, iterations: int, workers: int, out: Path) -> None:
+def generate(hands: int, deals: int, seed: int, iterations: int, workers: int, out: Path,
+             beliefs: bool = False, belief_pool: int = 1024) -> None:
     workers = max(1, min(workers, hands))
     chunks = [list(range(i, hands, workers)) for i in range(workers)]
-    payload = [(seed, c, deals, iterations) for c in chunks if c]
+    payload = [(seed, c, deals, iterations, beliefs, belief_pool) for c in chunks if c]
     rows = []
     with ProcessPoolExecutor(max_workers=workers) as pool:
         for part in pool.map(_label_chunk, payload):
@@ -237,11 +246,14 @@ def main() -> None:
     g.add_argument("--iterations", type=int, default=2400)
     g.add_argument("--workers", type=int, default=os.cpu_count() or 1)
     g.add_argument("--out", type=Path, required=True)
+    g.add_argument("--beliefs", action="store_true", help="the labeller reads the other seats' plays")
+    g.add_argument("--belief-pool", type=int, default=1024)
     r = sub.add_parser("regret")
     r.add_argument("path", type=Path)
     args = ap.parse_args()
     if args.cmd == "generate":
-        generate(args.hands, args.deals, args.seed, args.iterations, args.workers, args.out)
+        generate(args.hands, args.deals, args.seed, args.iterations, args.workers, args.out,
+                 args.beliefs, args.belief_pool)
     else:
         regret(args.path)
 

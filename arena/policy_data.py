@@ -70,8 +70,9 @@ class RecordingAgent(Agent):
 
 
 def _chunk(args):
-    seed, indices, iterations = args
-    inner = DmctsAgent(determinizations=40, iterations=max(1, iterations // 40), cfg=HOUSE)
+    seed, indices, iterations, belief_pool = args
+    inner = DmctsAgent(determinizations=40, iterations=max(1, iterations // 40), cfg=HOUSE,
+                       belief_pool=belief_pool)
     rec = RecordingAgent(inner=inner)
     for i in indices:
         hands, _, leader, game_seed = deal_spec(seed, i, None)
@@ -85,6 +86,8 @@ def main() -> None:
     ap.add_argument("--rounds", type=int, default=6000)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--iterations", type=int, default=38400)
+    ap.add_argument("--belief-pool", type=int, default=4096,
+                    help="worlds the recorded bots weight per decision; smaller is faster")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 1)
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
@@ -96,7 +99,7 @@ def main() -> None:
     chunks = [list(range(i, min(i + step, args.rounds))) for i in range(0, args.rounds, step)]
     rows = []
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        for n, part in enumerate(pool.map(_chunk, [(args.seed, c, args.iterations) for c in chunks])):
+        for n, part in enumerate(pool.map(_chunk, [(args.seed, c, args.iterations, args.belief_pool) for c in chunks])):
             rows.extend(part)
             if n % 20 == 0:
                 print(f"  {len(rows)} decisions after {n + 1}/{len(chunks)} chunks", flush=True)
