@@ -170,7 +170,7 @@ fn play_out_many(
     scores=(0, 0), weis=(0, 0), target=0, multiplier=1, adversarial=true, risk_lambda=0.0, leaf_weights=None, ismcts=false, resample_every=1, order_moves=false, prior_weight=0.0, policy_weights=None, oracle_hands=None, oracle_p=0.0,
     weis_called=None, weis_played=None, weis_large=false, weis_four_nines=true, weis_four_beats_sequence=true, weis_draws=16,
     declarer=4, history=None, belief_alpha=0.0, belief_pool=0, bid_alpha=0.0, bid_temperature=3.0,
-    rollout_temperature=0.0, tree_policy=false, policy_temperature=1.0, belief_gamma=0.0, known=None
+    rollout_temperature=0.0, tree_policy=false, policy_temperature=1.0, belief_gamma=0.0, known=None, play_model_json=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -228,6 +228,8 @@ fn dmcts(
     policy_temperature: f32,
     belief_gamma: f32,
     known: Option<Vec<u64>>,
+    // A play model other than the compiled-in one, as JSON. Measurement only — see belief.rs.
+    play_model_json: Option<String>,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -320,6 +322,8 @@ fn dmcts(
                 }
                 kk
             },
+            model: play_model_json
+                .map(|t| std::sync::Arc::new(crate::playmodel::PlayModel::from_json(&t))),
         },
     };
     // Long CPU-bound work: release the GIL so the caller stays responsive and rayon can

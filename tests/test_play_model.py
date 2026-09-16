@@ -85,3 +85,30 @@ def test_every_mode_returns_a_legal_move(settings):
         obs = build_observation(st, st.to_play, declarer_seat=1, decision_seed=seed)
         assert obs.legal_moves >> agent.decide(obs) & 1
 
+
+
+def test_rescoring_saved_worlds_reproduces_the_pool_likelihoods():
+    """`rs_belief_loglik` is how temperature sweeps avoid replaying rounds; it must give the same
+    numbers the pool computed when it drew those worlds."""
+    from arena.belief_data import public_inputs
+
+    st, _ = _mid_round(17, 13)
+    obs = build_observation(st, st.to_play, declarer_seat=1)
+    x = public_inputs(obs, DmctsAgent(cfg=HOUSE))
+    worlds, play_ll, bid_ll = core.rs_belief_pool(
+        obs.seat, obs.hand, obs.unseen, list(obs.trick), obs.trick_leader, int(obs.contract),
+        x["forbidden"], 1, x["history"], 64, 5,
+    )
+    pl, bl = core.rs_belief_loglik(worlds, obs.seat, x["forehand"], int(obs.contract), 1, x["history"])
+    assert pl == pytest.approx(play_ll, rel=1e-5, abs=1e-5)
+    assert bl == pytest.approx(bid_ll, rel=1e-5, abs=1e-5)
+
+
+def test_an_agent_can_read_the_table_through_its_own_play_model():
+    from pathlib import Path
+
+    path = str(Path(__file__).resolve().parents[1] / "krass_jass" / "data" / "play_policy.json")
+    agent = DmctsAgent(determinizations=4, iterations=30, cfg=HOUSE, belief_pool=128, play_model=path)
+    st, _ = _mid_round(2, 9)
+    obs = build_observation(st, st.to_play, declarer_seat=1, decision_seed=3)
+    assert obs.legal_moves >> agent.decide(obs) & 1

@@ -30,7 +30,7 @@
 use crate::cards::{card_suit, NUM_SEATS, SUIT_MASK};
 use crate::cards::NUM_CARDS;
 use crate::leafeval::top_live;
-use crate::playmodel::{model, PlayCtx};
+use crate::playmodel::PlayCtx;
 use crate::policy::{learned_prior, N_POLICY_FEATURES};
 use crate::announce::determinize_consistent;
 use crate::legal::legal_moves;
@@ -276,7 +276,7 @@ pub fn ismcts(
                     w.hands[w.to_play], live, &w.trick, w.trick_leader, w.to_play, k.contract,
                     pos.play.declarer,
                 );
-                let c = model().sample(&ctx, legal, pos.play.policy_temperature, &mut rng);
+                let c = pos.play.play_model().sample(&ctx, legal, pos.play.policy_temperature, &mut rng);
                 let existing = present[..n_present].iter().find(|&&(card, _)| card == c);
                 if let Some(&(_, child)) = existing {
                     path.push(child);
@@ -362,7 +362,7 @@ pub fn ismcts(
             // Finish the round by the play model instead of by chance. A random playout is an
             // unbiased estimate of what the position is worth *if everyone then plays at
             // random*; this estimates what it is worth under play like the table's.
-            let m = model();
+            let m = pos.play.play_model();
             let mut had_tricks = false;
             loop {
                 if w.trick.is_empty() && !had_tricks {

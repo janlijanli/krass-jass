@@ -453,6 +453,45 @@ fn rs_belief_pool(
     (worlds, play, bid)
 }
 
+/// The play and bid log-likelihood of given worlds, under a chosen play model and temperatures.
+/// Saved worlds can be re-scored this way without replaying the rounds they came from, which is
+/// what makes a temperature sweep a matter of minutes (`arena/belief_quality.py --rescore`).
+#[pyfunction]
+#[pyo3(signature = (worlds, seat, trick_leader, contract, declarer, history, policy_temperature=1.0, bid_temperature=3.0, model_json=None))]
+#[allow(clippy::too_many_arguments)]
+fn rs_belief_loglik(
+    py: Python<'_>,
+    worlds: Vec<Vec<u64>>,
+    seat: usize,
+    trick_leader: usize,
+    contract: usize,
+    declarer: usize,
+    history: Vec<(usize, usize)>,
+    policy_temperature: f32,
+    bid_temperature: f32,
+    model_json: Option<String>,
+) -> (Vec<f32>, Vec<f32>) {
+    use crate::belief::{bid_log_likelihood, play_log_likelihood, PlayInfo};
+    let k = Kernel::new(contract, true, true, 5, 0);
+    let mut info = PlayInfo::off();
+    info.declarer = declarer;
+    info.history = history;
+    info.policy_temperature = policy_temperature;
+    info.bid_temperature = bid_temperature;
+    info.model = model_json.map(|t| std::sync::Arc::new(crate::playmodel::PlayModel::from_json(&t)));
+    py.allow_threads(|| {
+        let mut play = Vec::with_capacity(worlds.len());
+        let mut bid = Vec::with_capacity(worlds.len());
+        for w in &worlds {
+            let mut h = [0u64; 4];
+            h.copy_from_slice(&w[..4]);
+            play.push(play_log_likelihood(&h, &info, seat & 3, &k));
+            bid.push(bid_log_likelihood(&h, &info, seat & 3, trick_leader & 3, contract));
+        }
+        (play, bid)
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn belief_input<'a>(
     seat: usize,
@@ -854,6 +893,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_play_features, m)?)?;
     m.add_function(wrap_pyfunction!(rs_play_log_probs, m)?)?;
     m.add_function(wrap_pyfunction!(rs_belief_pool, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_belief_loglik, m)?)?;
     m.add_function(wrap_pyfunction!(rs_belief_features, m)?)?;
     m.add_function(wrap_pyfunction!(rs_belief_log_probs, m)?)?;
     Ok(())

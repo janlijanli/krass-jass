@@ -34,7 +34,7 @@ use crate::announce::determinize_consistent;
 use crate::cards::{card_suit, NUM_SEATS};
 use crate::config::Rules;
 use crate::legal::legal_moves;
-use crate::playmodel::{model, PlayCtx};
+use crate::playmodel::{model, PlayCtx, PlayModel};
 use crate::rng::Rng;
 use crate::rollout::Kernel;
 use crate::search::Position;
@@ -70,6 +70,9 @@ pub struct PlayInfo {
     /// Per seat, the cards a Weis showed it holding and it has not played. The network reads
     /// them; the sampler already has them as `forbidden` for everyone else.
     pub known: [u64; NUM_SEATS],
+    /// A play model to use instead of the compiled-in one. Measurement only: the compiled model
+    /// is shared by every agent in a process, so comparing two models needs one per agent.
+    pub model: Option<std::sync::Arc<PlayModel>>,
 }
 
 impl PlayInfo {
@@ -87,7 +90,13 @@ impl PlayInfo {
             policy_temperature: 1.0,
             belief_gamma: 0.0,
             known: [0; NUM_SEATS],
+            model: None,
         }
+    }
+
+    /// The play model this search reads the table through.
+    pub fn play_model(&self) -> &PlayModel {
+        self.model.as_deref().unwrap_or_else(|| model())
     }
 
     pub fn weighting(&self) -> bool {
@@ -123,7 +132,7 @@ pub fn play_log_likelihood(current: &[u64; NUM_SEATS], info: &PlayInfo, root: us
         hands[s] |= 1u64 << c;
     }
     let mut live = hands.iter().fold(0u64, |a, h| a | h);
-    let m = model();
+    let m = info.play_model();
     let mut trick: Vec<usize> = Vec::with_capacity(4);
     let mut leader = 0usize;
     let mut acc = 0.0f32;

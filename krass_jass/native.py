@@ -80,6 +80,7 @@ def dmcts(
     policy_temperature: float = 1.0,
     belief_gamma: float = 0.0,
     known: list[int] | None = None,
+    play_model_json: str | None = None,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -98,6 +99,8 @@ def dmcts(
     # Only when used: the belief network's weight is newer than some builds of the core that
     # long-running measurement jobs still have loaded.
     extra = {"belief_gamma": belief_gamma, "known": known} if belief_gamma > 0 else {}
+    if play_model_json:
+        extra["play_model_json"] = play_model_json
     return _core.dmcts(
         seat=seat,
         hand=hand,

@@ -195,6 +195,7 @@ impl<'a> PlayCtx<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct PlayModel {
     pub hidden: usize,
     pub w1: Vec<f32>,

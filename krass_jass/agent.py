@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 from . import bidding, convention, native, reading
 from .cards import card_list
@@ -22,6 +24,11 @@ from .rules import HOUSE, SHOVE, Contract, RulesConfig
 from .tables import CARD_VALUES
 from .trump import select_trump
 from .voids import infer_forbidden
+
+
+@lru_cache(maxsize=8)
+def _read_text(path: str) -> str:
+    return Path(path).read_text()
 
 
 class Agent:
@@ -190,6 +197,10 @@ class DmctsAgent(Agent):
     #: Offline it adds ~0.03 oracle-equivalent on top of plays and bid at weight 1; in play that
     #: measured 50.15%, p = 0.24, over 2,000 deals (`docs/measurements.md` §5q).
     belief_gamma: float = 0.0
+    #: Path to a play model other than the compiled-in `krass_jass/data/play_policy.json`. Empty is
+    #: the shipped model. Measurement only: the compiled model is shared by every agent in a
+    #: process, so an arena comparing two models needs each agent to carry its own.
+    play_model: str = ""
 
     def select_trump(self, hand: int, is_forehand: bool) -> Contract | str:
         if self.trump_weights and self.trump_policy != "random":
@@ -319,6 +330,7 @@ class DmctsAgent(Agent):
             "policy_temperature": self.policy_temperature,
             "belief_gamma": self.belief_gamma,
             "known": known,
+            "play_model_json": _read_text(self.play_model) if self.play_model else None,
         }
 
     def _priors(self, obs: Observation) -> dict:
