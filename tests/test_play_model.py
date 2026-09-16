@@ -44,15 +44,15 @@ def test_history_is_the_public_play_order(cards):
     assert DmctsAgent()._play(obs)["history"] == played
 
 
-def test_beliefs_are_on_and_the_rest_of_the_play_model_is_off_by_default():
-    """Beliefs from play and bid shipped on two replicated matches (measurements.md §5o); the
-    tree policy and policy rollouts have only equal-iteration results so far (§5p)."""
+def test_the_shipped_play_model_settings():
+    """Beliefs (§5o) and the tree policy (§5p) each shipped on two replicated matches; policy
+    rollouts measured null at equal time and stay off."""
     st, _ = _mid_round(3, 6)
     play = DmctsAgent()._play(build_observation(st, st.to_play, declarer_seat=1))
     assert play["belief_alpha"] == 1.0 and play["bid_alpha"] == 1.0
     assert play["belief_pool"] == 4096
+    assert play["tree_policy"] is True
     assert play["rollout_temperature"] == 0.0
-    assert play["tree_policy"] is False
 
 
 def test_shipped_model_is_a_distribution():

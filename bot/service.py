@@ -34,7 +34,8 @@ AGENT_VERSION = "0.1.0"
 
 #: 153,600 iterations, matching `web/app.py` and the browser build. §3's saturation at 2,400
 #: was measured on the voting search; on the shared tree the budget pays to 64x
-#: (`docs/measurements.md` §3b). ~150 ms a move natively, inside `TIME_BUDGET_MS`.
+#: (`docs/measurements.md` §3b). ~1.3 s a move natively since the tree policy went on (§5p),
+#: which is why `TIME_BUDGET_MS` is 6 s rather than the 1.5 s it was when a move cost 150 ms.
 DEFAULT_DETERMINIZATIONS = 40
 DEFAULT_ITERATIONS = 3840
 

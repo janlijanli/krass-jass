@@ -72,7 +72,10 @@ class Observation:
     #: Stöck has no equivalent and deliberately contributes nothing: it is announced when the
     #: *second* of King and Queen is played, by which point both are already face up.
     known_cards: tuple = ()
-    time_budget_ms: int = 1500
+    #: What a bot may spend on a move. 6 s: the shipped search costs ~1.3 s natively (median; p90
+    #: 1.8 s) since the tree policy went on, and a CPU-capped container is slower again. The web
+    #: client waits this plus a margin before playing a random card for a bot that has not answered.
+    time_budget_ms: int = 6000
     decision_seed: int = 0
     round_index: int = 0
 
@@ -139,7 +142,7 @@ def build_observation(
     weis_points: tuple[int, int] = (0, 0),
     weis_announced: tuple = (),
     known_cards: tuple = (),
-    time_budget_ms: int = 1500,
+    time_budget_ms: int = 6000,
     decision_seed: int = 0,
     round_index: int = 0,
 ) -> Observation:

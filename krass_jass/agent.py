@@ -187,7 +187,14 @@ class DmctsAgent(Agent):
     rollout_temperature: float = 0.0
     #: Move the other three seats inside the tree by the play model, holding their own hand in
     #: the imagined world, instead of by UCT over statistics pooled across worlds.
-    tree_policy: bool = False
+    #:
+    #: **On.** It fixes a real defect: a shared tree pools the other seats' statistics across
+    #: worlds, so they are effectively conditioned on the searcher's real hand and blind to their
+    #: own. +0.62 and +1.10 of a round's share on two seeds at the shipped 153,600 iterations,
+    #: pooled +0.86 ± 0.14 (`docs/measurements.md` §5p). It costs ~11x a move — ~1.5–2 s natively,
+    #: which the owner's latency decision allows. The browser build leaves it off (`wasm_api.rs`):
+    #: at ~1.4x native that would be ~5 s a move, and nothing has measured it there.
+    tree_policy: bool = True
     policy_temperature: float = 1.0
     #: Path to an alternative trump weights file. Empty uses `krass_jass/data/trump_weights.json`.
     #: Measurement only — it lets the arena play two bidders against each other without
