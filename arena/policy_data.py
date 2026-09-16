@@ -1,11 +1,14 @@
-"""Decisions from self-play, for fitting the play model in `rust/src/playmodel.rs`.
+"""Decisions from self-play, for fitting the play model and the policy network.
 
 The model is a model of *how a seat plays*, and the players it will be asked about are our
 own bots, so the data is the shipped search playing itself: HOUSE rules, Weis on, the rule
 selector bidding, conventions on — every choice exactly as it would be made at the table.
 
-What is stored is only what the deciding seat could see, plus the choice. The features are
-computed later, in Rust, from those fields — one feature function for training and play.
+What is stored is only what the deciding seat could see, plus the choice and the search's visit
+counts. Two consumers want different slices of it and both are here: the play model
+(`arena/train_policy.py`, 36 hand-made features of a (state, card) pair) and the policy network
+(`arena/train_policy_net.py`, the ~900-input encoder `rs_belief_features` builds). Features are
+computed later, in Rust, from these fields — one feature function for training and for play.
 
 Usage::
 
@@ -25,12 +28,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np  # noqa: E402
 
-from arena.arena import deal_spec, play_round  # noqa: E402
+from arena.arena import choose_contract, deal_spec, resolve_weis  # noqa: E402
+from arena.belief_data import public_inputs  # noqa: E402
 from krass_jass import convention  # noqa: E402
 from krass_jass.agent import Agent, DmctsAgent  # noqa: E402
 from krass_jass.cards import card_list  # noqa: E402
-from krass_jass.observation import Observation  # noqa: E402
+from krass_jass.observation import Observation, build_observation, derive_decision_seed  # noqa: E402
 from krass_jass.rules import HOUSE  # noqa: E402
+from krass_jass.state import RoundState  # noqa: E402
 
 
 @dataclass
@@ -40,6 +45,9 @@ class RecordingAgent(Agent):
     inner: DmctsAgent = field(default_factory=DmctsAgent)
     round_id: int = 0
     records: list = field(default_factory=list)
+    #: Filled per decision by the round loop: everything the seat could see, in the shape the
+    #: encoder takes. Kept out of `decide` so the agent stays a plain Agent.
+    context: dict = field(default_factory=dict)
 
     @property
     def name(self) -> str:
@@ -62,9 +70,14 @@ class RecordingAgent(Agent):
         for c, v, _, _ in candidates:
             visits[c] = v
         trick = list(obs.trick) + [-1] * (3 - len(obs.trick))
+        x = public_inputs(obs, self.inner)
+        history = np.full((36, 2), -1, dtype=np.int8)
+        for i, (s, c) in enumerate(x["history"]):
+            history[i] = (s, c)
         self.records.append((
             self.round_id, obs.seat, obs.hand, obs.hand | obs.unseen, trick, obs.trick_leader,
             int(obs.contract), obs.declarer_seat, obs.legal_moves, card, visits,
+            history, x["forehand"], x["forbidden"], x["known"], x["weis_called"],
         ))
         return card
 
@@ -74,10 +87,25 @@ def _chunk(args):
     inner = DmctsAgent(determinizations=40, iterations=max(1, iterations // 40), cfg=HOUSE,
                        belief_pool=belief_pool)
     rec = RecordingAgent(inner=inner)
+    seats = {s: rec for s in range(4)}
     for i in indices:
         hands, _, leader, game_seed = deal_spec(seed, i, None)
         rec.round_id = i
-        play_round(hands, None, leader, {s: rec for s in range(4)}, HOUSE, game_seed, f"policy{i}")
+        # The round is driven here rather than through `play_round` so the observation carries the
+        # Weis the table showed and called — the encoder reads both.
+        contract, declarer = choose_contract(hands, leader, seats, HOUSE)
+        _, _, shown, announced = resolve_weis(hands, contract, leader, HOUSE)
+        st = RoundState(contract=contract, hands=list(hands), cfg=HOUSE, leader=leader)
+        while not st.done:
+            seat = st.to_play
+            obs = build_observation(
+                st, seat, declarer_seat=declarer,
+                decision_seed=derive_decision_seed(game_seed, f"policy{i}", seat, 0,
+                                                   len(st.tricks_played)),
+                known_cards=tuple((s, c) for s, c in shown if st.hands[s] & (1 << c)),
+                weis_announced=announced,
+            )
+            st.play(rec.decide(obs))
     return rec.records
 
 
@@ -118,6 +146,11 @@ def main() -> None:
         legal=np.array(cols[8], dtype=np.uint64),
         card=np.array(cols[9], dtype=np.int8),
         visits=np.array(cols[10], dtype=np.int32),
+        history=np.stack(cols[11]),
+        forehand=np.array(cols[12], dtype=np.int8),
+        forbidden=np.array(cols[13], dtype=np.uint64),
+        known=np.array(cols[14], dtype=np.uint64),
+        weis_called=np.array(cols[15], dtype=np.int16),
         iterations=args.iterations,
         seed=args.seed,
     )
