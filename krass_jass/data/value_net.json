@@ -1,0 +1,12 @@
+{
+  "_comment": "Untrained: every position is worth half of what is left. Written by arena/train_value.py; read by rust/src/valuenet.rs.",
+  "n_features": 295,
+  "h1": 0,
+  "h2": 0,
+  "w1": [],
+  "b1": [],
+  "w2": [],
+  "b2": [],
+  "w3": [],
+  "b3": []
+}

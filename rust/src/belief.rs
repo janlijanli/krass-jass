@@ -73,6 +73,10 @@ pub struct PlayInfo {
     /// A play model to use instead of the compiled-in one. Measurement only: the compiled model
     /// is shared by every agent in a process, so comparing two models needs one per agent.
     pub model: Option<std::sync::Arc<PlayModel>>,
+    /// Score leaves with the value network (`valuenet.rs`) instead of a random playout.
+    pub value_net: bool,
+    /// A value network other than the compiled-in one. Measurement only, like `model`.
+    pub value_model: Option<std::sync::Arc<crate::valuenet::ValueNet>>,
 }
 
 impl PlayInfo {
@@ -91,7 +95,14 @@ impl PlayInfo {
             belief_gamma: 0.0,
             known: [0; NUM_SEATS],
             model: None,
+            value_net: false,
+            value_model: None,
         }
+    }
+
+    /// The value network leaves are scored with, when `value_net` is on.
+    pub fn value_model(&self) -> &crate::valuenet::ValueNet {
+        self.value_model.as_deref().unwrap_or_else(|| crate::valuenet::net())
     }
 
     /// The play model this search reads the table through.

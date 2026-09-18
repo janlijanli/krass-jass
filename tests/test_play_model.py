@@ -76,6 +76,7 @@ def test_shipped_model_is_a_distribution():
         {"tree_policy": True},
         {"belief_gamma": 0.5, "belief_pool": 256},
         {"belief_alpha": 0.0, "bid_alpha": 0.0, "belief_gamma": 1.0, "belief_pool": 256},
+        {"value_net": True},
     ],
 )
 def test_every_mode_returns_a_legal_move(settings):
@@ -112,3 +113,11 @@ def test_an_agent_can_read_the_table_through_its_own_play_model():
     st, _ = _mid_round(2, 9)
     obs = build_observation(st, st.to_play, declarer_seat=1, decision_seed=3)
     assert obs.legal_moves >> agent.decide(obs) & 1
+
+
+def test_playout_fraction_is_a_share_of_what_is_left():
+    """The baseline the value network is measured against must be on the network's scale."""
+    hands = deal_hands(random.Random(9))
+    for k in (1, 16):
+        f = core.rs_playout_fraction(hands, [], 0, int(Contract.SPADES), k, 3)
+        assert 0.0 <= f <= 1.0

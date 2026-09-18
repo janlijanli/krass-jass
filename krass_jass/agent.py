@@ -208,6 +208,12 @@ class DmctsAgent(Agent):
     #: the shipped model. Measurement only: the compiled model is shared by every agent in a
     #: process, so an arena comparing two models needs each agent to carry its own.
     play_model: str = ""
+    #: Score the search's leaves with the value network (`rust/src/valuenet.rs`) instead of a
+    #: random playout. **Off** — candidate B of `docs/neural-plan.md`, under measurement. Meant for
+    #: a *small* search: at the shipped budget a playout's noise already averages out (§5g).
+    value_net: bool = False
+    #: Path to a value network other than the compiled-in one. Measurement only.
+    value_model: str = ""
 
     def select_trump(self, hand: int, is_forehand: bool) -> Contract | str:
         if self.trump_weights and self.trump_policy != "random":
@@ -338,6 +344,8 @@ class DmctsAgent(Agent):
             "belief_gamma": self.belief_gamma,
             "known": known,
             "play_model_json": _read_text(self.play_model) if self.play_model else None,
+            "value_net": self.value_net,
+            "value_model_json": _read_text(self.value_model) if self.value_model else None,
         }
 
     def _priors(self, obs: Observation) -> dict:

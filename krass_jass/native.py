@@ -81,6 +81,8 @@ def dmcts(
     belief_gamma: float = 0.0,
     known: list[int] | None = None,
     play_model_json: str | None = None,
+    value_net: bool = False,
+    value_model_json: str | None = None,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -101,6 +103,10 @@ def dmcts(
     extra = {"belief_gamma": belief_gamma, "known": known} if belief_gamma > 0 else {}
     if play_model_json:
         extra["play_model_json"] = play_model_json
+    if value_net:
+        extra["value_net"] = True
+        if value_model_json:
+            extra["value_model_json"] = value_model_json
     return _core.dmcts(
         seat=seat,
         hand=hand,

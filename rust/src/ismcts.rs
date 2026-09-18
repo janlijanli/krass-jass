@@ -34,7 +34,7 @@ use crate::playmodel::PlayCtx;
 use crate::policy::{learned_prior, N_POLICY_FEATURES};
 use crate::announce::determinize_consistent;
 use crate::legal::legal_moves;
-use crate::objective::reward;
+use crate::objective::{reward, reward_f};
 use crate::rng::Rng;
 use crate::rollout::{pick_random, play_out, Kernel};
 use crate::search::{Candidate, Position};
@@ -358,6 +358,25 @@ pub fn ismcts(
             advance(&mut w, card, k);
         }
 
+        let result = if pos.play.value_net {
+            // The value network in place of a playout (candidate B, docs/neural-plan.md): the
+            // fraction of what is left that the mover's team takes, under good play. The total
+            // left is exact, so the expected points follow and the share stays linear in it.
+            let mut x = [0.0f32; crate::valuenet::N_VALUE_FEATURES];
+            crate::valuenet::features(&w.hands, &w.trick, w.trick_leader, k.contract, &mut x);
+            let f = pos.play.value_model().eval(&x) as f64;
+            let left = crate::valuenet::remaining_points(&w.hands, &w.trick, k) as f64;
+            let mover_team = crate::valuenet::to_move(&w.trick, w.trick_leader) & 1;
+            let mut add = [0.0f64; 2];
+            add[mover_team] = f * left;
+            add[1 - mover_team] = (1.0 - f) * left;
+            reward_f(
+                w.pts[root_team] as f64 + add[root_team],
+                w.pts[1 - root_team] as f64 + add[1 - root_team],
+                root_team,
+                &pos.stakes,
+            )
+        } else {
         if pos.play.rollout_temperature > 0.0 {
             // Finish the round by the play model instead of by chance. A random playout is an
             // unbiased estimate of what the position is worth *if everyone then plays at
@@ -403,7 +422,8 @@ pub fn ismcts(
             w.pts[0] += a;
             w.pts[1] += b;
         }
-        let result = reward(w.pts[root_team], w.pts[1 - root_team], root_team, &pos.stakes);
+        reward(w.pts[root_team], w.pts[1 - root_team], root_team, &pos.stakes)
+        };
 
         for &n in &path {
             nodes[n].visits += 1;

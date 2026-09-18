@@ -492,6 +492,56 @@ fn rs_belief_loglik(
     })
 }
 
+fn four(hands: &[u64]) -> [u64; 4] {
+    let mut h = [0u64; 4];
+    h.copy_from_slice(&hands[..4]);
+    h
+}
+
+/// The value network's inputs for a perfect-information position, as little-endian `f32` bytes.
+#[pyfunction]
+fn rs_value_features(hands: Vec<u64>, trick: Vec<usize>, trick_leader: usize, contract: usize)
+    -> std::borrow::Cow<'static, [u8]> {
+    use crate::valuenet::{features, N_VALUE_FEATURES};
+    let mut x = [0.0f32; N_VALUE_FEATURES];
+    features(&four(&hands), &trick, trick_leader & 3, contract, &mut x);
+    std::borrow::Cow::Owned(x.iter().flat_map(|v| v.to_le_bytes()).collect())
+}
+
+/// The value network's estimate: the fraction of the remaining points the mover's team takes.
+#[pyfunction]
+#[pyo3(signature = (hands, trick, trick_leader, contract, model_json=None))]
+fn rs_value_eval(hands: Vec<u64>, trick: Vec<usize>, trick_leader: usize, contract: usize,
+                 model_json: Option<String>) -> f32 {
+    use crate::valuenet::{features, net, ValueNet, N_VALUE_FEATURES};
+    let owned = model_json.map(|t| ValueNet::from_json(&t));
+    let n = owned.as_ref().unwrap_or_else(|| net());
+    let mut x = [0.0f32; N_VALUE_FEATURES];
+    features(&four(&hands), &trick, trick_leader & 3, contract, &mut x);
+    n.eval(&x)
+}
+
+/// The same fraction, estimated as the mean of `k` random playouts — the baseline to beat.
+#[pyfunction]
+fn rs_playout_fraction(hands: Vec<u64>, trick: Vec<usize>, trick_leader: usize, contract: usize,
+                       k: usize, seed: u64) -> f64 {
+    use crate::valuenet::{random_remaining, remaining_points, to_move};
+    let kern = Kernel::new(contract, true, true, 5, 0);
+    let h = four(&hands);
+    let total = remaining_points(&h, &trick, &kern) as f64;
+    if total <= 0.0 {
+        return 0.5;
+    }
+    let team = to_move(&trick, trick_leader & 3) & 1;
+    let mut rng = Rng::new(seed | 1);
+    let mut acc = 0.0;
+    for _ in 0..k.max(1) {
+        let (a, b) = random_remaining(h, &trick, trick_leader & 3, &kern, &mut rng);
+        acc += if team == 0 { a } else { b } as f64;
+    }
+    acc / (k.max(1) as f64 * total)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn belief_input<'a>(
     seat: usize,
@@ -894,6 +944,9 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_play_log_probs, m)?)?;
     m.add_function(wrap_pyfunction!(rs_belief_pool, m)?)?;
     m.add_function(wrap_pyfunction!(rs_belief_loglik, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_value_features, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_value_eval, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_playout_fraction, m)?)?;
     m.add_function(wrap_pyfunction!(rs_belief_features, m)?)?;
     m.add_function(wrap_pyfunction!(rs_belief_log_probs, m)?)?;
     Ok(())
