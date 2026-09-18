@@ -38,6 +38,8 @@ Where the two disagree, the record is the source and this report is wrong.
 | play model retrained on today's bot (63.5% top-1) | +0.015 offline; **50.12%, p = 0.30** over 2,000 deals | null in play (§5r) |
 | trump refit on labels from a stronger card player | **+3.2 ± 1.6** game points a round, held out | a tenth of the first fit; not run in play (§5r) |
 | play-model rollouts | +1.10 at equal iterations, **null at equal time** | ~40× cost spends all of it (§5p) |
+| policy network playing without search | 60.3% agreement with the search; **−4.0** against it | data-limited; kept as a fast difficulty level (§5s) |
+| value network at the leaves | 49.85% at 2,400 (p = 0.39); 50.40% at 153,600 (p = 0.068) at 1.6× the time | kill criterion fired (§5t) |
 | discard-signal reading | null on the voting search, **−0.36** on the shared tree | §5c, §3f |
 | hand-written or learned policy prior (PUCT) | null (and −0.84 at high weight) | ~4 legal moves, each already visited ~570× (§5i, §5j) |
 | linear leaf evaluator instead of random playout | **−9 points** | bias does not average out; playout noise does (§5g) |

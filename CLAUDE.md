@@ -134,6 +134,10 @@ Do not design around an assumed answer to anything else here. Ask.
 - **The other seats are modelled by the play model inside the tree** (`tree_policy`, on): +0.86 of a
   round's share, replicated, at the shipped budget (§5p). It costs ~11x a move (~2 s natively), which
   the latency decision allows; the browser build leaves it off until measured there.
+- **Networks, on this hardware, are closed** (`docs/neural-plan.md`). A policy network replacing the
+  search is 4 points weaker (§5s); a value network at its leaves is null at a small budget and a
+  costly, non-significant lean at the shipped one (§5t). Both gains of this stretch came from
+  modelling *how the other seats play*, not *what a position is worth*.
 - The gap to a bot that sees every hand is ~7 points of a round's share. Strategy fusion is only
   ~0.7 of it (§5h); **belief accuracy is the largest lever** (§5k). Weighting imagined deals by
   the other seats' plays and bid under a learned play model is worth +1.3, replicated (§5o).

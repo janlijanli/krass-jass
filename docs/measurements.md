@@ -1567,6 +1567,55 @@ not a stronger one. The strength question moves to candidate B — a value netwo
 small enough for playout noise to still matter (`docs/neural-plan.md` §2B).
 ---
 
+## 5t. A value network at the leaves — the kill criterion fires
+
+Candidate B of `docs/neural-plan.md`, the last idea on this hardware that could add strength: a
+network in place of the random playout, scoring a leaf (a perfect-information position inside an
+imagined world) as the share of the *remaining* points the mover's team takes (`rust/src/valuenet.rs`,
+295 inputs → 128 → 64 → 1). Unlike §5g it is trained on **what actually happened** — 432,000
+positions from 12,000 rounds our own bot played to the end — not on the random playout's average.
+
+### Offline: better than one playout, worse than four
+
+RMSE against the real outcome, 4,000 held-out positions:
+
+| estimator | RMSE |
+|---|---|
+| constant 0.5 | 0.346 |
+| 1 random playout | 0.210 |
+| **value network** | **0.188** |
+| 4 random playouts | 0.159 |
+| 16 | 0.143 |
+| 64 | 0.139 |
+| 256 | 0.137 |
+
+The random playout is *not* unbiased for the real outcome — its error flattens at ~0.137 however many
+are averaged, which is the distance between random play and ours — but that floor is far lower than
+the network reaches. The network beats a single playout, which is what a leaf gets in the search, and
+that cleared the gate the plan set. It does not beat the average the search builds from many.
+
+### In play
+
+| value network vs playouts | iterations, both sides | share | deals | p |
+|---|---|---|---|---|
+| small search | 2,400 | 49.85% ± 7.58 | 2,000 | 0.39 |
+| shipped budget | 153,600 | 50.40% ± 6.96 | 1,000 | 0.068 |
+
+The plan's kill criterion was the first row: **if a value head cannot beat playouts inside a small
+search, the network-inside-the-search line is closed.** It cannot. The second row leans +0.40 without
+reaching significance, and it is not free — at 153,600 iterations a move costs **2.64 s against
+1.68 s**, 1.6× — so at equal time the lean shrinks further.
+
+### What closes, and what it says
+
+With §5s this finishes the network work that CPU-only hardware allows. A network that *replaces* the
+search is 4 points weaker (§5s); one that *judges positions inside* it is worth nothing measurable at a
+small budget and a costly lean at the large one. The two gains of this stretch both came from a small
+model of **how the other seats play** — reading the table (§5o) and moving them inside the tree (§5p) —
+not from a model of what a position is worth. The search already estimates that well; it did not know
+how its opponents think.
+---
+
 ## 6. Open
 
 - **Nothing measured against a human.** Every figure is bots against bots, and two of the largest

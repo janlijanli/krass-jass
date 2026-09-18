@@ -72,6 +72,11 @@ where each leaf is visited a handful of times and playout noise no longer averag
 - **Kill criterion:** if the value head cannot beat playouts at 2,400 iterations at equal time, the
   whole "network inside the search" family is closed here and B–D stop.
 
+> **B is done, and the kill criterion fired.** Offline the network beat one random playout (RMSE
+> 0.188 against 0.210) but not four (0.159). In play: 49.85% at 2,400 iterations (p = 0.39) — the
+> criterion — and 50.40% at 153,600 (p = 0.068) at 1.6× the cost per move (`docs/measurements.md`
+> §5t). The network line is closed on this hardware.
+
 ### C. Expert iteration (the first thing that could make it *stronger*)
 
 Alternate: search with the network as prior and value → record decisions → retrain → repeat.
