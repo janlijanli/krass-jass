@@ -12,6 +12,38 @@
  */
 
 const SUIT_GLYPH = { D: "♦", H: "♥", S: "♠", C: "♣" };
+
+/* The suits, drawn rather than typed.
+ *
+ * They used to be the font's ♠ ♣ ♥ ♦, and at the size of a corner index the two black suits
+ * came out as much the same dark blob — how a spade or a club looked was up to whatever font
+ * the phone had. These follow the Swiss French-suited Jass cards instead (AGMüller, as shown
+ * on jassverzeichnis.ch): the spade one solid pointed blade on a short flared foot, the club
+ * three clearly separate round lobes on a thin stem. Told apart by silhouette, not by colour.
+ *
+ * Drawn in a box from -1 to 1 around the origin; `suitMark` places and scales it.
+ */
+const SUIT_PATH = {
+  H: "M0 0.92 C-0.12 0.8 -1 0.22 -1 -0.34 C-1 -0.74 -0.72 -0.96 -0.46 -0.96 " +
+     "C-0.22 -0.96 -0.06 -0.8 0 -0.6 C0.06 -0.8 0.22 -0.96 0.46 -0.96 " +
+     "C0.72 -0.96 1 -0.74 1 -0.34 C1 0.22 0.12 0.8 0 0.92 Z",
+  D: "M0 -1 L0.74 0 L0 1 L-0.74 0 Z",
+  S: "M0 -1 C0.18 -0.72 1 -0.3 1 0.18 C1 0.52 0.74 0.7 0.47 0.7 " +
+     "C0.28 0.7 0.12 0.6 0.05 0.46 Q0.1 0.78 0.36 1 L-0.36 1 Q-0.1 0.78 -0.05 0.46 " +
+     "C-0.12 0.6 -0.28 0.7 -0.47 0.7 C-0.74 0.7 -1 0.52 -1 0.18 C-1 -0.3 -0.18 -0.72 0 -1 Z",
+  // Three lobes that do not touch, and a stem that flares only at its foot.
+  C: "M0 -1 A0.35 0.35 0 1 1 0 -0.3 A0.35 0.35 0 1 1 0 -1 Z " +
+     "M-0.6 -0.2 A0.35 0.35 0 1 1 -0.6 0.5 A0.35 0.35 0 1 1 -0.6 -0.2 Z " +
+     "M0.6 -0.2 A0.35 0.35 0 1 1 0.6 0.5 A0.35 0.35 0 1 1 0.6 -0.2 Z " +
+     "M-0.05 -0.3 L0.05 -0.3 Q0.07 0.74 0.32 1 L-0.32 1 Q-0.07 0.74 -0.05 -0.3 Z",
+};
+
+/** A suit symbol centred on (x, y), `half` units from centre to edge, upside down if asked. */
+function suitMark(suit, x, y, half, cls = "pip-mark", flip = false) {
+  const turn = flip ? " rotate(180)" : "";
+  return `<path class="${cls}" d="${SUIT_PATH[suit]}" ` +
+    `transform="translate(${x} ${y})${turn} scale(${half})"/>`;
+}
 const SUIT_RED = { D: true, H: true, S: false, C: false };
 const RANK_LABEL = { A: "A", K: "K", Q: "Q", J: "J", T: "10", 9: "9", 8: "8", 7: "7", 6: "6" };
 
@@ -26,12 +58,9 @@ const PIPS = {
       [50, 46], [50, 94]],
 };
 
-function pip(x, y, glyph, size = 22) {
+function pip(x, y, suit, half = 8.5) {
   // Pips in the lower half sit upside down on a real card.
-  const flip = y > 70 ? ` transform="rotate(180 ${x} ${y})"` : "";
-  // Inline style, not a `font-size` attribute: the stylesheet sets a size for `.pip-mark`
-  // and a presentation attribute loses to it, which quietly shrank the ace to pip size.
-  return `<text x="${x}" y="${y}" class="pip-mark" style="font-size:${size}px"${flip}>${glyph}</text>`;
+  return suitMark(suit, x, y, half, "pip-mark", y > 70);
 }
 
 /* Court figures.
@@ -61,7 +90,7 @@ const HEADWEAR = {
 
 /* One half of the figure, drawn to finish well clear of the midline at y=70 — the mirrored
    copy starts there, and figures that run right up to it merge into a blob. */
-function courtHalf(rank, glyph) {
+function courtHalf(rank, suit) {
   return `
     <g>
       ${HEADWEAR[rank]}
@@ -71,36 +100,35 @@ function courtHalf(rank, glyph) {
       <path d="M47.4 48.5 Q50 50.4 52.6 48.5" class="court-line"/>
       <path d="M50 54 Q39 55.5 36 65 L64 65 Q61 55.5 50 54 Z" class="court-robe"/>
       <path d="M50 54 L50 65" class="court-line"/>
-      <text x="41.5" y="63.5" class="court-pip">${glyph}</text>
+      ${suitMark(suit, 41.5, 59.5, 4.6, "court-pip")}
     </g>`;
 }
 
-function courtFace(rank, glyph) {
+function courtFace(rank, suit) {
   return `
     <rect x="19" y="16" width="62" height="108" rx="4" class="court-frame"/>
-    ${courtHalf(rank, glyph)}
-    <g transform="rotate(180 50 70)">${courtHalf(rank, glyph)}</g>`;
+    ${courtHalf(rank, suit)}
+    <g transform="rotate(180 50 70)">${courtHalf(rank, suit)}</g>`;
 }
 
 export function cardFace(code) {
   const suit = code[0];
   const rank = code[1];
-  const glyph = SUIT_GLYPH[suit];
   const label = RANK_LABEL[rank];
 
   let middle;
   if (rank === "A") {
-    middle = pip(50, 78, glyph, 46);
+    middle = suitMark(suit, 50, 72, 19);
   } else if (PIPS[rank]) {
-    middle = PIPS[rank].map(([x, y]) => pip(x, y, glyph)).join("");
+    middle = PIPS[rank].map(([x, y]) => pip(x, y, suit)).join("");
   } else {
-    middle = courtFace(rank, glyph);
+    middle = courtFace(rank, suit);
   }
 
   const index = (x, y, cls) =>
     `<g class="${cls}">
        <text x="${x}" y="${y}" class="idx-rank">${label}</text>
-       <text x="${x}" y="${y + 15}" class="idx-pip">${glyph}</text>
+       ${suitMark(suit, x, y + 10, 6.4, "idx-pip")}
      </g>`;
 
   return `<svg viewBox="0 0 100 140" class="face ${SUIT_RED[suit] ? "red" : "black"}"

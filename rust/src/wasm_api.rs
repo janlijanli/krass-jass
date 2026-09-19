@@ -752,11 +752,15 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
     })
 }
 
+/// Kreuz, Ecken, Schaufel, Herz, left to right, so black and red alternate. Indexed by suit
+/// (D H S C). Mirror of `HAND_SUIT_ORDER` in `web/app.py`.
+const HAND_SUIT_ORDER: [u8; 4] = [1, 3, 2, 0];
+
 fn sorted_hand(hand: u64) -> Vec<usize> {
     // Grouped by suit, ascending in rank left to right — the internal index runs ace-first,
     // which is right for the engine and backwards for a player looking at their cards.
     let mut cards = card_list(hand);
-    cards.sort_by_key(|&c| (card_suit(c), std::cmp::Reverse(c % 9)));
+    cards.sort_by_key(|&c| (HAND_SUIT_ORDER[card_suit(c)], std::cmp::Reverse(c % 9)));
     cards
 }
 

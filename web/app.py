@@ -345,13 +345,19 @@ def visible_weis(table: Table, seat: int) -> list[dict]:
     ]
 
 
+#: Kreuz, Ecken, Schaufel, Herz, left to right: black and red alternate, so no two suits of one
+#: colour sit side by side in the fan (the owner's order). Indexed by suit: D H S C.
+HAND_SUIT_ORDER = (1, 3, 2, 0)
+
+
 def sorted_hand(hand: int) -> list[int]:
-    """Grouped by suit, ascending in rank left to right — 6 lowest, ace highest.
+    """Grouped by suit in `HAND_SUIT_ORDER`, ascending in rank left to right — 6 lowest, ace
+    highest. Mirrored by `sorted_hand` in `rust/src/wasm_api.rs`.
 
     The internal rank index runs the other way (0 = ace), which is right for the engine and
     backwards for a player looking at their cards.
     """
-    return sorted(card_list(hand), key=lambda c: (card_suit(c), -card_rank(c)))
+    return sorted(card_list(hand), key=lambda c: (HAND_SUIT_ORDER[card_suit(c)], -card_rank(c)))
 
 
 def view(table: Table, seat: int) -> dict:

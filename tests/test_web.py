@@ -46,14 +46,14 @@ def test_secret_is_not_hardcoded():
 
 def test_hand_is_sorted_ascending_left_to_right():
     """The engine's rank index runs ace-first, which is backwards for a player looking at
-    their own cards."""
+    their own cards. Suits run Kreuz, Ecken, Schaufel, Herz, so red and black alternate."""
     from krass_jass.cards import parse_hand
     from web.app import sorted_hand
     from krass_jass.cards import format_card
 
     hand = parse_hand("CK C8 SQ S6 HK DK C9 CJ")
     codes = [format_card(c) for c in sorted_hand(hand)]
-    assert codes == ["DK", "HK", "S6", "SQ", "C8", "C9", "CJ", "CK"]
+    assert codes == ["C8", "C9", "CJ", "CK", "DK", "S6", "SQ", "HK"]
 
 
 def test_a_completed_trick_is_held_until_acknowledged():

@@ -354,8 +354,8 @@ body {
 .face text { fill: var(--face-ink); }
 
 .face .idx-rank { font-size: 26px; text-anchor: middle; }
-.face .idx-pip  { font-size: 19px; text-anchor: middle; }
-.face .pip-mark { font-size: 22px; text-anchor: middle; dominant-baseline: central; }
+/* The suit symbols are paths (cards.js, SUIT_PATH), filled with the suit's ink. */
+.face .idx-pip, .face .pip-mark, .face .court-pip { fill: var(--face-ink); }
 
 .face .court-frame { fill: none; stroke: var(--face-ink); stroke-width: 1.2; opacity: .35; }
 .face .court-divide { stroke: var(--face-ink); stroke-width: .8; opacity: .25; }
@@ -363,7 +363,6 @@ body {
 .face .court-face { fill: #fff; stroke: var(--face-ink); stroke-width: 1.1; }
 .face .court-robe { fill: var(--face-ink); opacity: .16; stroke: var(--face-ink); stroke-width: 1.1; }
 .face .court-line { fill: none; stroke: var(--face-ink); stroke-width: 1; opacity: .7; }
-.face .court-pip { font-size: 13px; text-anchor: middle; }
 
 /* The trump Jack decides most tricks it appears in, so it has to be findable instantly. */
 .card.puur .face .court-frame { stroke: var(--gold); opacity: 1; stroke-width: 2; }
