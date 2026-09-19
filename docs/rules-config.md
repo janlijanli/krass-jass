@@ -263,3 +263,64 @@ These do not block the engine and are recorded so they are not forgotten:
 - **Multi-human** — assumed no. Changes session handling if it ever becomes yes; decide before M2.
 
 See `PLAN.md` §9 and `docs/plan-review.md` §4.
+
+---
+
+## Sidi Barrani — the second game mode
+
+`mode` — **default `"schieber"`**. `"sidi"` switches the bidding, scoring and game end to Sidi
+Barrani; the trick-taking is the Schieber's, unchanged. The `SIDI` preset carries the decisions
+below. They were taken by the owner on 2026-09-18, from four sources that disagree
+(pagat.com, jassverzeichnis.ch, swissjass.ch's rules PDF, a Fribourg tournament sheet).
+
+**Contracts.** The six Schieber contracts. No Slalom, no Misère — deliberately, not deferred.
+Every contract counts **×1**: `multipliers` all ones.
+
+**The auction.** The seat after the dealer calls first, then round the table in play order.
+A call is one of:
+
+| Call | Legal when |
+|---|---|
+| a bid: contract + value | the value is higher than the standing bid. There is no order among contracts: Hearts 100 beats Spades 90, not Spades 100 |
+| pass | always. A seat that passed may bid again when its turn comes round |
+| double | a bid stands and the caller is on the *other* team from its bidder |
+
+`sidi_bids` — **default `40, 50, … 150, 157, 257`**. 157 is every card point; 257 is Match.
+A seat may overbid its own partner.
+
+The auction ends when three seats pass in a row after a bid, when a bid of 257 is made, or when
+an opponent doubles. If all four pass before anyone bids, the hand is thrown in and **the next
+seat deals**. The highest bidder declares and **leads the first trick**.
+
+**Doubling.** Only the declarer's opponents may double, and they may do so **at any time until the
+second card of the first trick is on the table** (`sidi_double_after_lead`, default `True`): on
+their turn in the auction, and once more after the declarer has led. The app has to *ask* then —
+at a real table a player can knock at any moment, and a question at the one point where it can
+still matter is the only faithful way to simulate that. The seat after the leader is asked
+first, then the seat before the leader. A double in the auction ends the auction
+(`sidi_double_ends_auction`, default `True`; every source that allows it agrees). **No redouble**,
+and no flag for one.
+
+**Scoring.** Both teams write their card points (157 a round, 257 with Match: `match_bonus`
+stays 100). On top, the bid is a stake: if the declaring team's points reach the bid it writes
+the bid as a bonus; if not, the opponents write it. A double doubles the bonus.
+
+| | made | failed |
+|---|---|---|
+| Hearts 100, 113 points | declarers 113 + 100, opponents 44 | — |
+| Hearts 120 doubled, 113 points | — | declarers 113, opponents 44 + 240 |
+| Match (257) made | declarers 257 + 257 = **514** | — |
+| Match doubled, failed at 119 | — | declarers 119, opponents 38 + **514** |
+
+One rule for every bid, Match included: bonus = bid × 2 if doubled.
+
+**No Weis, no Stöck.** `weis_enabled` and `stoeck_enabled` are off in the preset.
+
+**Game end.** `target_score` **2000**. A round is always played to the end — there is no
+claiming the target mid-round, so `claim_order` does not apply. After a round, if either
+team has 2000 or more, the higher score wins. There is **no end rule** (neither the
+"Überbiet-" nor the "Bonus-Schlussregel"): a wild bid near the target is part of the tactics.
+A dead level score at or above the target (2021 : 2021) has no rule of its own: nobody has won, so another hand is dealt. Deliberately not treated further (owner, 2026-09-18).
+
+**Dealer.** After a played hand, the seat to the right of the declarer — the next seat in
+play order — deals. The very first dealer is settled by the Ecken 10, as in the Schieber.
