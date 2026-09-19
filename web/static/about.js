@@ -247,6 +247,12 @@ function playerPanel(data, L) {
   wrap.append(
     html("h3", null, about(L, "play.advice.h")),
     html("p", null, about(L, "play.advice.p")),
+    html("h3", null, about(L, "play.conv.h")),
+    html("p", null, about(L, "play.conv.p", {
+      predictable: data.convention_price.predictable,
+      before: data.convention_price.predictable_before,
+      search: data.convention_price.predictable_search_only,
+    })),
     html("h3", null, about(L, "play.weak.h")),
     html("p", "warn", about(L, "play.weak.p")),
     html("p", null, about(L, "play.human.p", { parity: data.literature.human_parity }))

@@ -10,6 +10,8 @@
 
 export const ABOUT = {
   en: {
+    "play.conv.h": "Like a Swiss partner",
+    "play.conv.p": "Where the search finds two cards nearly as good, it plays what a Swiss partner expects. As the team that made trump it draws trumps first (with the Bauer once it holds three); otherwise it cashes aces before kings before queens, stays out of suits its partner threw away, leads low in its strong suit, smears points onto its partner's trick and never trumps its partner. “Nearly as good” means at most 0.01 of a round's share worse by its own estimate — measured, that costs nothing, and in {predictable}% of the situations where a convention names a card it now plays that card (before: {before}%; the search alone: {search}%).",
     "play.advice.h": "Want to see its opinion?",
     "play.advice.p":
       "Settings has a <b>Recommendations</b> switch. Turn it on and your own cards get " +
@@ -85,13 +87,7 @@ export const ABOUT = {
     "play.void.next": "Next →",
     "play.void.restart": "Start over",
     "play.weak.h": "Where it is weak",
-    "play.weak.p":
-      "Its individual card play is much stronger than its <b>team</b> play. It <b>sends</b> " +
-      "one signal now — throwing the sister suit of the one it wants led, and cashing out " +
-      "when the opponents are proven out of trump — but it does not <b>read</b> that convention " +
-      "back: play it at it and it will not notice. It does read how everyone plays, through a " +
-      "model of play learned from its own games — which fits bots better than people. Reading " +
-      "a partner is a known limit of this kind of search, and more thinking time does not fix it.",
+    "play.weak.p": "Its individual card play is much stronger than its <b>team</b> play. It <b>plays</b> the conventions above but does not yet <b>read</b> them: the model of play it reads everyone through was learned from games in which nobody played them, so a partner's ace-then-king says less to it than it should. Retraining that model on games with the conventions is the next step. The model also fits bots better than people, and reading a partner is a known limit of this kind of search — more thinking time does not fix it.",
     "play.human.p":
       "It has also <b>never been measured against a human</b>. The published work on this " +
       "exact variant found a comparable bot scored {parity} — roughly par with strong " +
@@ -188,6 +184,8 @@ export const ABOUT = {
   },
 
   de: {
+    "play.conv.h": "Wie ein Schweizer Partner",
+    "play.conv.p": "Wo die Suche zwei Karten fast gleich gut findet, spielt er, was ein Schweizer Partner erwartet. Als Trumpfmacher zieht er zuerst Trumpf (mit dem Bauer, sobald er drei hat); sonst holt er Asse vor Königen vor Damen, meidet Farben, die sein Partner abgeworfen hat, zieht in seiner starken Farbe klein an, schmiert auf den Stich des Partners und sticht den Partner nie. «Fast gleich» heisst: nach eigener Schätzung höchstens 0,01 Rundenanteil schlechter — gemessen kostet das nichts, und in {predictable} % der Situationen, in denen eine Konvention eine Karte vorgibt, spielt er sie jetzt (vorher {before} %, die Suche allein {search} %).",
     "play.advice.h": "Willst du seine Meinung sehen?",
     "play.advice.p":
       "In den Einstellungen gibt es einen Schalter <b>Empfehlungen</b>. Schalte ihn ein, und " +
@@ -266,14 +264,7 @@ export const ABOUT = {
     "play.void.next": "Weiter →",
     "play.void.restart": "Von vorn",
     "play.weak.h": "Wo es schwach ist",
-    "play.weak.p":
-      "Sein Spiel mit den eigenen Karten ist deutlich stärker als sein <b>Zusammenspiel</b>. " +
-      "Ein Zeichen <b>gibt</b> es inzwischen — es wirft die Schwesterfarbe jener Farbe ab, " +
-      "die es gespielt haben will, und zieht durch, sobald die Gegner nachweislich keinen " +
-      "Trumpf mehr haben — diese Konvention <b>liest</b> es aber nicht zurück: Spielst du sie, " +
-      "merkt es das nicht. Dafür liest es, wie alle spielen, über ein Spielmodell aus seinen " +
-      "eigenen Partien — das passt besser auf Bots als auf Menschen. Einen Partner zu lesen " +
-      "ist eine bekannte Grenze dieser Art von Suche, und mehr Bedenkzeit ändert nichts daran.",
+    "play.weak.p": "Sein Spiel mit den eigenen Karten ist deutlich stärker als sein <b>Zusammenspiel</b>. Die Konventionen oben <b>spielt</b> er, <b>lesen</b> tut er sie noch nicht: Das Spielmodell, durch das er alle anderen liest, stammt aus Partien, in denen niemand sie spielte — ein Ass-dann-König des Partners sagt ihm darum weniger, als es sollte. Das Modell auf Partien mit Konventionen neu zu trainieren ist der nächste Schritt. Es passt ausserdem besser auf Bots als auf Menschen, und einen Partner zu lesen ist eine bekannte Grenze dieser Art von Suche — mehr Bedenkzeit ändert nichts daran.",
     "play.human.p":
       "Ausserdem wurde es <b>nie gegen Menschen gemessen</b>. Die veröffentlichte Arbeit zu " +
       "genau dieser Variante fand für einen vergleichbaren Bot {parity} — etwa auf Augenhöhe " +
@@ -376,6 +367,8 @@ export const ABOUT = {
   },
 
   fr: {
+    "play.conv.h": "Comme un partenaire suisse",
+    "play.conv.p": "Là où la recherche trouve deux cartes presque aussi bonnes, il joue ce qu'un partenaire suisse attend. Du côté qui a fait l'atout, il tire d'abord l'atout (avec le Bauer dès qu'il en a trois) ; sinon il encaisse les as avant les rois avant les dames, évite les couleurs que son partenaire a défaussées, entame petit dans sa couleur forte, charge le pli de son partenaire et ne coupe jamais son partenaire. « Presque aussi bonne » veut dire : au plus 0,01 de la part d'une donne en moins selon sa propre estimation — mesuré, cela ne coûte rien, et dans {predictable} % des situations où une convention désigne une carte, il la joue désormais (avant : {before} % ; la recherche seule : {search} %).",
     "play.advice.h": "Envie de conna\u00eetre son avis ?",
     "play.advice.p":
       "Les r\u00e9glages ont un interrupteur <b>Recommandations</b>. Activez-le et vos propres " +
@@ -456,14 +449,7 @@ export const ABOUT = {
     "play.void.next": "Suite →",
     "play.void.restart": "Recommencer",
     "play.weak.h": "Où il est faible",
-    "play.weak.p":
-      "Son jeu de la carte est bien plus fort que son jeu <b>en équipe</b>. Il <b>envoie</b> " +
-      "désormais un signal — il défausse la couleur sœur de celle qu'il veut voir jouer, et " +
-      "il encaisse dès que les adversaires n'ont prouvablement plus d'atout — mais il ne " +
-      "<b>lit</b> pas cette convention en retour : joue-la, il ne la remarquera pas. Il lit en " +
-      "revanche comment chacun joue, grâce à un modèle de jeu appris sur ses propres parties — " +
-      "plus fidèle aux bots qu'aux humains. Lire un partenaire est une limite connue de ce " +
-      "type de recherche, et davantage de temps de réflexion n'y change rien.",
+    "play.weak.p": "Son jeu de la carte est bien plus fort que son jeu <b>en équipe</b>. Il <b>joue</b> les conventions ci-dessus mais ne les <b>lit</b> pas encore : le modèle de jeu à travers lequel il lit tout le monde a été appris sur des parties où personne ne les jouait, si bien qu'un as-puis-roi du partenaire lui en dit moins qu'il ne devrait. Réentraîner ce modèle sur des parties avec les conventions est la prochaine étape. Le modèle est en outre plus fidèle aux bots qu'aux humains, et lire un partenaire est une limite connue de ce type de recherche — davantage de temps de réflexion n'y change rien.",
     "play.human.p":
       "Il n'a par ailleurs <b>jamais été mesuré contre des humains</b>. Les travaux publiés " +
       "sur cette variante précise ont relevé pour un bot comparable {parity} — à peu près au " +
@@ -568,6 +554,8 @@ export const ABOUT = {
   },
 
   it: {
+    "play.conv.h": "Come un compagno svizzero",
+    "play.conv.p": "Dove la ricerca trova due carte quasi altrettanto buone, gioca ciò che un compagno svizzero si aspetta. Dalla parte che ha fatto la briscola tira prima le briscole (con il Bauer appena ne ha tre); altrimenti incassa gli assi prima dei re prima delle donne, evita i semi che il compagno ha scartato, esce basso nel suo seme forte, carica la presa del compagno e non taglia mai il compagno. «Quasi altrettanto buona» vuol dire: al massimo 0,01 della quota di una mano in meno secondo la sua stessa stima — misurato, non costa nulla, e nel {predictable}% delle situazioni in cui una convenzione indica una carta ora la gioca (prima: {before}%; la sola ricerca: {search}%).",
     "play.advice.h": "Vuoi sapere che ne pensa?",
     "play.advice.p":
       "Nelle impostazioni c'\u00e8 un interruttore <b>Consigli</b>. Attivalo e le tue carte " +
@@ -646,14 +634,7 @@ export const ABOUT = {
     "play.void.next": "Avanti →",
     "play.void.restart": "Ricomincia",
     "play.weak.h": "Dov'è debole",
-    "play.weak.p":
-      "Il suo gioco di carta è molto più forte del suo gioco <b>di squadra</b>. Un segnale " +
-      "ora lo <b>manda</b> — scarta il seme gemello di quello che vuole si giochi, e incassa " +
-      "appena gli avversari sono provatamente senza briscola — ma quella convenzione non la " +
-      "<b>rilegge</b>: giocala e non se ne accorgerà. Legge invece come gioca ciascuno, con un " +
-      "modello di gioco appreso dalle sue partite — più fedele ai bot che alle persone. " +
-      "Leggere un compagno è un limite noto di questo tipo di ricerca, e più tempo di " +
-      "riflessione non lo risolve.",
+    "play.weak.p": "Il suo gioco di carta è molto più forte del suo gioco <b>di squadra</b>. Le convenzioni qui sopra le <b>gioca</b>, ma non le <b>legge</b> ancora: il modello di gioco con cui legge tutti è stato appreso da partite in cui nessuno le giocava, così un asso-poi-re del compagno gli dice meno di quanto dovrebbe. Riaddestrare quel modello su partite con le convenzioni è il prossimo passo. Il modello è inoltre più fedele ai bot che alle persone, e leggere un compagno è un limite noto di questo tipo di ricerca — più tempo di riflessione non lo risolve.",
     "play.human.p":
       "Inoltre <b>non è mai stato misurato contro esseri umani</b>. Il lavoro pubblicato su " +
       "questa esatta variante ha rilevato per un bot paragonabile {parity} — più o meno alla " +

@@ -34,6 +34,19 @@
     "note": "Table conventions on against off, identical search budget both sides. They only re-order moves the search rated the same, so what is being tested is that they cost nothing — not that they gain."
   },
 
+  "convention_price": {
+    "lambda": 0.01,
+    "deals": 1000,
+    "share": 50.03,
+    "std": 5.71,
+    "p": 0.86,
+    "predictable": 73.2,
+    "predictable_before": 65.9,
+    "predictable_search_only": 58.9,
+    "decisions": 3892,
+    "note": "The researched Swiss conventions may choose any move within 0.01 of a round's share of the best, by the search's own estimate. Against conventions off at the shipped budget: free. 'predictable' is the share of the decisions a convention speaks to in which the bot plays the convention's card, offline on saved decisions. A price of 0.02 reached 79.7% and cost 0.5 (49.49%, p = 0.018). measurements.md §5u."
+  },
+
   "signal_reading": {
     "note": "Reading the discard convention into the determinization prior. Two nulls and one borderline p=0.049 that did not replicate; reported as a null and off by default. See measurements.md §5c.",
     "runs": [
