@@ -112,6 +112,10 @@ class DmctsAgent(Agent):
     #: subclass so the arena can A/B it — a convention that costs points is not one worth
     #: having, and that is a claim somebody has to be able to check.
     conventions: bool = True
+    #: The tie window the conventions may choose within: `(visit slack, score slack)` — a move
+    #: counts as tied with the best if it drew within this share of the search's visits and this
+    #: much of its score. Measurement knob; the default is the one the conventions shipped with.
+    convention_slack: tuple = (0.05, 0.01)
     #: Read the other seats' discards as signals and tilt the determinization towards the
     #: worlds they suggest. **Off**, and the flag exists because that is a measured decision
     #: rather than an opinion: it is worth nothing at this budget even against a partner who
@@ -256,7 +260,7 @@ class DmctsAgent(Agent):
             return candidates[0][0]
         # The search has spoken; this only orders the moves it rated the same. See
         # krass_jass/convention.py for why that restriction is the whole design.
-        return convention.choose(candidates, obs, forbidden)
+        return convention.choose(candidates, obs, forbidden, *self.convention_slack)
 
     def _beliefs(self, obs: Observation) -> tuple[list[int], dict]:
         """What the search is allowed to believe about the other three hands.

@@ -325,6 +325,9 @@ fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u
             round.trump,
             contract,
             &position.forbidden,
+            (game.declarer & 1) == (seat & 1),
+            convention::DEFAULT_SLACK,
+            convention::partner_discards(&round.tricks_played, &round.trick, round.leader, seat, round.trump),
         );
         match pick {
             Some(card) => Thought::Ranked(out, card),

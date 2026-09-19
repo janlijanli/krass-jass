@@ -713,7 +713,7 @@ fn rs_determinize(
 /// Exposed so `tests/test_convention.py` can hold both implementations to the same answer:
 /// both sides read the *same* search output, so any difference is the convention itself.
 #[pyfunction]
-#[pyo3(signature = (candidates, hand, unseen, seen, trick, seat, trump, contract, forbidden))]
+#[pyo3(signature = (candidates, hand, unseen, seen, trick, seat, trump, contract, forbidden, declaring=false, vote_slack=0.05, score_slack=0.01, discarded=0))]
 #[allow(clippy::too_many_arguments)]
 fn rs_convention_choose(
     candidates: Vec<(usize, u64, f64, u32)>,
@@ -725,6 +725,10 @@ fn rs_convention_choose(
     trump: i32,
     contract: usize,
     forbidden: Vec<u64>,
+    declaring: bool,
+    vote_slack: f64,
+    score_slack: f64,
+    discarded: u8,
 ) -> Option<usize> {
     let cands: Vec<Candidate> = candidates
         .into_iter()
@@ -740,7 +744,8 @@ fn rs_convention_choose(
         forb[i] = v;
     }
     convention::choose(
-        &cands, hand, unseen, seen, &trick, seat, trump, contract, &forb,
+        &cands, hand, unseen, seen, &trick, seat, trump, contract, &forb, declaring,
+        (vote_slack, score_slack), discarded,
     )
 }
 
