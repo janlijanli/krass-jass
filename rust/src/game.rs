@@ -489,7 +489,8 @@ impl Game {
         let contract = self.contract.expect("contract set");
         let trump = if contract < 4 { contract as i32 } else { -1 };
         self.stoeck_points = score_stoeck(&self.dealt, trump, &self.rules);
-        if trump >= 0 {
+        // Nobody holds Stöck where there is none — see `_note_stoeck` in `game.py`.
+        if trump >= 0 && self.rules.stoeck_enabled {
             let mask = STOECK_MASK[trump as usize];
             for seat in 0..NUM_SEATS {
                 self.stoeck_holders[seat] = self.dealt[seat] & mask == mask;

@@ -266,3 +266,14 @@ def test_the_auction_reaches_the_observation():
     obs = game.observation(opener)
     assert obs.auction[0] == (opener, "UNDENUFE 50") and len(obs.auction) == 4
     assert obs.bid_value == 50 and not obs.doubled
+
+
+@pytest.mark.parametrize("seed", range(30))
+def test_there_is_no_stoeck_in_the_sidi(seed):
+    """Stöck does not count in the Sidi, so it must not be announced either — the points were
+    always zero, but the second honour used to be called and shown at the table."""
+    rng = random.Random(seed)
+    game = Game(cfg=SIDI_EVAL, seed=seed)
+    play_out(game, rng)
+    assert not [e for e in game.log.all() if e.type.value == "stoeck"]
+    assert game.stoeck_seats == []

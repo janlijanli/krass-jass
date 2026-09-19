@@ -429,7 +429,9 @@ class Game:
         """
         trump = self.contract.trump_suit if self.contract is not None else -1
         self._stoeck = score_stoeck(self._dealt, trump, self.cfg)
-        if trump >= 0:
+        # Nobody holds Stöck where there is none: with it switched off (the Sidi, and EVAL) the
+        # points were already zero, but the second honour was still announced.
+        if trump >= 0 and self.cfg.stoeck_enabled:
             mask = STOECK_MASK[trump]
             self._stoeck_holders = {
                 seat for seat in range(NUM_SEATS) if self._dealt[seat] & mask == mask
