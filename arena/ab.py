@@ -39,7 +39,9 @@ def parse(pairs: list[str]) -> dict:
         if key not in fields:
             raise SystemExit(f"DmctsAgent has no field {key!r}")
         default = fields[key].default
-        if isinstance(default, bool):
+        if isinstance(default, tuple):
+            out[key] = tuple(float(v) for v in raw.split(","))
+        elif isinstance(default, bool):
             out[key] = raw.lower() in ("1", "true", "yes", "on")
         elif isinstance(default, int):
             out[key] = int(raw)
