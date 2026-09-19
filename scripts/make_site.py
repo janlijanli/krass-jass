@@ -125,6 +125,14 @@ def build_index() -> None:
     html = re.sub(
         r"[ \t]*\{% for value in targets %\}.*?\{% endfor %\}\n", targets + "\n", html, flags=re.S
     )
+    # The offline build plays the Schieber only: its engine has the Sidi, its page does not yet.
+    # The game picker would offer a mode that does not work here, so it is left out.
+    html, picked = re.subn(
+        r"[ \t]*<fieldset>\n[ \t]*<legend data-i18n=\"menu.mode\">.*?</fieldset>\n\n?", "", html,
+        count=1, flags=re.S,
+    )
+    if not picked:
+        raise SystemExit("the game-mode picker moved; update make_site.py")
     html = html.replace("{% if settings.weis %}checked{% endif %}", "checked")
     html = html.replace("{% if not settings.weis %}checked{% endif %}", "")
 
