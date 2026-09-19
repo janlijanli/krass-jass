@@ -130,3 +130,14 @@ def test_rust_bids_exactly_as_python_does(seed):
         legal = [str(c) for c in auction.legal_calls(seat)]
         choice = sb.choose_call(hands[seat], public, seat, SIDI) if rng.random() < 0.6 else rng.choice(legal[:20])
         auction.call(seat, choice)
+
+
+def test_a_bot_never_takes_the_opponents_suit_off_them():
+    """Owner, 2026-09-19: bidding the opponents' own suit higher only buys them out of a
+    contract they would likely have lost — with their trumps, wait for the knock."""
+    strong_hearts = hand("HJ", "H9", "HA", "HK", "H8", "SA", "C6", "D6", "S6")
+    call = sb.choose_call(strong_hearts, ((1, "HEARTS 60"),), 2, SIDI, double=False)
+    assert not call.startswith("HEARTS")
+    assert sb.choose_call(strong_hearts, ((1, "HEARTS 60"),), 2, SIDI, double=True) == "DOUBLE"
+    # Its partner's hearts it still supports.
+    assert sb.choose_call(strong_hearts, ((0, "HEARTS 60"),), 2, SIDI).startswith("HEARTS")

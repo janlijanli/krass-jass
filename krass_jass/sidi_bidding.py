@@ -12,6 +12,7 @@ it back.
 - Support a partner's Bauer bid with the Nell and one more trump, or three trumps without it;
   support a partner's Nell bid only with the Bauer. A support's parity names the supporter's own
   card, as an opening's does. Support Obenabe / Undenufe at +10 per ace / six.
+- Never outbid the opponents in a contract they named: with their trumps, wait for the knock.
 - Doubling is a stopper count against the standing bid. A placeholder until the hand evaluator
   (plan step 4) can price a double properly.
 """
@@ -144,9 +145,12 @@ def choose_call(
     if own is not None:
         options.append(own)
 
+    # Never outbid the opponents in a contract they named (owner, 2026-09-19): holding their
+    # trumps is a reason to wait for the knock, not to take the suit off them at a higher price.
+    theirs = {c.contract for s, c in calls if c.kind == "bid" and (s - seat) % 2 == 1}
     for contract, value in sorted(options, key=lambda o: -o[1]):
         value = _ladder(value, cfg)
-        if value > floor:
+        if value > floor and contract not in theirs:
             return str(Call("bid", contract, value))
     return "PASS"
 

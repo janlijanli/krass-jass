@@ -51,6 +51,8 @@ What exists, and what each part is. Nothing below is measured yet; the screens a
   Nell bid only with the Bauer; the support's parity names the supporter's own card, and it is at
   least what the supporter would have opened with. Obenabe / Undenufe +10 per ace / six.
 - Competing: bid the highest of those that beats the standing bid, capped at 150; otherwise pass.
+- Never outbid the opponents in a contract they named (owner, 2026-09-19): holding their trumps
+  is a reason to wait for the knock, not to buy them out of a contract they would likely lose.
 - A seat that has already named the contract its partner now holds passes — without that rule
   two partners bid each other up (seen in the first browser game, fixed, tested).
 - Doubling, in the auction and when asked after the lead: the stopper count (Bauer 2, Nell 1,

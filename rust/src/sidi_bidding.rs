@@ -160,9 +160,15 @@ pub fn choose_call(hand: u64, auction: &[(usize, Call)], seat: usize, double: Op
         options.push(own);
     }
     options.sort_by_key(|&(_, v)| std::cmp::Reverse(v));
+    // Never outbid the opponents in a contract they named: with their trumps, wait for the knock.
+    let theirs = |k: usize| {
+        auction.iter().any(|&(s, c)| {
+            (s + NUM_SEATS - seat) % 2 == 1 && matches!(c, Call::Bid { contract, .. } if contract == k)
+        })
+    };
     for (contract, value) in options {
         let value = value.min(CAP);
-        if value > floor && contract < NUM_CONTRACTS {
+        if value > floor && contract < NUM_CONTRACTS && !theirs(contract) {
             return Call::Bid { contract, value };
         }
     }
