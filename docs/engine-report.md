@@ -26,7 +26,7 @@ Where the two disagree, the record is the source and this report is wrong.
 | **Beliefs** | worlds weighted by the other seats' plays and the bid, α = β = 1, pool 4,096 | **+1.31, replicated +1.32** (§5o) |
 | **Trump selection** | rule-based, weights tuned by simulation | **58.3% of games** vs hand-written weights (§5n) |
 | **Tree policy** | the other three seats move by the play model inside the tree | **+0.86, replicated** at equal iterations, ~11× a move (§5p); off in the browser |
-| Table conventions | reorder only moves the search rated equal | null, kept for readability to humans (§5b) |
+| **Swiss conventions** | draw trump, cash aces then kings, schmieren, never trump the partner, … — may choose any move within **0.01** of the best by the search's own score | **free** (50.03%, p = 0.86); the partner plays the expected card in **73%** of convention decisions, from 59% (§5u) |
 | Game objective | play for the game near the finishing line | null, kept because it cannot hurt (§5d) |
 
 ### What was measured and does not ship
@@ -213,8 +213,9 @@ Per move, for each iteration:
    the target score, a projection of the chance of winning the game (§5d, v3).
 6. **Backup** along the path.
 
-The move played is the **most visited** root child (ties by mean value); moves the search rated
-equal are ordered by table convention (§5b).
+The move played is the **most visited** root child (ties by mean value) — unless a Swiss
+convention names another card the search rated within 0.01 of a round's share of it, in which case
+that card is played (§5.4, measurements §5u).
 
 ### 3.2 Why a shared tree and not a vote
 
@@ -508,6 +509,34 @@ defect — in the shared tree the other seats' statistics are pooled across worl
 effectively conditioned on the searcher's real hand and blind to their own — and keeps a +0.39 lean.
 It is the first place a larger move budget would go.
 
+### 5.4 Conventions: what the partner plays, and what it reads
+
+The owner asked for a partner that plays like a person, and for the Swiss conventions to be
+researched and implemented. `krass_jass/convention.py` (mirrored in `rust/src/convention.rs`) carries
+them, with their sources — Swisslos Jass-Onkel, jassverzeichnis.ch, and others:
+
+| leading | following |
+|---|---|
+| opponents out of trump: cash the boss | Obenabe / Undenufe: drop the next card under a partner's top card |
+| declaring team draws trump: the Puur with three or more, the other trump with two, never a bare Puur | partner winning, last to play: schmieren — the highest value that is neither trump nor a boss |
+| bare Puur: a small card of the strongest side suit | partner winning: never trump the partner |
+| cash side bosses, highest value first, not in a suit the partner discarded | discard low from the weakest suit, never a boss |
+| anziehen: low in the strongest suit without its boss | cannot win: play low |
+
+**They are not in the search's score.** The search rates the moves; a convention may only choose among
+the moves it rated nearly the best — within a *price* of 0.01 of a round's share by the search's own
+estimate, and never a move it gave less than 0.5% of its visits (a barely explored move has no reliable
+score). Measured against conventions off (§5u): the price 0.01 is free (50.03%, p = 0.86) and makes the
+bot play the convention's card in 73.2% of the decisions a convention speaks to, against 65.9% for the
+old tie window and 58.9% for the search alone; 0.02 reaches 79.7% and costs half a point (p = 0.018).
+
+**Playing them is not reading them.** The beliefs (§4.3) and the tree policy (§5.3) see the other seats
+through the play model, and the play model was fitted to self-play without these conventions — so a
+partner's ace-then-king, or a Puur led from the declaring side, is weaker evidence to it than it should
+be. Retraining the model on self-play in which every seat plays the conventions is running as this is
+written; it is also the first time the play model is asked to learn a behaviour the owner chose rather
+than one the search found.
+
 ---
 
 ## 6. Trump selection
@@ -597,7 +626,10 @@ people.
 | lever | result | n | verdict |
 |---|---|---|---|
 | server bots at 153,600 instead of 2,400 | +0.56 (the §3b figure) | 3,000 | shipped (browser already had it) |
-| table conventions on vs off | 50.15% ± 3.07 | 600 | null; kept (readable to humans) |
+| table conventions on vs off (the first, tie-only version) | 50.15% ± 3.07 | 600 | null; kept (readable to humans) |
+| researched conventions, tie window (0.05 of visits, 0.01 of score) | 50.15% ± 4.84 | 1,000 | free (§5u) |
+| researched conventions at a price of 0.01 | 50.03% ± 5.71 | 1,000 | **free; shipped** — 73.2% predictable (§5u) |
+| researched conventions at a price of 0.02 | 49.49% ± 6.74 | 1,000 | **loss** (p = 0.018) — 79.7% predictable |
 | discard-signal reading, voting search | 49.85%, then 50.47% (p = 0.049), then 49.99% | 600, 600, 1,000 | null — did not replicate |
 | discard-signal reading, shared tree | 49.645% ± 0.075 SE | 3,000 | **loss**, off |
 | bidding prior as sampling tilt | 50.03% ± 6.54 (voting); 50.03% ± 5.72 (shared) | 1,000; 1,500 | null |
@@ -658,6 +690,7 @@ strength over speed, a few seconds a move is acceptable.
 | re-take the cheating-agent gap | the ceiling predates the two big gains | ~800 deals |
 | any measurement against people | the only strength that matters to a player | an instrumented app, not an arena |
 | learning past the search | beliefs from learned models were the only learned gain | expert iteration on self-play, if a GPU is available |
+| reading the partner's conventions | the bot plays them but its play model was fitted without them (§5.4) | retrain the play model on convention self-play, then A/B — running |
 
 ---
 

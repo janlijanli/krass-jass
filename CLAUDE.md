@@ -134,6 +134,12 @@ Do not design around an assumed answer to anything else here. Ask.
 - **The other seats are modelled by the play model inside the tree** (`tree_policy`, on): +0.86 of a
   round's share, replicated, at the shipped budget (§5p). It costs ~11x a move (~2 s natively), which
   the latency decision allows; the browser build leaves it off until measured there.
+- **Conventions are a price, not a score** (§5u). The researched Swiss conventions
+  (`krass_jass/convention.py`) may choose any move the search rated within **0.01** of a round's share
+  of its best, never one it barely explored. That is free (50.03%, p = 0.86) and makes the partner play
+  the card a Swiss player expects in 73% of convention decisions (59% for the search alone); 0.02 cost
+  half a point. They are *played*, not yet *read*: the play model the beliefs and the tree policy see
+  the table through was fitted without them.
 - **Networks, on this hardware, are closed** (`docs/neural-plan.md`). A policy network replacing the
   search is 4 points weaker (§5s); a value network at its leaves is null at a small budget and a
   costly, non-significant lean at the shipped one (§5t). Both gains of this stretch came from

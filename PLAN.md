@@ -40,7 +40,7 @@ Separate services are still worth it, but for different reasons:
 
 ### 1.2 "No data exchange between users like in the real game"
 
-Correct at the transport level, but be aware what you're signing up for: in the real game there *is* information exchange within a team — via play style. Schmieren (dumping high-value cards into a partner's trick), leading your strong suit, pulling trumps early. That is the interesting and hard part, and it's exactly where bots are still visibly worse than good humans. Research participants specifically noted bots not following signalling conventions. You are choosing the hard version of the problem. That's fine — just don't be surprised when your bot's *individual* play is good and its *team* play is mediocre.
+Correct at the transport level, but be aware what you're signing up for: in the real game there *is* information exchange within a team — via play style. Schmieren (dumping high-value cards into a partner's trick), leading your strong suit, pulling trumps early. That is the interesting and hard part, and it's exactly where bots are still visibly worse than good humans. Research participants specifically noted bots not following signalling conventions. *(2026-09-19: the bots now play the researched Swiss conventions wherever the search rates the convention's card within 0.01 of a round's share of its best — free, and three convention decisions in four go the way a Swiss partner expects. Reading them back is the open half. `docs/measurements.md` §5u, `docs/engine-report.md` §5.4.)* You are choosing the hard version of the problem. That's fine — just don't be surprised when your bot's *individual* play is good and its *team* play is mediocre.
 
 ### 1.3 "Calculating all possibilities with 36 cards"
 
