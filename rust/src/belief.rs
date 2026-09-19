@@ -77,6 +77,10 @@ pub struct PlayInfo {
     pub value_net: bool,
     /// A value network other than the compiled-in one. Measurement only, like `model`.
     pub value_model: Option<std::sync::Arc<crate::valuenet::ValueNet>>,
+    /// Sidi Barrani: the auction's bids, in order — `sidi_read.rs`. Empty in the Schieber.
+    pub sidi_auction: Vec<crate::sidi_read::Bid>,
+    /// Weight on the auction's likelihood. 0 is off.
+    pub sidi_alpha: f32,
 }
 
 impl PlayInfo {
@@ -97,6 +101,8 @@ impl PlayInfo {
             model: None,
             value_net: false,
             value_model: None,
+            sidi_auction: Vec::new(),
+            sidi_alpha: 0.0,
         }
     }
 
@@ -112,7 +118,10 @@ impl PlayInfo {
 
     pub fn weighting(&self) -> bool {
         self.belief_pool > 0
-            && (self.belief_alpha > 0.0 || self.bid_alpha > 0.0 || self.belief_gamma > 0.0)
+            && (self.belief_alpha > 0.0
+                || self.bid_alpha > 0.0
+                || self.belief_gamma > 0.0
+                || (self.sidi_alpha > 0.0 && !self.sidi_auction.is_empty()))
     }
 
     fn forehand(&self, trick_leader: usize) -> usize {
@@ -272,6 +281,16 @@ impl Pool {
             if info.bid_alpha > 0.0 {
                 lw += info.bid_alpha
                     * bid_log_likelihood(&dealt, info, pos.seat, pos.trick_leader, k.contract);
+            }
+            if info.sidi_alpha > 0.0 && !info.sidi_auction.is_empty() {
+                // A bid is a statement about the nine cards dealt, so the world is put back
+                // together before it is read.
+                let mut nine = dealt;
+                for &(s, c) in &info.history {
+                    nine[s] |= 1u64 << c;
+                }
+                lw += info.sidi_alpha
+                    * crate::sidi_read::auction_log_likelihood(&nine, &info.sidi_auction, pos.seat);
             }
             if let Some(lq) = &net_lq {
                 let mut acc = 0.0f32;

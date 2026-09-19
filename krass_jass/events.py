@@ -22,6 +22,8 @@ class EventType(str, Enum):
     ROUND_STARTED = "round_started"
     HAND_DEALT = "hand_dealt"          #: private — the only event carrying hidden cards
     BID = "bid"
+    THROWN_IN = "thrown_in"            #: Sidi: all four passed, the next seat deals
+    DOUBLE_ANSWERED = "double_answered"  #: Sidi: an opponent's answer after the lead
     CONTRACT_SET = "contract_set"
     WEIS_ANNOUNCED = "weis_announced"  #: public value only — no cards
     WEIS_DECLARED = "weis_declared"    #: winning team only, WITH cards

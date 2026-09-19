@@ -83,6 +83,11 @@ def dmcts(
     play_model_json: str | None = None,
     value_net: bool = False,
     value_model_json: str | None = None,
+    sidi_bid: int = 0,
+    sidi_declarers: int = 0,
+    sidi_doubled: bool = False,
+    sidi_auction: list[tuple[int, int, int]] | None = None,
+    sidi_alpha: float = 0.0,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -107,6 +112,14 @@ def dmcts(
         extra["value_net"] = True
         if value_model_json:
             extra["value_model_json"] = value_model_json
+    if sidi_bid or sidi_auction:
+        # Sidi Barrani: the hand's swing at the bid's threshold instead of a share of the cards
+        # (`rust/src/objective.rs`), and the auction read into the imagined hands
+        # (`rust/src/sidi_read.rs`).
+        extra.update(
+            sidi_bid=sidi_bid, sidi_declarers=sidi_declarers, sidi_doubled=sidi_doubled,
+            sidi_auction=sidi_auction or [], sidi_alpha=sidi_alpha,
+        )
     return _core.dmcts(
         seat=seat,
         hand=hand,
@@ -161,4 +174,29 @@ def dmcts(
         tree_policy=tree_policy,
         policy_temperature=policy_temperature,
         **extra,
+    )
+
+
+def sidi_make_probability(
+    seat: int,
+    hand: int,
+    history: list[tuple[int, int]],
+    leader: int,
+    contract: Contract,
+    declarer: int,
+    bid: int,
+    auction: list[tuple[int, int, int]],
+    samples: int = 400,
+    alpha: float = 1.0,
+    seed: int = 0,
+) -> tuple[float, float]:
+    """Sidi: `(P(the declarers reach the bid), their expected points)` from `seat`'s view.
+
+    Deals the unseen cards, weights each deal by the auction (`rust/src/sidi_read.rs`), plays it
+    out with the play model. See `rust/src/sidi_estimate.rs`.
+    """
+    require()
+    return _core.rs_sidi_make_probability(
+        seat, hand, list(history), leader, int(contract), declarer, bid, list(auction),
+        samples=samples, alpha=alpha, seed=seed,
     )

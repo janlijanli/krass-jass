@@ -39,6 +39,37 @@ class SelectTrumpResponse(BaseModel):
     trace: dict | None = None
 
 
+class AuctionCall(BaseModel):
+    seat: int = Field(ge=0, le=3)
+    #: "PASS", "DOUBLE" or "HEARTS 100" — public, said aloud at the table.
+    call: str
+
+
+class SidiCallRequest(BaseModel):
+    """Sidi Barrani: one call in the auction."""
+
+    hand: list[str]
+    auction: list[AuctionCall] = []
+    seat: int = Field(ge=0, le=3)
+
+
+class SidiCallResponse(BaseModel):
+    call: str
+
+
+class SidiDoubleRequest(BaseModel):
+    """Sidi Barrani: the question after the lead."""
+
+    hand: list[str]
+    contract: str
+    bid_value: int
+    seat: int = Field(ge=0, le=3)
+
+
+class SidiDoubleResponse(BaseModel):
+    double: bool
+
+
 class PlayCardRequest(BaseModel):
     hand: list[str]
     #: Engine-computed and authoritative. A bot does not decide what is legal.
@@ -53,6 +84,11 @@ class PlayCardRequest(BaseModel):
     time_budget_ms: int = 1500
     decision_seed: int = 0
     trace: bool = False
+    #: "schieber" or "sidi". The bot is stateless, so the game mode comes with every request.
+    mode: str = "schieber"
+    auction: list[AuctionCall] = []
+    bid_value: int = 0
+    doubled: bool = False
 
 
 class PlayCardResponse(BaseModel):

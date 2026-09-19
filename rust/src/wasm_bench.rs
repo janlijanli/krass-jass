@@ -103,6 +103,10 @@ pub extern "C" fn bench_game(seed: u32) -> u32 {
                 let seat = game.to_act().unwrap();
                 let _ = game.choose_weis(seat, true);
             }
+            Phase::Doubling => {
+                let seat = game.to_act().unwrap();
+                let _ = game.double(seat, false);
+            }
             Phase::Playing => {
                 let seat = game.to_act().unwrap();
                 let legal = game.round.as_ref().unwrap().legal_moves(seat);

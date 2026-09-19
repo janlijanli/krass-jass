@@ -93,6 +93,21 @@ class RulesConfig:
     bergpreis_enabled: bool = False
     claim_order: tuple[str, ...] = ("stoeck", "weis", "stich")
 
+    # -- game mode (docs/rules-config.md, "Sidi Barrani")
+    #: "schieber" or "sidi". Sidi replaces the bidding, the scoring and the game end; the
+    #: trick-taking is the Schieber's.
+    mode: str = "schieber"
+    #: The bid ladder, lowest first. 157 is every card point, 257 is Match.
+    sidi_bids: tuple[int, ...] = (40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 157, 257)
+    #: The opponents may still double after the declarer has led, until the second card is down.
+    sidi_double_after_lead: bool = True
+    #: A double during the auction ends it.
+    sidi_double_ends_auction: bool = True
+
+    @property
+    def sidi(self) -> bool:
+        return self.mode == "sidi"
+
     def variant(self, **changes) -> "RulesConfig":
         return replace(self, **changes)
 
@@ -111,3 +126,16 @@ EVAL = HOUSE.variant(
     match_bonus=0,
     target_score=None,
 )
+
+#: Sidi Barrani as the owner plays it (2026-09-18): every contract x1, no Weis, no Stöck, to 2000.
+#: The match bonus stays — a bid of 257 is a bid for Match.
+SIDI = HOUSE.variant(
+    mode="sidi",
+    multipliers={c: 1 for c in Contract},
+    weis_enabled=False,
+    stoeck_enabled=False,
+    target_score=2000,
+)
+
+#: One Sidi hand at a time, for measurement. Weis and Stöck are already off.
+SIDI_EVAL = SIDI.variant(target_score=None)

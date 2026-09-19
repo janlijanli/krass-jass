@@ -31,6 +31,21 @@
       </fieldset>
 
       <fieldset>
+        <legend data-i18n="menu.mode">Game</legend>
+        <div class="chips">
+          <label class="chip">
+            <input type="radio" name="mode" value="schieber" {% if settings.mode != "sidi" %}checked{% endif %}>
+            <span>Schieber</span>
+          </label>
+          <label class="chip">
+            <input type="radio" name="mode" value="sidi" {% if settings.mode == "sidi" %}checked{% endif %}>
+            <span>Sidi Barrani</span>
+          </label>
+        </div>
+        <p class="menu-note"><span data-i18n="menu.sidiNote">Sidi Barrani: bid for trump, every contract ×1, no Weis, no Stöck. Usually played to 2000.</span><button type="button" class="link-button" data-open-rules data-i18n="sidi.rules">Rules</button></p>
+      </fieldset>
+
+      <fieldset>
         <legend data-i18n="menu.playTo">Play to</legend>
         <div class="chips">
           {% for value in targets %}
@@ -167,6 +182,33 @@
     <div class="weis-actions">
       <button class="bid" id="weis-yes" data-i18n="weis.announce">Announce</button>
       <button class="bid ghost" id="weis-no" data-i18n="weis.decline">Keep it quiet</button>
+    </div>
+  </section>
+
+  <!-- Sidi Barrani. The calls on offer come from the engine (`legal_calls`), like legal cards:
+       the client never works out what may be bid. -->
+  <section class="auction" id="auction" hidden></section>
+
+  <section class="bidding sidi" id="sidi-bidding" hidden>
+    <p class="prompt"><span id="sidi-prompt"></span><button type="button" class="link-button" data-open-rules data-i18n="sidi.rules">Rules</button></p>
+    <div class="sidi-values" id="sidi-values"></div>
+    <div class="bids">
+      <button data-sidi="DIAMONDS" class="bid suit-d"><span class="pip">♦</span></button>
+      <button data-sidi="SPADES"   class="bid suit-s"><span class="pip">♠</span></button>
+      <button data-sidi="HEARTS"   class="bid suit-h"><span class="pip">♥</span></button>
+      <button data-sidi="CLUBS"    class="bid suit-c"><span class="pip">♣</span></button>
+      <button data-sidi="OBENABE"  class="bid word"><span data-i18n="contract.OBENABE">Obenabe</span></button>
+      <button data-sidi="UNDENUFE" class="bid word"><span data-i18n="contract.UNDENUFE">Undenufe</span></button>
+      <button data-sidi-call="PASS"   class="bid word ghost" data-i18n="sidi.pass">Pass</button>
+      <button data-sidi-call="DOUBLE" class="bid word double" id="sidi-double" data-i18n="sidi.double">Double</button>
+    </div>
+  </section>
+
+  <section class="weis-prompt" id="double-prompt" hidden>
+    <p class="prompt" id="double-text"></p>
+    <div class="weis-actions">
+      <button class="bid double" id="double-yes" data-i18n="sidi.double">Double</button>
+      <button class="bid ghost" id="double-no" data-i18n="sidi.noDouble">No</button>
     </div>
   </section>
 

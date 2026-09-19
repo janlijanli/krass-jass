@@ -26,6 +26,13 @@ the time — check that against human play before trusting it further.
 
 M2 is done (FastAPI + WebSocket, bots in containers, the card fan, and a serverless wasm build).
 
+**Sidi Barrani is a second game mode** (`RulesConfig.mode = "sidi"`, preset `SIDI`), the Schieber
+stays the default and unchanged. Rules as the owner decided them in `docs/rules-config.md`; the
+bidding language, how the bots bid, play for the bid and read the auction, and the order of work
+in `docs/sidi-plan.md`. The auction lives in `krass_jass/auction.py` and `rust/src/auction.rs`
+under the same two-implementation rule as everything else. The browser build's engine has it;
+its UI does not yet.
+
 **The search is Rust** (`rust/`, exposed via `krass_jass.native`). Measured: 1.48M DMCTS
 iterations/sec single-core, 6.19M on all cores — 42x the Python search. The tuned 800k
 budget is 0.13s per move. Python remains the engine of record; only the search moved.

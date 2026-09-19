@@ -191,5 +191,13 @@ export function initMenu({
     onLanguageChange?.();
   });
 
+  // The Sidi rules are one tap away from the table: the bidding panel and the settings note
+  // ask for them with this event rather than knowing how the menu is built.
+  document.addEventListener("kj:open-rules", async () => {
+    open();
+    await showMode("about");
+    document.querySelector('.about-tab[data-panel="rules"]')?.click();
+  });
+
   return { open, close, showMode, relocalise };
 }

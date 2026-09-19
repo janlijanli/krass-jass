@@ -5,10 +5,11 @@
 //! a decision in, reading the events that resulted — which keeps the same object usable from
 //! a web service, a test, or a browser with no server behind it.
 
+use crate::auction::{bonus as sidi_bonus, Auction, AuctionError, Call};
 use crate::cards::{card_list, NUM_SEATS, RANK_J, STOECK_MASK};
 use crate::config::{team_of, Rules};
 use crate::deal::deal;
-use crate::events::{EventLog, Payload, RoundDetail};
+use crate::events::{EventLog, Payload, RoundDetail, SidiDetail};
 use crate::round::{PlayError, Round};
 use crate::scoring::claim_sequence;
 use crate::tables::NUM_CONTRACTS;
@@ -18,6 +19,8 @@ use crate::weis::{best_weis, find_weis, score_stoeck, score_weis, WeisKind, STOE
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
     Bidding,
+    /// Sidi: the declarer has led and the opponents are asked whether to double.
+    Doubling,
     Weis,
     Playing,
     RoundOver,
@@ -28,6 +31,7 @@ impl Phase {
     pub fn as_str(&self) -> &'static str {
         match self {
             Phase::Bidding => "bidding",
+            Phase::Doubling => "doubling",
             Phase::Weis => "weis",
             Phase::Playing => "playing",
             Phase::RoundOver => "round_over",
@@ -44,6 +48,7 @@ pub enum GameError {
     AlreadyShoved,
     NoWeisToAnnounce(usize),
     Play(PlayError),
+    Auction(AuctionError),
 }
 
 /// Ecken 10 — the card that decides who opens the first round of a game.
@@ -73,6 +78,11 @@ pub struct Game {
     pub declarer: usize,
     pub forehand: usize,
     pub shoved: bool,
+    /// Sidi Barrani: the auction, the bid the declarers must reach, and whether it was doubled.
+    pub auction: Option<Auction>,
+    pub bid_value: i32,
+    pub doubled: bool,
+    double_queue: Vec<usize>,
 
     dealt: [u64; NUM_SEATS],
     weis_points: [i32; 2],
@@ -84,6 +94,7 @@ pub struct Game {
     weis_choices: [Option<bool>; NUM_SEATS],
     weis_resolved: bool,
     pub last_score: Option<RoundDetail>,
+    pub last_sidi: Option<SidiDetail>,
     pub first_across: i32,
 }
 
@@ -102,6 +113,10 @@ impl Game {
             declarer: 0,
             forehand: 0,
             shoved: false,
+            auction: None,
+            bid_value: 0,
+            doubled: false,
+            double_queue: Vec::new(),
             dealt: [0; NUM_SEATS],
             weis_points: [0, 0],
             stoeck_points: [0, 0],
@@ -112,6 +127,7 @@ impl Game {
             weis_choices: [None; NUM_SEATS],
             weis_resolved: false,
             last_score: None,
+            last_sidi: None,
             first_across: -1,
         };
         game.log.emit(
@@ -140,6 +156,10 @@ impl Game {
         self.forehand = (self.dealer + 1) % NUM_SEATS;
         self.declarer = self.forehand;
         self.shoved = false;
+        self.auction = if self.rules.sidi { Some(Auction::new(self.forehand, self.rules)) } else { None };
+        self.bid_value = 0;
+        self.doubled = false;
+        self.double_queue.clear();
         self.contract = None;
         self.round = None;
         self.phase = Phase::Bidding;
@@ -181,7 +201,11 @@ impl Game {
             // The question belongs to whoever is about to play: it is asked on their turn
             // in the first trick, not to the whole table before a card is down.
             Phase::Weis => self.round.as_ref().map(|r| r.to_play()),
-            Phase::Bidding => Some(self.declarer),
+            Phase::Bidding => match &self.auction {
+                Some(a) => a.to_act(),
+                None => Some(self.declarer),
+            },
+            Phase::Doubling => self.double_queue.first().copied(),
             Phase::Playing => self.round.as_ref().map(|r| r.to_play()),
             _ => None,
         }
@@ -226,15 +250,67 @@ impl Game {
         Ok(())
     }
 
+    /// Sidi: one call in the auction. See `auction.rs`.
+    pub fn call(&mut self, seat: usize, call: Call) -> Result<(), GameError> {
+        if self.phase != Phase::Bidding || self.auction.is_none() {
+            return Err(GameError::WrongPhase("not bidding"));
+        }
+        let auction = self.auction.as_mut().unwrap();
+        auction.call(seat, call).map_err(GameError::Auction)?;
+        self.log.emit(Payload::Bid { seat, action: call.name() }, None);
+        let auction = self.auction.as_ref().unwrap();
+        if !auction.done() {
+            return Ok(());
+        }
+        if auction.thrown_in() {
+            // All four passed: the hand is thrown in and the next seat deals a new one.
+            self.log.emit(Payload::ThrownIn { round: self.round_index, dealer: self.dealer }, None);
+            self.round_index += 1;
+            self.dealer = (self.dealer + 1) % NUM_SEATS;
+            self.start_round();
+            return Ok(());
+        }
+        let (declarer, contract, value) = auction.high.unwrap();
+        self.doubled = auction.doubled;
+        self.declarer = declarer;
+        self.contract = Some(contract);
+        self.bid_value = value;
+        self.begin_play();
+        Ok(())
+    }
+
+    /// Sidi: an opponent's answer, after the lead, to "double?".
+    pub fn double(&mut self, seat: usize, double: bool) -> Result<(), GameError> {
+        if self.phase != Phase::Doubling {
+            return Err(GameError::WrongPhase("not asking about a double"));
+        }
+        if self.to_act() != Some(seat) {
+            return Err(GameError::NotYourTurn(seat));
+        }
+        self.double_queue.remove(0);
+        self.log.emit(Payload::DoubleAnswered { seat, double }, None);
+        if double {
+            self.doubled = true;
+            self.double_queue.clear();
+        }
+        if self.double_queue.is_empty() {
+            self.phase = Phase::Playing;
+        }
+        Ok(())
+    }
+
     fn begin_play(&mut self) {
         let contract = self.contract.expect("contract set");
-        self.round = Some(Round::new(contract, self.dealt, self.forehand, self.rules));
+        // In the Sidi the highest bidder leads; in the Schieber, forehand.
+        let leader = if self.rules.sidi { self.declarer } else { self.forehand };
+        self.round = Some(Round::new(contract, self.dealt, leader, self.rules));
         self.log.emit(
             Payload::ContractSet {
                 contract,
                 declarer: self.declarer,
                 multiplier: self.rules.multiplier(contract),
-                leader: self.forehand,
+                leader,
+                sidi: if self.rules.sidi { Some((self.bid_value, self.doubled)) } else { None },
             },
             None,
         );
@@ -448,6 +524,18 @@ impl Game {
             let index = round.tricks_played.len();
             self.log.emit(Payload::TrickWon { seat: winner, trick: index, cards }, None);
         }
+        let round = self.round.as_ref().unwrap();
+        if self.rules.sidi
+            && self.rules.sidi_double_after_lead
+            && !self.doubled
+            && round.tricks_played.is_empty()
+            && round.trick.len() == 1
+        {
+            // The opponents may double until the second card is down, so they are asked
+            // now: the seat after the leader first, then the seat before it.
+            self.double_queue = vec![(self.declarer + 1) % NUM_SEATS, (self.declarer + 3) % NUM_SEATS];
+            self.phase = Phase::Doubling;
+        }
         if self.round.as_ref().unwrap().tricks_played.is_empty() {
             self.ask_weis_if_due();
         } else {
@@ -483,7 +571,49 @@ impl Game {
         }
     }
 
+    /// Card points to both teams, and the bid to whichever team it went to. A round is always
+    /// played out, so there is no claim order: the higher score wins once one is at the target.
+    fn score_sidi(&mut self) {
+        let round = self.round.as_ref().expect("round");
+        let score = round.score([0, 0], [0, 0]);
+        let mut totals = score.total();
+        let declarers = team_of(self.declarer);
+        let made = totals[declarers] >= self.bid_value;
+        let mut stake = [0i32; 2];
+        stake[if made { declarers } else { 1 - declarers }] = sidi_bonus(self.bid_value, self.doubled);
+        for team in 0..2 {
+            totals[team] += stake[team];
+            self.scores[team] += totals[team];
+        }
+        let detail = SidiDetail {
+            trick_points: score.trick_points,
+            last_trick: score.last_trick,
+            match_bonus: score.match_bonus,
+            bid: self.bid_value,
+            doubled: self.doubled,
+            made,
+            bonus: stake,
+            round_total: totals,
+            scores: self.scores,
+        };
+        self.last_sidi = Some(detail);
+        self.log.emit(Payload::SidiRoundScored { round: self.round_index, detail }, None);
+
+        let target = self.rules.target_score;
+        if target > 0 && self.scores.iter().any(|&s| s >= target) && self.scores[0] != self.scores[1] {
+            self.phase = Phase::GameOver;
+            let winner = if self.scores[0] > self.scores[1] { 0 } else { 1 };
+            self.log.emit(Payload::SidiGameOver { winner, scores: self.scores }, None);
+        } else {
+            self.phase = Phase::RoundOver;
+        }
+    }
+
     fn score_round(&mut self) {
+        if self.rules.sidi {
+            self.score_sidi();
+            return;
+        }
         let round = self.round.as_ref().expect("round");
         let score = round.score(self.weis_points, self.stoeck_points);
         let totals = score.total();
@@ -543,7 +673,9 @@ impl Game {
             return Err(GameError::WrongPhase("round is not over"));
         }
         self.round_index += 1;
-        self.dealer = (self.dealer + 1) % NUM_SEATS;
+        // Sidi: the seat after the declarer deals. Schieber: the deal passes on.
+        let after = if self.rules.sidi { self.declarer } else { self.dealer };
+        self.dealer = (after + 1) % NUM_SEATS;
         self.start_round();
         Ok(())
     }

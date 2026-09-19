@@ -30,6 +30,44 @@ pub struct Stakes {
     /// Risk aversion, offsetting determinized search's optimism. 0 is off. See the Python
     /// module: the *kink* is what does the work, an affine penalty would do nothing.
     pub risk_lambda: f64,
+    /// Sidi Barrani: the bid the declarers must reach, 0 in the Schieber. With a bid the reward
+    /// is the hand's whole swing — the cards and the stake — instead of a share of the cards.
+    pub sidi_bid: i32,
+    /// Sidi: the declaring team.
+    pub sidi_declarers: usize,
+    /// Sidi: the bid was doubled, so the stake is twice the bid.
+    pub sidi_doubled: bool,
+}
+
+/// The card points in a Sidi hand, and what Match makes of them.
+const HAND_POINTS: f64 = 157.0;
+const MATCH_BONUS: f64 = 100.0;
+
+/// Sidi Barrani: value in [0, 1] of a hand that ends `ours`/`theirs` in card points.
+///
+/// Both teams write their cards, and the bid goes to the declarers if their points reach it,
+/// otherwise to the defenders. So what the hand is worth to `team` is the difference of what the
+/// two teams write, scaled into [0, 1] by the largest difference this bid allows. The threshold
+/// is the point: a declarer two points short of the bid loses the stake, and the search should
+/// see that cliff — a share of the cards cannot.
+///
+/// The search does not track tricks through a playout, so Match is read off the points: all 157
+/// to one side and nothing to the other. A zero-point trick taken by the other side is the one
+/// case that reads wrong, and it only matters to a bid of 257.
+fn sidi_reward(ours: f64, theirs: f64, team: usize, s: &Stakes) -> f64 {
+    let (mut ours, mut theirs) = (ours, theirs);
+    if theirs <= 0.0 && ours >= HAND_POINTS {
+        ours += MATCH_BONUS;
+    } else if ours <= 0.0 && theirs >= HAND_POINTS {
+        theirs += MATCH_BONUS;
+    }
+    let stake = s.sidi_bid as f64 * if s.sidi_doubled { 2.0 } else { 1.0 };
+    let declaring = team == s.sidi_declarers;
+    let declarer_points = if declaring { ours } else { theirs };
+    let made = declarer_points >= s.sidi_bid as f64;
+    let swing = ours - theirs + if made == declaring { stake } else { -stake };
+    let most = HAND_POINTS + MATCH_BONUS + stake;
+    (0.5 + swing / (2.0 * most)).clamp(0.0, 1.0)
 }
 
 const RISK_THRESHOLD: f64 = 0.4;
@@ -51,6 +89,9 @@ pub fn reward(ours: i32, theirs: i32, team: usize, s: &Stakes) -> f64 {
 
 /// `reward` for expected points, which a value network produces. Identical for whole numbers.
 pub fn reward_f(ours: f64, theirs: f64, team: usize, s: &Stakes) -> f64 {
+    if s.sidi_bid > 0 {
+        return sidi_reward(ours, theirs, team, s);
+    }
     let total = ours + theirs;
     let share = risk_adjust(if total <= 0.0 { 0.5 } else { ours / total }, s.risk_lambda);
     if s.target <= 0 {
@@ -84,5 +125,39 @@ pub fn reward_f(ours: f64, theirs: f64, team: usize, s: &Stakes) -> f64 {
             let scale = (ROUND_DIFF_SD * mult * rounds_left.max(1.0).sqrt()).max(1.0);
             blend(1.0 / (1.0 + (-(mine - yours) / scale).exp()))
         }
+    }
+}
+
+#[cfg(test)]
+mod sidi_tests {
+    use super::*;
+
+    fn stakes(bid: i32, declarers: usize, doubled: bool) -> Stakes {
+        Stakes { sidi_bid: bid, sidi_declarers: declarers, sidi_doubled: doubled, ..Default::default() }
+    }
+
+    #[test]
+    fn the_bid_is_a_cliff() {
+        let s = stakes(100, 0, false);
+        let short = reward(99, 58, 0, &s);
+        let made = reward(100, 57, 0, &s);
+        // One point of cards, a whole stake of swing.
+        assert!(made - short > 0.25, "{short} -> {made}");
+        // And the defenders see the same hand the other way round.
+        assert!((reward(58, 99, 1, &s) - (1.0 - short)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_double_doubles_the_stake() {
+        let plain = reward(120, 37, 0, &stakes(120, 0, false));
+        let doubled = reward(120, 37, 0, &stakes(120, 0, true));
+        assert!(doubled > plain);
+    }
+
+    #[test]
+    fn match_is_read_off_the_points() {
+        let s = stakes(257, 0, false);
+        assert!(reward(157, 0, 0, &s) > 0.99);
+        assert!(reward(152, 5, 0, &s) < 0.5, "all but the last trick is not a match");
     }
 }

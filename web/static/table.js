@@ -34,6 +34,13 @@ const el = {
   trickTake: document.getElementById("trick-take"),
   tafel: document.getElementById("tafel"),
   tafelSlate: document.getElementById("tafel-slate"),
+  auction: document.getElementById("auction"),
+  sidiBidding: document.getElementById("sidi-bidding"),
+  sidiPrompt: document.getElementById("sidi-prompt"),
+  sidiValues: document.getElementById("sidi-values"),
+  sidiDouble: document.getElementById("sidi-double"),
+  doublePrompt: document.getElementById("double-prompt"),
+  doubleText: document.getElementById("double-text"),
 };
 
 let lifted = null;
@@ -165,6 +172,73 @@ el.tafel.addEventListener("click", (e) => { if (e.target === el.tafel) closeTafe
 
 const CONTRACT_PIPS = { DIAMONDS: "♦", HEARTS: "♥", SPADES: "♠", CLUBS: "♣" };
 
+/* ---------- Sidi Barrani ---------- */
+
+/** "♥ 100", "Obenabe 60", "Pass", "Double" — a call as a player would say it. */
+function callLabel(call) {
+  if (call === "PASS") return t("sidi.pass");
+  if (call === "DOUBLE") return t("sidi.double");
+  const [contract, value] = call.split(" ");
+  return `${CONTRACT_PIPS[contract] ?? contractName(contract)} ${value}`;
+}
+
+/** The value the player has picked on the ladder. Kept between repaints, reset when it is
+ *  no longer a legal bid. */
+let sidiValue = null;
+
+function legalValues(view) {
+  const values = new Set();
+  for (const call of view.legal_calls || []) {
+    const [, value] = call.split(" ");
+    if (value) values.add(Number(value));
+  }
+  return [...values].sort((a, b) => a - b);
+}
+
+function renderAuction(view) {
+  const show = view.mode === "sidi" && (view.phase === "bidding" || view.phase === "doubling");
+  el.auction.hidden = !show || !view.auction.length;
+  if (!show) return;
+  el.auction.replaceChildren();
+  // Only the calls of this deal: after a throw-in the engine starts a fresh auction.
+  let highIndex = -1;
+  view.auction.forEach((entry, i) => { if (!["PASS", "DOUBLE"].includes(entry.call)) highIndex = i; });
+  view.auction.forEach((entry, i) => {
+    const node = html("span", "call" + (i === highIndex ? " high" : ""));
+    node.append(html("span", "who", seatName(view, entry.seat)), callLabel(entry.call));
+    el.auction.append(node);
+  });
+}
+
+function renderSidi(view) {
+  const bidding = view.mode === "sidi" && view.phase === "bidding" && view.to_act === view.seat;
+  el.sidiBidding.hidden = !bidding;
+  if (bidding) {
+    const values = legalValues(view);
+    if (!values.includes(sidiValue)) sidiValue = values[0] ?? null;
+    el.sidiValues.replaceChildren();
+    for (const value of values) {
+      const button = html("button", value === sidiValue ? "on" : "", String(value));
+      button.type = "button";
+      button.addEventListener("click", () => { sidiValue = value; renderSidi(lastView); });
+      el.sidiValues.append(button);
+    }
+    el.sidiPrompt.textContent = values.length
+      ? t("sidi.prompt", { n: sidiValue })
+      : t("sidi.promptNoBid");
+    document.querySelectorAll("[data-sidi]").forEach((b) => { b.disabled = sidiValue === null; });
+    el.sidiDouble.hidden = !(view.legal_calls || []).includes("DOUBLE");
+  }
+
+  el.doublePrompt.hidden = !view.double_pending;
+  if (view.double_pending) {
+    el.doubleText.textContent = t("sidi.doubleAsk", {
+      who: seatName(view, view.declarer),
+      bid: callLabel(`${view.contract} ${view.bid}`),
+    });
+  }
+}
+
 function renderContract(contract, multiplier) {
   // Always visible while a contract is live — you cannot judge a card without knowing
   // whether you are in trumps, Obenabe or Undenufe.
@@ -177,10 +251,14 @@ function renderContract(contract, multiplier) {
   const pip = CONTRACT_PIPS[contract];
   const name = contractName(contract);
   const red = contract === "HEARTS" || contract === "DIAMONDS";
+  const sidi = lastView.mode === "sidi" && lastView.bid;
   el.contract.innerHTML =
     (pip ? `<span class="pip${red ? " red" : ""}">${pip}</span>` : "") +
     `<span>${name}</span>` +
-    (multiplier ? `<span class="mult">×${multiplier}</span>` : "");
+    (sidi
+      ? `<span class="sidi-bid">${lastView.bid}</span>` +
+        (lastView.doubled ? `<span class="doubled">${t("sidi.doubled")}</span>` : "")
+      : multiplier ? `<span class="mult">×${multiplier}</span>` : "");
 }
 
 function renderHand(view) {
@@ -388,6 +466,7 @@ function renderScorecard(view) {
 
   const mine = view.seat % 2;
   const pick = (pair) => [pair[mine], pair[1 - mine]];
+  if (card.bid !== undefined) { renderSidiScorecard(view, card, pick); return; }
   const rows = [
     [t("score.tricks"), pick(card.trick_points)],
     [t("score.lastTrick"), pick(card.last_trick)],
@@ -436,6 +515,42 @@ function renderScorecard(view) {
   el.scContract.textContent = contractName(card.contract);
   // The flag, not the label: reading the button's own text to decide what it does made the
   // behaviour depend on the language it happened to be written in.
+  const over = view.phase === "game_over";
+  el.scContinue.dataset.over = over ? "1" : "";
+  el.scContinue.textContent = over ? t("score.newGame") : t("score.nextRound");
+  el.scorecard.hidden = false;
+}
+
+/** Sidi: the cards, then the stake on its own line, marked made or failed. */
+function renderSidiScorecard(view, card, pick) {
+  el.scRows.replaceChildren();
+  const add = (label, us, them, cls) => {
+    const tr = document.createElement("tr");
+    if (cls) tr.className = cls;
+    tr.innerHTML = `<td>${label}</td><td>${us}</td><td>${them}</td>`;
+    el.scRows.appendChild(tr);
+  };
+  for (const [label, pair] of [
+    [t("score.tricks"), card.trick_points],
+    [t("score.lastTrick"), card.last_trick],
+    [t("score.match"), card.match],
+  ]) {
+    const [us, them] = pick(pair);
+    add(label, us || "—", them || "—", !us && !them ? "zero" : "");
+  }
+  const stake = t(card.made ? "sidi.made" : "sidi.failed", {
+    bid: card.bid, x: card.doubled ? " ×2" : "",
+  });
+  const [bu, bt] = pick(card.bonus);
+  add(stake, bu || "—", bt || "—", "subtotal");
+  const [ru, rt] = pick(card.round_total);
+  const [tu, tt] = pick(card.scores);
+  add(t("score.thisRound"), ru, rt, "subtotal");
+  add(t("score.total"), tu, tt, "total");
+
+  el.scTitle.textContent =
+    view.phase === "game_over" ? t("score.final") : t("round.n", { n: card.round + 1 });
+  el.scContract.textContent = `${contractName(card.contract)} ${card.bid}`;
   const over = view.phase === "game_over";
   el.scContinue.dataset.over = over ? "1" : "";
   el.scContinue.textContent = over ? t("score.newGame") : t("score.nextRound");
@@ -538,6 +653,14 @@ function statusText(view) {
   }
   if (view.phase === "game_over") return "Game over";
   if (view.phase === "round_over") return "Round over — tap to continue";
+  if (view.mode === "sidi" && view.phase === "doubling") {
+    return view.double_pending ? t("sidi.doubleYours") : t("sidi.doubleWait");
+  }
+  if (view.mode === "sidi" && view.phase === "bidding") {
+    return view.to_act === view.seat
+      ? t("sidi.yourCall")
+      : t("sidi.calling", { who: seatName(view, view.to_act) });
+  }
   if (view.to_act === view.seat) {
     if (view.phase === "bidding") {
       return view.declarer === view.seat && view.can_shove
@@ -570,8 +693,10 @@ function render(view) {
   renderContract(view.contract, view.multiplier);
   el.round.textContent = t("round.n", { n: view.round + 1 });
 
-  const bidding = view.phase === "bidding" && view.to_act === view.seat;
+  const bidding = view.mode !== "sidi" && view.phase === "bidding" && view.to_act === view.seat;
   el.bidding.hidden = !bidding;
+  renderAuction(view);
+  renderSidi(view);
 
   const askingWeis = view.phase === "weis" && view.to_act === view.seat && view.weis_offer;
   el.weisPrompt.hidden = !askingWeis;
@@ -599,6 +724,23 @@ el.scContinue.addEventListener("click", () => {
 });
 document.querySelectorAll(".bid[data-bid]").forEach((button) =>
   button.addEventListener("click", () => send({ type: "bid", action: button.dataset.bid }))
+);
+document.querySelectorAll("[data-sidi]").forEach((button) =>
+  button.addEventListener("click", () => {
+    if (sidiValue !== null) send({ type: "bid", action: `${button.dataset.sidi} ${sidiValue}` });
+  })
+);
+document.querySelectorAll("[data-sidi-call]").forEach((button) =>
+  button.addEventListener("click", () => send({ type: "bid", action: button.dataset.sidiCall }))
+);
+document.querySelectorAll("[data-open-rules]").forEach((button) =>
+  button.addEventListener("click", () => document.dispatchEvent(new Event("kj:open-rules")))
+);
+document.getElementById("double-yes").addEventListener("click", () =>
+  send({ type: "double", double: true })
+);
+document.getElementById("double-no").addEventListener("click", () =>
+  send({ type: "double", double: false })
 );
 document.getElementById("weis-yes").addEventListener("click", () =>
   send({ type: "weis", announce: true })
