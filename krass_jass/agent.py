@@ -112,10 +112,15 @@ class DmctsAgent(Agent):
     #: subclass so the arena can A/B it — a convention that costs points is not one worth
     #: having, and that is a claim somebody has to be able to check.
     conventions: bool = True
-    #: The tie window the conventions may choose within: `(visit slack, score slack)` — a move
-    #: counts as tied with the best if it drew within this share of the search's visits and this
-    #: much of its score. Measurement knob; the default is the one the conventions shipped with.
-    convention_slack: tuple = (0.05, 0.01)
+    #: What a convention may cost: `(visit slack, score slack)` — a move is eligible if it drew
+    #: within this share of the search's visits and this much of its score (and at least
+    #: `convention.MIN_VISIT_SHARE` of the visits). `(1.0, 0.01)` is a pure *price*: a convention
+    #: card may be up to 0.01 of a round's share worse by the search's own estimate. Measured
+    #: against no conventions at the shipped budget, 1,000 double deals (`docs/measurements.md` §5u):
+    #: the old window (0.05, 0.01) 50.15%, p = 0.32; this price 50.03%, p = 0.86 — free, and the
+    #: convention's card rises from 65.9% to 73.2% of the decisions a convention speaks to;
+    #: a price of 0.02 reached 79.7% but cost 0.5 (49.49%, p = 0.018).
+    convention_slack: tuple = (1.0, 0.01)
     #: Read the other seats' discards as signals and tilt the determinization towards the
     #: worlds they suggest. **Off**, and the flag exists because that is a measured decision
     #: rather than an opinion: it is worth nothing at this budget even against a partner who

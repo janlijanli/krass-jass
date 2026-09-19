@@ -74,9 +74,10 @@ pub fn opponents_out_of_trump(
         .all(|other| unseen_trumps & !forbidden[other] == 0)
 }
 
-/// The tie window the shipped bots use; `choose` takes it as arguments so a wider one can be
-/// measured without a rebuild.
-pub const DEFAULT_SLACK: (f64, f64) = (VOTE_SLACK, SCORE_SLACK);
+/// What a convention may cost in the shipped bots: no visit condition beyond the floor, and at
+/// most `SCORE_SLACK` of a round's share by the search's own estimate — a price rather than a
+/// tie window. In step with `DmctsAgent.convention_slack`, which carries the measurement.
+pub const DEFAULT_SLACK: (f64, f64) = (1.0, SCORE_SLACK);
 
 /// Suits the partner has thrown away, as a 4-bit mask. Mirror of `partner_discards` in Python.
 pub fn partner_discards(
