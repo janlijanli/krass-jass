@@ -263,6 +263,13 @@ def drive_both_sidi(seed, target=2000):
         seat = py.to_act
         assert seat == rs.to_act, f"turn diverged at seat {seat} vs {rs.to_act}"
         assert py.hand_of(seat) == rs.hand_of(seat), "hands diverged"
+        if py.phase is Phase.BIDDING and py.auction.high and rng.random() < 0.08:
+            # A knock out of turn, from whichever opponent of the bidder is not on turn.
+            bidder = py.auction.high[0]
+            knocker = next(s for s in ((bidder + 1) % 4, (bidder + 3) % 4) if s != seat)
+            py.bid(knocker, "DOUBLE")
+            rs.call(knocker, "DOUBLE")
+            continue
         if py.phase is Phase.BIDDING:
             legal = [str(c) for c in py.auction.legal_calls(seat)]
             assert legal == rs.legal_calls(seat), "legal calls diverged"

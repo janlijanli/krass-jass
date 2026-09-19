@@ -52,8 +52,25 @@ let handle = null;
 let acked = 0;
 let busy = false;
 
+// Sidi: the last knock the player let pass, as "round|calls", so each opposing bid asks once.
+let knockDeclined = null;
+
+/** Sidi: an opponent has just bid and the player may knock before anyone else speaks — the
+ *  same rule as `Table.knock_offer` in web/app.py, since a double may come at any time. */
+function knockOffer(v) {
+  if (v.mode !== "sidi" || v.phase !== "bidding" || !v.auction?.length) return null;
+  const last = v.auction[v.auction.length - 1];
+  const key = `${v.round}|${v.auction.length}`;
+  const opponent = (last.seat - HUMAN_SEAT + 4) % 2 === 1;
+  if (["PASS", "DOUBLE"].includes(last.call) || !opponent || v.to_act === HUMAN_SEAT) return null;
+  if (v.auction.some((c) => c.call === "DOUBLE") || knockDeclined === key) return null;
+  return { seat: last.seat, call: last.call, key };
+}
+
 function view() {
-  return engine.view(handle, HUMAN_SEAT, acked);
+  const v = engine.view(handle, HUMAN_SEAT, acked);
+  v.knock = knockOffer(v);
+  return v;
 }
 
 /* Advice mode.
@@ -113,6 +130,7 @@ function draw() {
 function newGame() {
   if (handle !== null) engine.free(handle);
   acked = 0;
+  knockDeclined = null;
   handle = engine.newGame({ seed: Math.floor(Math.random() * 2 ** 48), ...settings() });
   draw();
   drive();
@@ -132,6 +150,7 @@ async function drive() {
         break;                                // waiting on a tap
       }
       if (v.to_act === null || v.to_act === HUMAN_SEAT) break;
+      if (v.knock) break;                     // the player is being asked whether to knock
       const seat = v.to_act;
       const trick = Math.max(0, v.round);
 
@@ -180,9 +199,13 @@ setSender((message) => {
       if (view().mode === "sidi") engine.call(handle, HUMAN_SEAT, message.action);
       else engine.bid(handle, HUMAN_SEAT, message.action === "SHOVE" ? -1 : CONTRACTS[message.action]);
       break;
-    case "double":
-      engine.double(handle, HUMAN_SEAT, !!message.double);
+    case "double": {
+      const v = view();
+      if (v.phase === "doubling") engine.double(handle, HUMAN_SEAT, !!message.double);
+      else if (v.knock && message.double) engine.call(handle, HUMAN_SEAT, "DOUBLE");
+      else if (v.knock) knockDeclined = v.knock.key;
       break;
+    }
     case "weis":
       engine.chooseWeis(handle, HUMAN_SEAT, !!message.announce);
       break;

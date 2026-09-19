@@ -64,6 +64,8 @@ pub struct Auction {
     pub doubled: bool,
     /// Passes in a row since the last bid, or since the start.
     pub passes: usize,
+    /// Calls made in turn; a double may come out of turn, so the turn is counted apart.
+    in_turn: usize,
     rules: Rules,
 }
 
@@ -75,6 +77,7 @@ impl Auction {
             high: None,
             doubled: false,
             passes: 0,
+            in_turn: 0,
             rules,
         }
     }
@@ -100,7 +103,7 @@ impl Auction {
         if self.done() {
             None
         } else {
-            Some((self.opener + self.calls.len()) % NUM_SEATS)
+            Some((self.opener + self.in_turn) % NUM_SEATS)
         }
     }
 
@@ -134,7 +137,16 @@ impl Auction {
             return Err(AuctionError::Over);
         }
         if self.to_act() != Some(seat) {
-            return Err(AuctionError::NotYourTurn(seat));
+            // A double may come at any time — see `auction.py`. Nothing else is out of turn.
+            if call != Call::Double {
+                return Err(AuctionError::NotYourTurn(seat));
+            }
+            if !self.may_double(seat) {
+                return Err(AuctionError::MayNotDouble);
+            }
+            self.doubled = true;
+            self.calls.push((seat, call));
+            return Ok(());
         }
         match call {
             Call::Pass => self.passes += 1,
@@ -160,6 +172,7 @@ impl Auction {
             }
         }
         self.calls.push((seat, call));
+        self.in_turn += 1;
         Ok(())
     }
 }
@@ -207,6 +220,17 @@ mod tests {
         assert_eq!(a.call(2, Call::Double), Err(AuctionError::MayNotDouble));
         a.call(2, Call::Pass).unwrap();
         a.call(3, Call::Double).unwrap();
+        assert!(a.done() && a.doubled);
+    }
+
+    #[test]
+    fn a_double_may_come_out_of_turn_and_only_a_double() {
+        let mut a = Auction::new(1, Rules::sidi());
+        a.call(1, Call::Bid { contract: 1, value: 90 }).unwrap();
+        // Seat 2 is on turn; seat 0, an opponent of the bidder, knocks first.
+        assert_eq!(a.call(0, Call::Pass), Err(AuctionError::NotYourTurn(0)));
+        assert_eq!(a.call(3, Call::Double), Err(AuctionError::MayNotDouble));
+        a.call(0, Call::Double).unwrap();
         assert!(a.done() && a.doubled);
     }
 

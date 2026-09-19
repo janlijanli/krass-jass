@@ -88,9 +88,34 @@ class Table:
     #: tap, and the bots must not race ahead in the meantime — otherwise the board jumps
     #: forward the moment they do.
     acked_tricks: int = 0
+    #: Sidi: the last knock the player let pass, as (round, calls so far), so the question is
+    #: asked once per opposing bid.
+    knock_declined: tuple | None = None
 
     def is_bot(self, seat: int) -> bool:
         return seat != self.human_seat
+
+    def knock_offer(self) -> dict | None:
+        """Sidi: an opponent has just bid and the player may knock before anyone else speaks.
+
+        A double may come at any time (`auction.py`), and at a table you knock the moment you
+        hear the bid — not after your partner in between has spoken. So the bots wait while the
+        player is asked. Not on the player's own turn: the bidding panel offers the double then.
+        """
+        game = self.game
+        auction = game.auction
+        if not game.cfg.sidi or game.phase is not Phase.BIDDING or auction is None or not auction.calls:
+            return None
+        seat, call = auction.calls[-1]
+        key = (game.round_index, len(auction.calls))
+        if (
+            call.kind != "bid"
+            or auction.to_act == self.human_seat
+            or not auction.may_double(self.human_seat)
+            or self.knock_declined == key
+        ):
+            return None
+        return {"seat": seat, "call": str(call)}
 
     def completed_tricks(self) -> int:
         return len(self.game.round.tricks_played) if self.game.round else 0
@@ -449,6 +474,7 @@ def view(table: Table, seat: int) -> dict:
         "bid": game.bid_value or None,
         "doubled": game.doubled,
         "double_pending": game.phase is Phase.DOUBLING and game.to_act == seat,
+        "knock": table.knock_offer(),
         # The trump Jack decides most tricks it appears in; the engine names it so the client
         # does not have to work out what trump means.
         "puur": format_card(game.contract.trump_suit * 9 + 3)
@@ -484,7 +510,13 @@ async def handle(table: Table, seat: int, message: dict, socket: WebSocket) -> N
         elif kind == "play":
             game.play(seat, parse_card(str(message.get("card", ""))))
         elif kind == "double":
-            game.double(seat, bool(message.get("double")))
+            if game.phase is Phase.DOUBLING:
+                game.double(seat, bool(message.get("double")))
+            elif table.knock_offer() is not None:
+                if message.get("double"):
+                    game.bid(seat, "DOUBLE")        # out of turn: allowed for a double
+                else:
+                    table.knock_declined = (game.round_index, len(game.auction.calls))
         elif kind == "weis":
             game.choose_weis(seat, bool(message.get("announce")))
         elif kind == "ack_trick":
@@ -507,6 +539,8 @@ async def drive(table: Table, seat: int, socket: WebSocket, flush) -> None:
         while game.phase in (Phase.BIDDING, Phase.DOUBLING, Phase.WEIS, Phase.PLAYING):
             if table.awaiting_ack():
                 return  # the player is still looking at the last trick
+            if table.knock_offer() is not None:
+                return  # the player is being asked whether to knock
             actor = game.to_act
             if actor is None or actor == seat:
                 return

@@ -62,12 +62,15 @@ class Auction:
     doubled: bool = False
     #: passes in a row since the last bid (or since the start)
     passes: int = 0
+    #: calls made in turn. A double may come out of turn (below), so the turn is counted apart
+    #: from the list of calls.
+    in_turn: int = 0
 
     @property
     def to_act(self) -> int | None:
         if self.done:
             return None
-        return (self.opener + len(self.calls)) % NUM_SEATS
+        return (self.opener + self.in_turn) % NUM_SEATS
 
     @property
     def done(self) -> bool:
@@ -103,7 +106,16 @@ class Auction:
         if self.done:
             raise IllegalMove("the auction is over")
         if seat != self.to_act:
-            raise IllegalMove(f"seat {seat} is not on turn to call")
+            # A double may be called at any time (owner, 2026-09-19: "jederzeit, bis die zweite
+            # Karte auf dem Tisch liegt") — at a table you knock the moment you hear the bid,
+            # without waiting for the partner in between to speak. Nothing else is out of turn.
+            if call.kind != "double":
+                raise IllegalMove(f"seat {seat} is not on turn to call")
+            if not self.may_double(seat):
+                raise IllegalMove("only an opponent of the standing bid may double")
+            self.doubled = True
+            self.calls.append((seat, call))
+            return call
         if call.kind == "pass":
             self.passes += 1
         elif call.kind == "double":
@@ -120,6 +132,7 @@ class Auction:
             # A double that did not end the auction was a double of the bid it named.
             self.doubled = False
         self.calls.append((seat, call))
+        self.in_turn += 1
         return call
 
 

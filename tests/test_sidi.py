@@ -277,3 +277,24 @@ def test_there_is_no_stoeck_in_the_sidi(seed):
     play_out(game, rng)
     assert not [e for e in game.log.all() if e.type.value == "stoeck"]
     assert game.stoeck_seats == []
+
+
+def test_an_opponent_may_knock_out_of_turn():
+    """Owner, 2026-09-19: a double may come at any time until the second card — at a table you
+    knock the moment you hear the bid, without waiting for your partner to speak first."""
+    a = Auction(opener=1, cfg=SIDI)
+    a.call(1, "HEARTS 90")
+    assert a.to_act == 2
+    with pytest.raises(IllegalMove):
+        a.call(0, "PASS")          # nothing else is out of turn
+    with pytest.raises(IllegalMove):
+        a.call(3, "DOUBLE")        # and never the bidder's own partner
+    a.call(0, "DOUBLE")
+    assert a.done and a.doubled and a.high == (1, Contract.HEARTS, 90)
+
+
+def test_a_turn_is_not_lost_to_a_knock_that_does_not_end_the_auction():
+    a = Auction(opener=1, cfg=SIDI.variant(sidi_double_ends_auction=False))
+    a.call(1, "HEARTS 90")
+    a.call(0, "DOUBLE")            # out of turn
+    assert a.to_act == 2 and not a.done

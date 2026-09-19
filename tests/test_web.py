@@ -361,3 +361,29 @@ def test_stoeck_is_not_optional():
 
     source = inspect.getsource(game_module.Game.choose_weis)
     assert "stoeck" not in source.lower(), "Stöck must not be routed through the Weis choice"
+
+
+def test_the_player_is_asked_to_knock_the_moment_an_opponent_bids():
+    """Owner, 2026-09-19: the player may double the bid of the seat on their right before their
+    partner speaks. The bots wait while the question is open; it is asked once per bid."""
+    from krass_jass.game import Game
+    from krass_jass.rules import SIDI
+    from web.app import Table, view
+
+    for seed in range(40):
+        game = Game(cfg=SIDI, seed=seed)
+        if game.to_act == 1:
+            break
+    table = Table(game=game, human_seat=0, bots={})
+    assert table.knock_offer() is None
+    game.bid(1, "HEARTS 90")                 # Rechts bids; the partner (seat 2) is on turn
+    offer = view(table, 0)["knock"]
+    assert offer == {"seat": 1, "call": "HEARTS 90"}
+
+    # Letting it pass asks no more for this bid ...
+    table.knock_declined = (game.round_index, len(game.auction.calls))
+    assert table.knock_offer() is None
+    # ... and knocking is a double out of turn, which ends the auction.
+    table.knock_declined = None
+    game.bid(0, "DOUBLE")
+    assert game.doubled and game.declarer == 1

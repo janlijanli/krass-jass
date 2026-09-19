@@ -21,6 +21,7 @@ const STORAGE_KEY = "kj_lang";
 
 const STRINGS = {
   en: {
+    "sidi.knockAsk": "{who} bids {bid}. Double?",
     "sidi.rules": "Rules",
     "menu.mode": "Game",
     "menu.sidiNote": "Sidi Barrani: everyone bids for trump, every contract ×1, no Weis, no Stöck. Usually played to 2000.",
@@ -188,6 +189,7 @@ const STRINGS = {
   },
 
   de: {
+    "sidi.knockAsk": "{who} sagt {bid}. Doppeln?",
     "sidi.rules": "Regeln",
     "menu.mode": "Spiel",
     "menu.sidiNote": "Sidi Barrani: Alle bieten um den Trumpf, alles zählt einfach, kein Weis, keine Stöck. Meist bis 2000.",
@@ -308,6 +310,7 @@ const STRINGS = {
   },
 
   fr: {
+    "sidi.knockAsk": "{who} annonce {bid}. Doubler ?",
     "sidi.rules": "Règles",
     "menu.mode": "Jeu",
     "menu.sidiNote": "Sidi Barrani : tout le monde mise pour l'atout, tout compte simple, sans Weis ni Stöck. En général jusqu'à 2000.",
@@ -475,6 +478,7 @@ const STRINGS = {
   },
 
   it: {
+    "sidi.knockAsk": "{who} punta {bid}. Raddoppi?",
     "sidi.rules": "Regole",
     "menu.mode": "Gioco",
     "menu.sidiNote": "Sidi Barrani: tutti puntano per la briscola, tutto vale semplice, niente Weis né Stöck. Di solito fino a 2000.",

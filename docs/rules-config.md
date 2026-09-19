@@ -293,8 +293,11 @@ an opponent doubles. If all four pass before anyone bids, the hand is thrown in 
 seat deals**. The highest bidder declares and **leads the first trick**.
 
 **Doubling.** Only the declarer's opponents may double, and they may do so **at any time until the
-second card of the first trick is on the table** (`sidi_double_after_lead`, default `True`): on
-their turn in the auction, and once more after the declarer has led. The app has to *ask* then —
+second card of the first trick is on the table** (`sidi_double_after_lead`, default `True`): in the
+auction **out of turn as well** — the moment a bid is made, without waiting for the seat in between
+to speak (owner, 2026-09-19; a double is the only call that may come out of turn, and it does not
+move the turn) — and once more after the declarer has led. The app asks the player right after
+each opposing bid, and again after the lead. It has to *ask* —
 at a real table a player can knock at any moment, and a question at the one point where it can
 still matter is the only faithful way to simulate that. The seat after the leader is asked
 first, then the seat before the leader. A double in the auction ends the auction

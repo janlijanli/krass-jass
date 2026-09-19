@@ -230,11 +230,18 @@ function renderSidi(view) {
     el.sidiDouble.hidden = !(view.legal_calls || []).includes("DOUBLE");
   }
 
-  el.doublePrompt.hidden = !view.double_pending;
+  // Two moments to knock: after the lead (the engine's own phase), and the instant an opponent
+  // bids in the auction, before anyone else speaks (`knock`).
+  el.doublePrompt.hidden = !view.double_pending && !view.knock;
   if (view.double_pending) {
     el.doubleText.textContent = t("sidi.doubleAsk", {
       who: seatName(view, view.declarer),
       bid: callLabel(`${view.contract} ${view.bid}`),
+    });
+  } else if (view.knock) {
+    el.doubleText.textContent = t("sidi.knockAsk", {
+      who: seatName(view, view.knock.seat),
+      bid: callLabel(view.knock.call),
     });
   }
 }
@@ -656,6 +663,7 @@ function statusText(view) {
   if (view.mode === "sidi" && view.phase === "doubling") {
     return view.double_pending ? t("sidi.doubleYours") : t("sidi.doubleWait");
   }
+  if (view.mode === "sidi" && view.knock) return t("sidi.doubleYours");
   if (view.mode === "sidi" && view.phase === "bidding") {
     return view.to_act === view.seat
       ? t("sidi.yourCall")
