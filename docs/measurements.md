@@ -1614,6 +1614,50 @@ small budget and a costly lean at the large one. The two gains of this stretch b
 model of **how the other seats play** — reading the table (§5o) and moving them inside the tree (§5p) —
 not from a model of what a position is worth. The search already estimates that well; it did not know
 how its opponents think.
+## 5u. Swiss conventions, and what a predictable partner may cost
+
+*2026-09-18/19.* The owner asked for a partner that plays like a person — aces, then kings, draw the
+opponents' trumps — and for the researched Swiss conventions to be implemented (Swisslos Jass-Onkel,
+jassverzeichnis.ch and others; `krass_jass/convention.py` lists them). They stay **outside** the
+search's score: the search rates the moves, and a convention may only choose among moves it rated
+(nearly) the same. The question is how wide "nearly" may be.
+
+**Predictability** is measured offline on 3,892 real decisions from the shipped bot: in the decisions
+where a convention names a card, how often the bot plays that card. The search's output does not depend
+on the setting, so one run of saved decisions scores every setting at once.
+
+| setting | plays the convention's card | overrides the search's first choice | search's own cost per override |
+|---|---|---|---|
+| search only | 58.9% | — | — |
+| window: 5% of visits, 0.01 of score (previous default) | 65.9% | 10.0% | 0.10 |
+| **price λ = 0.01** | **73.2%** | 19.9% | 0.35 |
+| price λ = 0.02 | 79.7% | 26.5% | 0.73 |
+| price λ = 0.03 | 84.7% | 30.3% | 1.06 |
+| price λ = 0.05 | 91.1% | 34.9% | 1.62 |
+
+A *price* λ is the window `(1.0, λ)`: no visit condition beyond a floor of 0.5% of the visits
+(`MIN_VISIT_SHARE` — a barely explored move has no reliable score), and a convention card may be up to
+λ of a round's share worse by the search's own estimate. The cost column is that estimate, in points of
+a round's share; it is noisy, which is why the matches below decide.
+
+**Strength**, each against the same bot with conventions off, shipped budget (153,600, tree policy),
+1,000 double deals, seed 91:
+
+| conventions | share | p |
+|---|---|---|
+| previous window (0.05, 0.01) | 50.15% ± 4.84 | 0.32 |
+| **price λ = 0.01** | **50.03% ± 5.71** | **0.86** |
+| price λ = 0.02 | 49.49% ± 6.74 | **0.018** |
+
+λ = 0.02 costs half a point — measurably, on one run — and λ = 0.03 was stopped, since it overrides the
+search more often at a higher price per override. **λ = 0.01 is free and ships** (`DmctsAgent.convention_slack
+= (1.0, 0.01)`, `convention::DEFAULT_SLACK` in the browser build): the partner plays the card a Swiss
+player expects in three convention decisions out of four, up from two out of three.
+
+Not yet done: the bot *plays* the conventions but does not *read* them — the play model the beliefs and
+the tree policy use was trained on play without them. Retraining it on self-play with conventions is
+the next step.
+
 ---
 
 ## 6. Open
