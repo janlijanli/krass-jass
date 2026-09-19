@@ -143,17 +143,24 @@ class DmctsAgent(Agent):
     convention_slack: tuple = (1.0, 0.01)
     #: Sidi Barrani: weight on what the auction says about the other hands (`rust/src/sidi_read.rs`
     #: — parity names the Bauer or the Nell, size the trumps, believed most for a first bid and a
-    #: big jump). 1.0 as the Schieber's bid weight is; **not yet measured**.
+    #: big jump). **On: +32.0 points written a hand**, p ≈ 0, 1,000 double hands at 38,400
+    #: (`docs/measurements.md` §5v) — the largest effect measured in this project, and measured bot
+    #: against bot, where every seat speaks the language literally.
     sidi_alpha: float = 1.0
     #: Sidi Barrani: play the hand for the bid — the cards and the stake at the bid's threshold
-    #: (`rust/src/objective.rs`) — rather than for a share of the cards. A flag so it can be A/B'd.
-    sidi_objective: bool = True
+    #: (`rust/src/objective.rs`) — rather than for a share of the cards. **Off: it lost 5.1 points
+    #: written a hand**, p = 0.028 (§5v). The share of the cards it replaced is what the search's
+    #: exploration and every other setting were tuned on; the stake's cliff, scaled into [0, 1],
+    #: leaves the card points too little of the signal.
+    sidi_objective: bool = False
     #: Sidi Barrani: double on an estimate rather than a stopper count — deal the unseen cards,
     #: weight each deal by the auction, play it out with the play model, and double when the
     #: declarers make their bid in fewer than `sidi_double_below` of the deals
     #: (`rust/src/sidi_estimate.rs`). Doubling pays for the defenders exactly when that chance is
     #: under a half; the margin is for the estimate's error and for what a double in the auction
-    #: gives up (it ends the bidding, the team's own contract with it). **Not yet measured.**
+    #: gives up (it ends the bidding, the team's own contract with it). **On, and null** against the
+    #: stopper count: −0.18 points a hand, p = 0.94 (§5v), while doubling in 36% of auctions
+    #: instead of 3%. Kept as the principled rule the owner asked for; its threshold is untuned.
     sidi_double_model: bool = True
     sidi_double_below: float = 0.35
     sidi_double_samples: int = 400

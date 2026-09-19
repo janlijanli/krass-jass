@@ -1658,6 +1658,26 @@ Not yet done: the bot *plays* the conventions but does not *read* them — the p
 the tree policy use was trained on play without them. Retraining it on self-play with conventions is
 the next step.
 
+## 5v. Sidi Barrani: the first screens
+
+*2026-09-19.* The second game mode (`docs/rules-config.md`, `docs/sidi-plan.md`) measured the Schieber
+way — every hand twice with the teams swapped on one seed, a paired test — in **points written a
+hand** (cards plus the stake), `arena/sidi_ab.py`, 1,000 double hands at 38,400 iterations each. Both
+arms bid with the same rule bidder.
+
+| A vs B | points a hand | written share | p |
+|---|---|---|---|
+| reading the auction (`sidi_alpha` 1 vs 0) | **+32.02 ± 109.4** | 55.10% | ≈ 0 |
+| playing for the bid vs for the cards (`sidi_objective`) | −5.14 ± 73.9 | 49.15% | 0.028 |
+| doubling on an estimate vs a stopper count (`sidi_double_model`) | −0.18 ± 80.3 | 49.97% | 0.94 |
+
+Reading the auction is on, and is the largest effect in this document — against bidders who speak
+the language literally, and with doubling blind to the auction in the B arm as well, so it bounds
+what a human partner's bids are worth rather than measuring it. Playing for the bid is off: the
+stake's cliff, scaled into the search's [0, 1] reward, starves it of the card-point signal it was
+tuned on. The estimate-based double stays (the owner's design, null against the rule). Details and
+a replication on a fresh seed, queued, in `docs/sidi-plan.md`.
+
 ---
 
 ## 6. Open

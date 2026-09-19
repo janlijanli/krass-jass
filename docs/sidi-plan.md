@@ -86,6 +86,8 @@ the bid costs the whole stake, and the search sees that edge — from both sides
 defenders' value is the mirror image. Match is read off the points (157 to nothing), because the
 search does not track tricks through a playout. Mirrored in `krass_jass/objective.py` and held to
 the same numbers by `tests/test_sidi_search.py`. Flag: `DmctsAgent.sidi_objective`.
+**Measured a loss and off** (−5.1 points written a hand, p = 0.028, below): the bots play a Sidi
+hand for a share of the cards, as in the Schieber.
 
 **Reading the auction — `rust/src/sidi_read.rs`.** Every bid is a statement about the bidder's
 dealt hand, and the belief pool (`belief.rs`) weights each imagined deal by how well it agrees:
@@ -123,6 +125,25 @@ identically in both halves of a pair, and an arm that differs in doubling is mea
 Queued at 38,400 iterations, 1,000 double hands each: reading the auction (`sidi_alpha` 1 vs 0 —
 which also switches the auction off in the doubling estimate), playing for the bid
 (`sidi_objective` on vs off), and doubling on the estimate (`sidi_double_model` on vs off).
+
+**Results** (2026-09-19, 1,000 double hands each at 38,400 iterations; points written a hand,
+A's team minus B's, cards plus stake):
+
+| A vs B | points a hand | written share | p | decision |
+|---|---|---|---|---|
+| reading the auction vs not | **+32.02 ± 109.4** | 55.10% | ≈ 0 | **on** |
+| playing for the bid vs for the cards | −5.14 ± 73.9 | 49.15% | 0.028 | **off** |
+| doubling on the estimate vs the stopper count | −0.18 ± 80.3 | 49.97% | 0.94 | on (null) |
+
+Reading the auction is the largest effect this project has measured, and it needs two caveats.
+Every seat at an arena table speaks the language literally, so a bid there is nearly the truth —
+a human partner's bids will say less. And the `sidi_alpha = 0` arm also doubled blind to the
+auction, so the figure is reading in play and in doubling together. A replication on a fresh
+seed is queued behind the play-model retrain. Playing for the bid lost: scaled into [0, 1], the stake's cliff leaves the card
+points too little of the reward the search and its exploration constant were tuned on — a
+combined objective is the obvious next attempt, not a settled no. Doubling on the estimate doubles
+in 36% of auctions and the stopper count in 3%, and they score the same: the bids are often too
+high either way, which is the bidder's problem (step 4), not the double's.
 
 ## Order of work
 

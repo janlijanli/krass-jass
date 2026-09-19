@@ -163,9 +163,12 @@ fn sidi_bids(game: &Game) -> Vec<Bid> {
     })
 }
 
-/// In step with `DmctsAgent` in `agent.py`: the auction read at weight 1, and a double when the
-/// declarers make their bid in fewer than 35% of 400 imagined deals (`sidi_estimate.rs`).
+/// In step with `DmctsAgent` in `agent.py` (measurements.md §5v): the auction read at weight 1
+/// (+32 points a hand), the hand played for a share of the cards rather than for the bid (playing
+/// for the bid lost 5.1), and a double when the declarers make their bid in fewer than 35% of 400
+/// imagined deals (`sidi_estimate.rs`; null against the stopper count, kept).
 const SIDI_ALPHA: f32 = 1.0;
+const SIDI_OBJECTIVE: bool = false;
 const SIDI_DOUBLE_BELOW: f64 = 0.35;
 const SIDI_DOUBLE_SAMPLES: usize = 400;
 
@@ -400,9 +403,11 @@ fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u
             rank_bias: bid_ranks,
             // Where this round leaves the game, which is what the search is playing for.
             // Weis is public once called; Stöck is not, and is left out. See objective.rs.
-            // In the Sidi the hand is played for the bid — cards and stake at the bid's
-            // threshold (objective.rs) — and there is no game projection, as in `agent.py`.
-            stakes: if sidi {
+            // In the Sidi there is no game projection, as in `agent.py`; the bid objective is
+            // behind SIDI_OBJECTIVE, off since it measured a loss.
+            stakes: if sidi && !SIDI_OBJECTIVE {
+                Stakes::default()
+            } else if sidi {
                 Stakes {
                     sidi_bid: game.bid_value,
                     sidi_declarers: game.declarer & 1,
