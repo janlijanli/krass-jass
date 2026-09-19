@@ -21,6 +21,23 @@ const STORAGE_KEY = "kj_lang";
 
 const STRINGS = {
   en: {
+    "sidi.rules": "Rules",
+    "menu.mode": "Game",
+    "menu.sidiNote": "Sidi Barrani: everyone bids for trump, every contract ×1, no Weis, no Stöck. Usually played to 2000.",
+    "sidi.pass": "Pass",
+    "sidi.double": "Double",
+    "sidi.noDouble": "No",
+    "sidi.doubled": "doubled",
+    "sidi.prompt": "Bid {n} — pick the contract",
+    "sidi.promptNoBid": "Nothing higher left — pass or double",
+    "sidi.doubleAsk": "{who} leads at {bid}. Double?",
+    "sidi.doubleYours": "Double or not?",
+    "sidi.doubleWait": "Waiting for a double…",
+    "sidi.yourCall": "Your call",
+    "sidi.calling": "{who} is calling…",
+    "sidi.made": "Bid {bid}{x} made",
+    "sidi.failed": "Bid {bid}{x} missed",
+
     "lang.name": "English",
 
     "seat.you": "You",
@@ -171,6 +188,23 @@ const STRINGS = {
   },
 
   de: {
+    "sidi.rules": "Regeln",
+    "menu.mode": "Spiel",
+    "menu.sidiNote": "Sidi Barrani: Alle bieten um den Trumpf, alles zählt einfach, kein Weis, keine Stöck. Meist bis 2000.",
+    "sidi.pass": "Passe",
+    "sidi.double": "Doppeln",
+    "sidi.noDouble": "Nein",
+    "sidi.doubled": "gedoppelt",
+    "sidi.prompt": "{n} bieten — Spielart wählen",
+    "sidi.promptNoBid": "Kein höheres Gebot mehr — passen oder doppeln",
+    "sidi.doubleAsk": "{who} spielt {bid} aus. Doppeln?",
+    "sidi.doubleYours": "Doppeln oder nicht?",
+    "sidi.doubleWait": "Wird gedoppelt?…",
+    "sidi.yourCall": "Dein Gebot",
+    "sidi.calling": "{who} bietet…",
+    "sidi.made": "Gebot {bid}{x} erreicht",
+    "sidi.failed": "Gebot {bid}{x} verfehlt",
+
     "lang.name": "Deutsch",
 
     "seat.you": "Du",
@@ -274,6 +308,23 @@ const STRINGS = {
   },
 
   fr: {
+    "sidi.rules": "Règles",
+    "menu.mode": "Jeu",
+    "menu.sidiNote": "Sidi Barrani : tout le monde mise pour l'atout, tout compte simple, sans Weis ni Stöck. En général jusqu'à 2000.",
+    "sidi.pass": "Passe",
+    "sidi.double": "Doubler",
+    "sidi.noDouble": "Non",
+    "sidi.doubled": "doublé",
+    "sidi.prompt": "Miser {n} — choisis le jeu",
+    "sidi.promptNoBid": "Plus de mise possible — passe ou double",
+    "sidi.doubleAsk": "{who} joue {bid}. Doubler ?",
+    "sidi.doubleYours": "Doubler ou non ?",
+    "sidi.doubleWait": "On double ?…",
+    "sidi.yourCall": "À toi de miser",
+    "sidi.calling": "{who} mise…",
+    "sidi.made": "Mise {bid}{x} réussie",
+    "sidi.failed": "Mise {bid}{x} manquée",
+
     "lang.name": "Français",
 
     "seat.you": "Toi",
@@ -424,6 +475,23 @@ const STRINGS = {
   },
 
   it: {
+    "sidi.rules": "Regole",
+    "menu.mode": "Gioco",
+    "menu.sidiNote": "Sidi Barrani: tutti puntano per la briscola, tutto vale semplice, niente Weis né Stöck. Di solito fino a 2000.",
+    "sidi.pass": "Passo",
+    "sidi.double": "Raddoppia",
+    "sidi.noDouble": "No",
+    "sidi.doubled": "raddoppiato",
+    "sidi.prompt": "Punta {n} — scegli il gioco",
+    "sidi.promptNoBid": "Niente di più alto — passa o raddoppia",
+    "sidi.doubleAsk": "{who} gioca {bid}. Raddoppi?",
+    "sidi.doubleYours": "Raddoppi o no?",
+    "sidi.doubleWait": "Si raddoppia?…",
+    "sidi.yourCall": "Tocca a te puntare",
+    "sidi.calling": "{who} punta…",
+    "sidi.made": "Puntata {bid}{x} riuscita",
+    "sidi.failed": "Puntata {bid}{x} mancata",
+
     "lang.name": "Italiano",
 
     "seat.you": "Tu",

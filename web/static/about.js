@@ -367,7 +367,38 @@ function internalsPanel(data, L) {
   return wrap;
 }
 
-export function buildAbout(data) {
+/* ---------- Sidi Barrani: the rules, the bidding language, the bots ------ */
+
+function rulesPanel(L) {
+  const wrap = html("div", "about-panel rules");
+  const p = (key) => html("p", null, about(L, key));
+  const h = (key) => html("h3", null, about(L, key));
+  wrap.append(p("rules.intro"), h("rules.bid.h"), p("rules.bid.p"), p("rules.bid2.p"),
+    p("rules.end_auction.p"), h("rules.double.h"), p("rules.double.p"),
+    h("rules.score.h"), p("rules.score.p"));
+
+  // The worked examples from the rules, as a table: the arithmetic is the point.
+  const table = html("table", "rules-examples");
+  const [a, b, c] = about(L, "rules.ex.head").split("|");
+  table.append(html("thead", null, `<tr><th>${a}</th><th>${b}</th><th>${c}</th></tr>`));
+  const body = html("tbody");
+  for (const key of ["rules.ex.1", "rules.ex.2", "rules.ex.3", "rules.ex.4"]) {
+    const cells = about(L, key).split("|").map((x) => `<td>${x}</td>`).join("");
+    body.append(html("tr", null, cells));
+  }
+  table.append(body);
+  wrap.append(table, h("rules.end.h"), p("rules.end.p"), h("rules.lang.h"), p("rules.lang.p"));
+
+  const list = html("ul", "rules-list");
+  for (const key of ["rules.lang.odd", "rules.lang.even", "rules.lang.oben", "rules.lang.support"]) {
+    list.append(html("li", null, about(L, key)));
+  }
+  wrap.append(list, p("rules.lang.trust"), h("rules.bots.h"), p("rules.bots.p"),
+    html("p", "warn", about(L, "rules.bots.warn")));
+  return wrap;
+}
+
+export function buildAbout(data, initial = "play") {
   // Read once per build: menu.js rebuilds the whole panel when the language changes, so a
   // half-translated panel is not reachable.
   const L = getLang();
@@ -376,6 +407,7 @@ export function buildAbout(data) {
     strength: () => strengthPanel(data, L),
     internals: () => internalsPanel(data, L),
     walk: () => walkthroughPanel(data, L),
+    rules: () => rulesPanel(L),
   };
   const built = {};
   const body = html("div", "about-body");
@@ -386,8 +418,9 @@ export function buildAbout(data) {
     ["strength", about(L, "tab.strength")],
     ["internals", about(L, "tab.internals")],
     ["walk", about(L, "tab.walk")],
+    ["rules", about(L, "tab.rules")],
   ];
-  let active = "play";
+  let active = initial in panels ? initial : "play";
 
   const show = (key) => {
     active = key;

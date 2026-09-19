@@ -24,11 +24,17 @@ from bot.models import (
     PlayCardResponse,
     SelectTrumpRequest,
     SelectTrumpResponse,
+    SidiCallRequest,
+    SidiCallResponse,
+    SidiDoubleRequest,
+    SidiDoubleResponse,
 )
 from krass_jass.agent import DmctsAgent, GreedyAgent, RandomAgent
 from krass_jass.cards import format_card, parse_card, parse_hand
 from krass_jass.observation import Observation
-from krass_jass.rules import HOUSE, Contract
+import copy
+
+from krass_jass.rules import HOUSE, SIDI_EVAL, Contract
 
 AGENT_VERSION = "0.1.0"
 
@@ -60,6 +66,13 @@ def create_app() -> FastAPI:
     # Configuration is read once, at startup. A stateless service that re-reads the
     # environment per request can answer differently for reasons nothing recorded.
     agent = build_agent()
+    # The same agent with the Sidi's rules: every contract x1, no Weis. The game score is not
+    # the bot's business (stateless), so a single hand's rules are all it needs.
+    sidi_agent = copy.copy(agent)
+    sidi_agent.cfg = SIDI_EVAL
+
+    def for_mode(mode: str):
+        return sidi_agent if mode == "sidi" else agent
     kind = os.environ.get("AGENT_KIND", "dmcts").lower()
     seat_env = os.environ.get("SEAT")
     model_version = os.environ.get("MODEL_VERSION") or None
@@ -81,6 +94,24 @@ def create_app() -> FastAPI:
         action = agent.select_trump(hand, request.is_forehand)
         name = action.name if isinstance(action, Contract) else str(action)
         return SelectTrumpResponse(action=name)
+
+    @app.post("/sidi_call", response_model=SidiCallResponse)
+    async def sidi_call(request: SidiCallRequest) -> SidiCallResponse:
+        auction = tuple((c.seat, c.call) for c in request.auction)
+        call = sidi_agent.sidi_call(parse_hand(request.hand), auction, request.seat)
+        return SidiCallResponse(call=call)
+
+    @app.post("/sidi_double", response_model=SidiDoubleResponse)
+    async def sidi_double(request: SidiDoubleRequest) -> SidiDoubleResponse:
+        try:
+            contract = Contract[request.contract.upper()]
+        except KeyError:
+            raise HTTPException(422, f"unknown contract {request.contract!r}") from None
+        from krass_jass.sidi_bidding import double_after_lead
+
+        return SidiDoubleResponse(
+            double=double_after_lead(parse_hand(request.hand), contract, request.bid_value)
+        )
 
     @app.post("/play_card", response_model=PlayCardResponse)
     async def play_card(request: PlayCardRequest) -> PlayCardResponse:
@@ -107,9 +138,12 @@ def create_app() -> FastAPI:
             scores=request.scores,
             time_budget_ms=request.time_budget_ms,
             decision_seed=request.decision_seed,
+            auction=tuple((c.seat, c.call) for c in request.auction),
+            bid_value=request.bid_value,
+            doubled=request.doubled,
         )
 
-        card = agent.decide(observation)
+        card = for_mode(request.mode).decide(observation)
         # Defence in depth. The engine re-validates every move regardless, but a bot that
         # returns an illegal card should fail here rather than get that far.
         if not legal & (1 << card):

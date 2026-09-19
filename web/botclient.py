@@ -85,6 +85,37 @@ class RemoteAgent(Agent):
 
             return rule_based(hand, is_forehand=False, cfg=self.cfg)
 
+    def sidi_call(self, hand: int, auction: tuple, seat: int) -> str:
+        payload = {
+            "hand": [format_card(c) for c in card_list(hand)],
+            "auction": [{"seat": s, "call": c} for s, c in auction],
+            "seat": seat,
+        }
+        try:
+            response = self.client().post("/sidi_call", json=payload, timeout=TIMEOUT_MARGIN_S)
+            response.raise_for_status()
+            return str(response.json()["call"])
+        except Exception as exc:  # noqa: BLE001 — any failure means fall back, by design
+            self.failures += 1
+            log.warning("bot %s sidi call failed (%s); passing", self.label, exc)
+            return "PASS"   # the engine re-validates; a pass is always legal
+
+    def sidi_double(self, obs: Observation) -> bool:
+        payload = {
+            "hand": [format_card(c) for c in card_list(obs.hand)],
+            "contract": obs.contract.name,
+            "bid_value": obs.bid_value,
+            "seat": obs.seat,
+        }
+        try:
+            response = self.client().post("/sidi_double", json=payload, timeout=TIMEOUT_MARGIN_S)
+            response.raise_for_status()
+            return bool(response.json()["double"])
+        except Exception as exc:  # noqa: BLE001
+            self.failures += 1
+            log.warning("bot %s sidi double failed (%s); not doubling", self.label, exc)
+            return False
+
     def decide(self, obs: Observation) -> int:
         legal = obs.legal_moves
         payload = {
@@ -105,6 +136,10 @@ class RemoteAgent(Agent):
             "seat": obs.seat,
             "time_budget_ms": obs.time_budget_ms,
             "decision_seed": obs.decision_seed,
+            "mode": "sidi" if obs.auction else "schieber",
+            "auction": [{"seat": s, "call": c} for s, c in obs.auction],
+            "bid_value": obs.bid_value,
+            "doubled": obs.doubled,
         }
         timeout = obs.time_budget_ms / 1000 + TIMEOUT_MARGIN_S
         try:
