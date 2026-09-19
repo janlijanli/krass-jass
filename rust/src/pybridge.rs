@@ -692,6 +692,19 @@ fn rs_sidi_make_probability(
     })
 }
 
+/// Sidi: the rule bidder's call — `sidi_bidding.rs`, held to `krass_jass/sidi_bidding.py`.
+#[pyfunction]
+#[pyo3(signature = (hand, auction, seat, double=None))]
+fn rs_sidi_choose_call(hand: u64, auction: Vec<(usize, String)>, seat: usize, double: Option<bool>) -> PyResult<String> {
+    let mut calls = Vec::with_capacity(auction.len());
+    for (s, text) in &auction {
+        let call = crate::auction::Call::parse(text)
+            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(format!("unknown call {text:?}")))?;
+        calls.push((*s, call));
+    }
+    Ok(crate::sidi_bidding::choose_call(hand, &calls, seat & 3, double).name())
+}
+
 /// log P(the auction | the dealt hands), for every seat but `root` — `sidi_read.rs`. Exposed so
 /// the reading can be tested and inspected without running a search.
 #[pyfunction]
@@ -1033,6 +1046,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_reward, m)?)?;
     m.add_function(wrap_pyfunction!(rs_sidi_auction_loglik, m)?)?;
     m.add_function(wrap_pyfunction!(rs_sidi_make_probability, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_sidi_choose_call, m)?)?;
     m.add_function(wrap_pyfunction!(rs_infer_from_bid, m)?)?;
     m.add_function(wrap_pyfunction!(rs_leaf_samples, m)?)?;
     m.add_function(wrap_pyfunction!(rs_card_features, m)?)?;

@@ -39,6 +39,7 @@ pub mod rng;
 pub mod rollout;
 pub mod round;
 pub mod search;
+pub mod sidi_bidding;
 pub mod sidi_estimate;
 pub mod sidi_read;
 pub mod tables;

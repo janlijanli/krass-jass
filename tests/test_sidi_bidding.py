@@ -103,3 +103,30 @@ def test_auctions_between_bots_end_without_escalating():
 )
 def test_a_support_names_the_supporters_own_card(cards, partner_bid, floor, expect):
     assert sb.support(hand(*cards), Contract.HEARTS, partner_bid, floor) == expect
+
+
+@pytest.mark.parametrize("seed", range(300))
+def test_rust_bids_exactly_as_python_does(seed):
+    """The browser build bids with `rust/src/sidi_bidding.rs`; a human playing offline must meet
+    the same partner as one playing against the server."""
+    from krass_jass import native
+    from krass_jass.deal import deal
+
+    core = native._core
+    if not hasattr(core, "rs_sidi_choose_call"):
+        pytest.skip("Rust core predates the Sidi bidder")
+    hands = deal(seed, 0)
+    auction = Auction(opener=seed % 4, cfg=SIDI)
+    rng = random.Random(seed)
+    while not auction.done:
+        seat = auction.to_act
+        public = tuple((s, str(c)) for s, c in auction.calls)
+        for double in (None, True, False):
+            py = sb.choose_call(hands[seat], public, seat, SIDI, double=double)
+            rs = core.rs_sidi_choose_call(hands[seat], list(public), seat, double)
+            assert py == rs, (seed, public, seat, double)
+        # Walk on sometimes by a random legal call, so the comparison sees auctions the
+        # bidder itself would never produce.
+        legal = [str(c) for c in auction.legal_calls(seat)]
+        choice = sb.choose_call(hands[seat], public, seat, SIDI) if rng.random() < 0.6 else rng.choice(legal[:20])
+        auction.call(seat, choice)
