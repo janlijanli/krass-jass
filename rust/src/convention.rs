@@ -8,7 +8,8 @@ use crate::cards::{card_list, card_suit, NUM_RANKS, NUM_SEATS, RANK_9, RANK_J, S
 use crate::search::Candidate;
 use crate::tables::{CARD_VALUES, OBENABE, STRENGTH, UNDENUFE};
 
-const VOTE_SLACK: f64 = 0.05;
+/// A visit slack of 1 lifts the visit condition, leaving the score slack as a pure price.
+const PRICE_ONLY: f64 = 1.0;
 const SCORE_SLACK: f64 = 0.01;
 /// Mirror of `MIN_VISIT_SHARE` in Python: nothing barely explored is ever eligible.
 const MIN_VISIT_SHARE: f64 = 0.005;
@@ -77,7 +78,7 @@ pub fn opponents_out_of_trump(
 /// What a convention may cost in the shipped bots: no visit condition beyond the floor, and at
 /// most `SCORE_SLACK` of a round's share by the search's own estimate — a price rather than a
 /// tie window. In step with `DmctsAgent.convention_slack`, which carries the measurement.
-pub const DEFAULT_SLACK: (f64, f64) = (1.0, SCORE_SLACK);
+pub const DEFAULT_SLACK: (f64, f64) = (PRICE_ONLY, SCORE_SLACK);
 
 /// Suits the partner has thrown away, as a 4-bit mask. Mirror of `partner_discards` in Python.
 pub fn partner_discards(
