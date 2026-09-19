@@ -81,7 +81,10 @@ def build_index() -> None:
     )
     html = html.replace('<body data-seat="{{ seat }}">', '<body data-seat="0">')
     html = html.replace("<title>krass-jass</title>", "<title>krass-jass — offline</title>")
-    html = html.replace('<form class="menu" method="post" action="/new">', '<form class="menu">')
+    html = html.replace(
+        '<form class="menu menu-mode-panel" id="mode-settings" method="post" action="/new">',
+        '<form class="menu menu-mode-panel" id="mode-settings">',
+    )
     html = html.replace(
         '<p class="menu-note">Changing these starts a new game.</p>',
         '<p class="menu-note">Changing these starts a new game. '
@@ -117,7 +120,7 @@ def build_index() -> None:
     targets = "\n".join(
         '          <label class="chip">\n'
         f'            <input type="radio" name="target" value="{v}"'
-        f'{" checked" if v == 1000 else ""}>\n'
+        f'{" checked" if v == 2000 else ""}>\n'
         f"            <span>{v}</span>\n"
         "          </label>"
         for v in TARGETS
@@ -125,9 +128,10 @@ def build_index() -> None:
     html = re.sub(
         r"[ \t]*\{% for value in targets %\}.*?\{% endfor %\}\n", targets + "\n", html, flags=re.S
     )
-    # The game picker: the offline build plays both, and opens on the Schieber.
-    html = html.replace('{% if settings.mode != "sidi" %}checked{% endif %}', "checked")
-    html = html.replace('{% if settings.mode == "sidi" %}checked{% endif %}', "")
+    # The game picker: the offline build plays both, and opens on Sidi Barrani to 2000 — the
+    # default game, as on the server.
+    html = html.replace('{% if settings.mode != "sidi" %}checked{% endif %}', "")
+    html = html.replace('{% if settings.mode == "sidi" %}checked{% endif %}', "checked")
     html = html.replace("{% if settings.weis %}checked{% endif %}", "checked")
     html = html.replace("{% if not settings.weis %}checked{% endif %}", "")
 

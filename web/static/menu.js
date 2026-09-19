@@ -199,5 +199,22 @@ export function initMenu({
     document.querySelector('.about-tab[data-panel="rules"]')?.click();
   });
 
+  // The game decides which settings exist. Sidi Barrani counts every contract once and has
+  // no Weis, so those two sections go while it is chosen, and its usual target is 2000.
+  const form = document.getElementById("mode-settings");
+  const TARGET_FOR = { sidi: "2000", schieber: "1000" };
+  const syncMode = (changed) => {
+    const mode = form?.querySelector('input[name="mode"]:checked')?.value || "sidi";
+    form?.querySelectorAll("[data-schieber-only]").forEach((n) => { n.hidden = mode === "sidi"; });
+    if (changed) {
+      const target = form.querySelector(`input[name="target"][value="${TARGET_FOR[mode]}"]`);
+      if (target) target.checked = true;
+    }
+  };
+  form?.querySelectorAll('input[name="mode"]').forEach((input) =>
+    input.addEventListener("change", () => syncMode(true))
+  );
+  syncMode(false);
+
   return { open, close, showMode, relocalise };
 }

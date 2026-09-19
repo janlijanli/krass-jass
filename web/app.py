@@ -114,10 +114,12 @@ def build_config(settings: dict | None = None):
     and a rules engine driven by unvalidated client input is a rules engine with no rules.
     """
     settings = settings or {}
+    # Sidi Barrani is the default game (owner, 2026-09-19), played to 2000.
+    sidi = settings.get("mode", "sidi") == "sidi"
     target = settings.get("target")
-    target = target if target in TARGET_SCORES else 1000
+    target = target if target in TARGET_SCORES else (2000 if sidi else 1000)
 
-    if settings.get("mode") == "sidi":
+    if sidi:
         # Sidi Barrani: its own scoring (every contract x1, no Weis, no Stöck) — the panel's
         # multipliers and Weis switch are Schieber settings and do not apply.
         return SIDI.variant(target_score=target)
@@ -206,8 +208,13 @@ def create_app() -> FastAPI:
                 "settings": {
                     "mode": cfg.mode,
                     "target": cfg.target_score,
-                    "weis": cfg.weis_enabled,
-                    "multipliers": {c.name.lower(): cfg.multiplier(c) for c in Contract},
+                    # A Sidi game has no Weis and no multipliers; the form still offers the
+                    # Schieber's, so it shows the Schieber's defaults rather than the Sidi's x1.
+                    "weis": cfg.weis_enabled or cfg.sidi,
+                    "multipliers": {
+                        c.name.lower(): (DEFAULT_MULTIPLIERS[c] if cfg.sidi else cfg.multiplier(c))
+                        for c in Contract
+                    },
                 },
                 "targets": TARGET_SCORES,
                 "multiplier_range": MULTIPLIER_RANGE,
@@ -226,8 +233,8 @@ def create_app() -> FastAPI:
     @app.post("/new")
     async def new_game(
         request: Request,
-        target: int = Form(1000),
-        mode: str = Form("schieber"),
+        target: int = Form(2000),
+        mode: str = Form("sidi"),
         weis: str = Form("on"),
         mult_diamonds: int = Form(1),
         mult_hearts: int = Form(2),

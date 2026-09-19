@@ -35,10 +35,10 @@ const THINK_MAX = 1500;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const settings = () => {
-  const form = document.querySelector(".menu");
+  const form = document.getElementById("mode-settings");
   const value = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value;
   return {
-    mode: value("mode") === "sidi" ? "sidi" : "schieber",
+    mode: value("mode") === "schieber" ? "schieber" : "sidi",
     target: Number(value("target") || 1000),
     weis: value("weis") !== "off",
     multipliers: ["diamonds", "hearts", "spades", "clubs", "obenabe", "undenufe"].map(

@@ -716,7 +716,9 @@ document.querySelector(".felt").addEventListener("click", () => {
 });
 el.scContinue.addEventListener("click", () => {
   if (el.scContinue.dataset.over) {
-    document.querySelector(".menu").submit();
+    // By id, and `requestSubmit` rather than `submit`: `.menu` also matches the menu's outer
+    // shell, which cannot be submitted, and `submit()` skips the offline build's handler.
+    document.getElementById("mode-settings").requestSubmit();
     return;
   }
   el.scorecard.hidden = true;

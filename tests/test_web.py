@@ -294,17 +294,31 @@ def test_settings_are_clamped_to_the_offered_choices():
     from krass_jass.rules import Contract
     from web.app import build_config
 
-    cfg = build_config({"target": 2500, "weis": False, "mult_undenufe": 1})
+    S = {"mode": "schieber"}
+    cfg = build_config({**S, "target": 2500, "weis": False, "mult_undenufe": 1})
     assert cfg.target_score == 2500
     assert cfg.weis_enabled is False
     assert cfg.multiplier(Contract.UNDENUFE) == 1
 
     # out of range, wrong type and missing all fall back to the documented defaults
-    assert build_config({"target": 7}).target_score == 1000
-    assert build_config({"target": "2500"}).target_score == 1000
-    assert build_config({"mult_hearts": 9}).multiplier(Contract.HEARTS) == 2
-    assert build_config({"mult_hearts": 0}).multiplier(Contract.HEARTS) == 2
-    assert build_config({}).target_score == 1000
+    assert build_config({**S, "target": 7}).target_score == 1000
+    assert build_config({**S, "target": "2500"}).target_score == 1000
+    assert build_config({**S, "mult_hearts": 9}).multiplier(Contract.HEARTS) == 2
+    assert build_config({**S, "mult_hearts": 0}).multiplier(Contract.HEARTS) == 2
+    assert build_config(S).target_score == 1000
+
+
+def test_sidi_barrani_to_2000_is_the_default_game():
+    """Owner, 2026-09-19: the app opens on Sidi Barrani, played to 2000, and its own scoring
+    ignores the Schieber's multipliers and Weis switch whatever the form sends."""
+    from krass_jass.rules import Contract
+    from web.app import build_config, new_table
+
+    for cfg in (build_config(), build_config({}), new_table().game.cfg):
+        assert cfg.sidi and cfg.target_score == 2000
+    cfg = build_config({"mode": "sidi", "mult_hearts": 4, "weis": True, "target": 7})
+    assert cfg.multiplier(Contract.HEARTS) == 1 and not cfg.weis_enabled
+    assert cfg.target_score == 2000
 
 
 def test_every_contract_multiplier_is_settable_one_to_four():
@@ -313,7 +327,7 @@ def test_every_contract_multiplier_is_settable_one_to_four():
 
     for contract in Contract:
         for value in MULTIPLIER_RANGE:
-            cfg = build_config({f"mult_{contract.name.lower()}": value})
+            cfg = build_config({"mode": "schieber", f"mult_{contract.name.lower()}": value})
             assert cfg.multiplier(contract) == value
 
 
@@ -322,7 +336,7 @@ def test_weis_off_means_no_weis_phase_and_no_weis_points():
     from krass_jass.game import Game, Phase
     from web.app import build_config
 
-    cfg = build_config({"weis": False})
+    cfg = build_config({"mode": "schieber", "weis": False})
     agent = GreedyAgent()
     for seed in range(4):
         game = Game(cfg=cfg, seed=seed)
