@@ -30,8 +30,9 @@ M2 is done (FastAPI + WebSocket, bots in containers, the card fan, and a serverl
 stays the default and unchanged. Rules as the owner decided them in `docs/rules-config.md`; the
 bidding language, how the bots bid, play for the bid and read the auction, and the order of work
 in `docs/sidi-plan.md`. The auction lives in `krass_jass/auction.py` and `rust/src/auction.rs`
-under the same two-implementation rule as everything else. The browser build's engine has it;
-its UI does not yet.
+under the same two-implementation rule as everything else, and so is the bidder
+(`krass_jass/sidi_bidding.py`, `rust/src/sidi_bidding.rs`): the offline build on GitHub Pages plays
+the Sidi with the same bots as the server, doubling on the same estimate.
 
 **The search is Rust** (`rust/`, exposed via `krass_jass.native`). Measured: 1.48M DMCTS
 iterations/sec single-core, 6.19M on all cores — 42x the Python search. The tuned 800k

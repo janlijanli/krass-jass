@@ -109,6 +109,11 @@ The Schieber's bid model is switched off in the Sidi, as is the Schieber's game-
 with Obenabe 40, pricing their *own* bid by what the hand can make. Those are steps 4 and
 7: an evaluator fitted by simulation, then a search over the auction.
 
+**The offline build** (GitHub Pages, no server) plays the same Sidi: the bidder is mirrored in
+`rust/src/sidi_bidding.rs` and held to the Python one call for call over random auctions
+(`tests/test_sidi_bidding.py`), and `wasm_api.rs` doubles on the same estimate, plays for the bid
+and reads the auction with the same weights as `DmctsAgent`. Its settings offer both games.
+
 ## Measuring
 
 `arena/sidi_ab.py` — the Schieber protocol for a Sidi hand: every hand twice with the teams

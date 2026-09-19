@@ -38,6 +38,7 @@ const settings = () => {
   const form = document.querySelector(".menu");
   const value = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value;
   return {
+    mode: value("mode") === "sidi" ? "sidi" : "schieber",
     target: Number(value("target") || 1000),
     weis: value("weis") !== "off",
     multipliers: ["diamonds", "hearts", "spades", "clubs", "obenabe", "undenufe"].map(
@@ -134,7 +135,14 @@ async function drive() {
       const seat = v.to_act;
       const trick = Math.max(0, v.round);
 
-      if (v.phase === "bidding") {
+      if (v.phase === "bidding" && v.mode === "sidi") {
+        await sleep(500 + Math.random() * 600);
+        // A bot's call is validated like its cards; a pass is always legal.
+        if (!engine.call(handle, seat, engine.botCall(handle, seat))) engine.call(handle, seat, "PASS");
+      } else if (v.phase === "doubling") {
+        await sleep(400 + Math.random() * 400);
+        engine.double(handle, seat, engine.botDouble(handle, seat));
+      } else if (v.phase === "bidding") {
         await sleep(400 + Math.random() * 500);
         engine.bid(handle, seat, engine.botBid(handle, seat));
       } else if (v.phase === "weis") {
@@ -169,7 +177,11 @@ setSender((message) => {
   if (handle === null) return;
   switch (message.type) {
     case "bid":
-      engine.bid(handle, HUMAN_SEAT, message.action === "SHOVE" ? -1 : CONTRACTS[message.action]);
+      if (view().mode === "sidi") engine.call(handle, HUMAN_SEAT, message.action);
+      else engine.bid(handle, HUMAN_SEAT, message.action === "SHOVE" ? -1 : CONTRACTS[message.action]);
+      break;
+    case "double":
+      engine.double(handle, HUMAN_SEAT, !!message.double);
       break;
     case "weis":
       engine.chooseWeis(handle, HUMAN_SEAT, !!message.announce);

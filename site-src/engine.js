@@ -17,10 +17,11 @@ export async function loadEngine(url = "krass_jass_core.wasm") {
     JSON.parse(decoder.decode(new Uint8Array(w.memory.buffer, w.view_ptr(), len)));
 
   return {
-    newGame({ seed, target = 1000, weis = true, weisManual = true, multipliers = [1, 2, 1, 2, 3, 4] }) {
+    newGame({ seed, target = 1000, weis = true, weisManual = true, multipliers = [1, 2, 1, 2, 3, 4], mode = "schieber" }) {
       const lo = seed >>> 0;
       const hi = Math.floor(seed / 2 ** 32) >>> 0;
-      return w.game_new(lo, hi, target, weis ? 1 : 0, weisManual ? 1 : 0, ...multipliers);
+      return w.game_new(lo, hi, target, weis ? 1 : 0, weisManual ? 1 : 0, ...multipliers,
+                        mode === "sidi" ? 1 : 0);
     },
     free: (h) => w.game_free(h),
     view: (h, seat, acked) => readView(w.game_view(h, seat, acked)),
@@ -33,7 +34,29 @@ export async function loadEngine(url = "krass_jass_core.wasm") {
     // The same search `botPlay` runs, published instead of played — advice mode.
     botRank: (h, seat, dets, iters, seed) => readView(w.bot_rank(h, seat, dets, iters, seed)),
     decisionSeed: (h, seat, trick) => w.decision_seed(h, seat, trick),
+    // Sidi Barrani. A call crosses as one integer (see wasm_api.rs); these speak its wire form.
+    call: (h, seat, text) => w.game_call(h, seat, callCode(text)) === 0,
+    double: (h, seat, yes) => w.game_double(h, seat, yes ? 1 : 0) === 0,
+    botCall: (h, seat) => callText(w.bot_call(h, seat)),
+    botDouble: (h, seat) => w.bot_double(h, seat) === 1,
   };
+}
+
+const CONTRACT_NAMES = ["DIAMONDS", "HEARTS", "SPADES", "CLUBS", "OBENABE", "UNDENUFE"];
+
+/** "PASS" → -1, "DOUBLE" → -2, "HEARTS 100" → 1100. */
+export function callCode(text) {
+  if (text === "PASS") return -1;
+  if (text === "DOUBLE") return -2;
+  const [name, value] = text.split(" ");
+  const contract = CONTRACT_NAMES.indexOf(name);
+  return contract < 0 ? -3 : contract * 1000 + Number(value);
+}
+
+export function callText(code) {
+  if (code === -1) return "PASS";
+  if (code === -2) return "DOUBLE";
+  return `${CONTRACT_NAMES[Math.floor(code / 1000)]} ${code % 1000}`;
 }
 
 export const CARD_INDEX = (code) => {
