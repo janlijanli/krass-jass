@@ -14,6 +14,7 @@ import random
 from dataclasses import dataclass, field
 from enum import Enum
 
+from .auction import Auction, bonus as sidi_bonus
 from .cards import parse_card, card_list, format_card
 from .deal import deal as deal_hands
 from .events import EventLog, EventType
@@ -31,6 +32,8 @@ from .weis import STOECK_POINTS, best_weis, find_weis, score_stoeck, score_weis
 
 class Phase(str, Enum):
     BIDDING = "bidding"
+    #: Sidi: the declarer has led and the opponents are asked whether to double.
+    DOUBLING = "doubling"
     WEIS = "weis"
     PLAYING = "playing"
     ROUND_OVER = "round_over"
@@ -54,6 +57,11 @@ class Game:
     declarer: int = 0
     forehand: int = 0
     shoved: bool = False
+    #: Sidi Barrani: the auction, the bid the declarers must reach, and whether it was doubled.
+    auction: Auction | None = None
+    bid_value: int = 0
+    doubled: bool = False
+    _double_queue: list = field(default_factory=list)
     _dealt: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
 
     def __post_init__(self) -> None:
@@ -90,6 +98,10 @@ class Game:
         self.forehand = (self.dealer + 1) % NUM_SEATS
         self.declarer = self.forehand
         self.shoved = False
+        self.auction = Auction(opener=self.forehand, cfg=self.cfg) if self.cfg.sidi else None
+        self.bid_value = 0
+        self.doubled = False
+        self._double_queue = []
         self.contract = None
         self.round = None
         self.phase = Phase.BIDDING
@@ -121,7 +133,11 @@ class Game:
             # in the first trick, not to the whole table before a card is down.
             return self.round.to_play if self.round is not None else None
         if self.phase is Phase.BIDDING:
+            if self.auction is not None:
+                return self.auction.to_act
             return self.declarer
+        if self.phase is Phase.DOUBLING:
+            return self._double_queue[0]
         if self.phase is Phase.PLAYING and self.round is not None:
             return self.round.to_play
         return None
@@ -189,7 +205,16 @@ class Game:
             time_budget_ms=time_budget_ms,
             decision_seed=self.decision_seed(seat),
             round_index=self.round_index,
+            auction=self.public_auction(),
+            bid_value=self.bid_value,
+            doubled=self.doubled,
         )
+
+    def public_auction(self) -> tuple:
+        """`(seat, call)` for every call so far — all of it was said aloud."""
+        if self.auction is None:
+            return ()
+        return tuple((seat, str(call)) for seat, call in self.auction.calls)
 
     # -- actions ------------------------------------------------------------
 
@@ -213,6 +238,9 @@ class Game:
 
     def bid(self, seat: int, action: Contract | str) -> None:
         """Choose a contract, or shove. Only the seat on turn may act."""
+        if self.cfg.sidi:
+            self._call(seat, action)
+            return
         action = self.parse_action(action)
         if self.phase is not Phase.BIDDING:
             raise IllegalMove("not bidding")
@@ -234,23 +262,58 @@ class Game:
         self.log.emit(EventType.BID, {"seat": seat, "action": contract.name})
         self._begin_play()
 
+    def _call(self, seat: int, action) -> None:
+        """Sidi: one call in the auction. See `krass_jass/auction.py`."""
+        if self.phase is not Phase.BIDDING or self.auction is None:
+            raise IllegalMove("not bidding")
+        call = self.auction.call(seat, action)
+        self.log.emit(EventType.BID, {"seat": seat, "action": str(call)})
+        if not self.auction.done:
+            return
+        if self.auction.thrown_in:
+            # All four passed: the hand is thrown in and the next seat deals a new one.
+            self.log.emit(EventType.THROWN_IN, {"round": self.round_index, "dealer": self.dealer})
+            self.round_index += 1
+            self.dealer = (self.dealer + 1) % NUM_SEATS
+            self.start_round()
+            return
+        self.declarer, self.contract, self.bid_value = self.auction.high
+        self.doubled = self.auction.doubled
+        self._begin_play()
+
+    def double(self, seat: int, double: bool) -> None:
+        """Sidi: an opponent's answer, after the lead, to "double?"."""
+        if self.phase is not Phase.DOUBLING:
+            raise IllegalMove("not asking about a double")
+        if seat != self.to_act:
+            raise IllegalMove(f"seat {seat} is not on turn")
+        self._double_queue.pop(0)
+        self.log.emit(EventType.DOUBLE_ANSWERED, {"seat": seat, "double": bool(double)})
+        if double:
+            self.doubled = True
+            self._double_queue = []
+        if not self._double_queue:
+            self.phase = Phase.PLAYING
+
     def _begin_play(self) -> None:
         assert self.contract is not None
+        # In the Sidi the highest bidder leads; in the Schieber, forehand.
+        leader = self.declarer if self.cfg.sidi else self.forehand
         self.round = RoundState(
             contract=self.contract,
             hands=list(self._dealt),
             cfg=self.cfg,
-            leader=self.forehand,
+            leader=leader,
         )
-        self.log.emit(
-            EventType.CONTRACT_SET,
-            {
-                "contract": self.contract.name,
-                "declarer": self.declarer,
-                "multiplier": self.cfg.multiplier(self.contract),
-                "leader": self.forehand,
-            },
-        )
+        payload = {
+            "contract": self.contract.name,
+            "declarer": self.declarer,
+            "multiplier": self.cfg.multiplier(self.contract),
+            "leader": leader,
+        }
+        if self.cfg.sidi:
+            payload.update(bid=self.bid_value, doubled=self.doubled)
+        self.log.emit(EventType.CONTRACT_SET, payload)
         # Stöck is settled now whatever happens to the Weis: a King/Queen of trumps can go
         # down on the first trick, before the last player has answered.
         self._note_stoeck()
@@ -425,6 +488,17 @@ class Game:
                     "cards": [format_card(c) for c in cards],
                 },
             )
+        if (
+            self.cfg.sidi
+            and self.cfg.sidi_double_after_lead
+            and not self.doubled
+            and not self.round.tricks_played
+            and len(self.round.trick) == 1
+        ):
+            # The opponents may double until the second card is down, so they are asked now:
+            # the seat after the leader first, then the seat before it.
+            self._double_queue = [(self.declarer + 1) % NUM_SEATS, (self.declarer + 3) % NUM_SEATS]
+            self.phase = Phase.DOUBLING
         if len(self.round.tricks_played) >= 1:
             # Everyone has had a turn, so everyone has called: the comparison can happen and
             # the best holding shows its cards.
@@ -495,8 +569,57 @@ class Game:
             sequence.extend(parts.get(key, []))
         return sequence
 
+    def _score_sidi(self) -> None:
+        """Card points to both teams, and the bid to whichever team it went to.
+
+        A round is always played out, so there is no claim order: the target is looked at
+        once the round is written, and the higher score wins.
+        """
+        assert self.round is not None
+        score = self.round.score(weis=(0, 0), stoeck=(0, 0))
+        totals = list(score.total)
+        declarers = team_of(self.declarer)
+        made = totals[declarers] >= self.bid_value
+        stake = [0, 0]
+        stake[declarers if made else 1 - declarers] = sidi_bonus(self.bid_value, self.doubled)
+        for team in range(NUM_TEAMS):
+            totals[team] += stake[team]
+            self.scores[team] += totals[team]
+
+        detail = {
+            "round": self.round_index,
+            "trick_points": list(score.trick_points),
+            "last_trick": list(score.last_trick),
+            "match": list(score.match),
+            "bid": self.bid_value,
+            "doubled": self.doubled,
+            "made": made,
+            "bonus": stake,
+            "round_total": totals,
+            "scores": list(self.scores),
+        }
+        self.last_score = {"contract": self.contract.name, **detail}
+        self.log.emit(EventType.ROUND_SCORED, detail)
+
+        target = self.cfg.target_score
+        if target is not None and max(self.scores) >= target and self.scores[0] != self.scores[1]:
+            self.phase = Phase.GAME_OVER
+            self.log.emit(
+                EventType.GAME_OVER,
+                {
+                    "winner": 0 if self.scores[0] > self.scores[1] else 1,
+                    "scores": list(self.scores),
+                    "decided_by": "score",
+                },
+            )
+        else:
+            self.phase = Phase.ROUND_OVER
+
     def _score_round(self) -> None:
         assert self.round is not None
+        if self.cfg.sidi:
+            self._score_sidi()
+            return
         score = self.round.score(weis=self._weis, stoeck=self._stoeck)
         totals = score.total
 
@@ -566,7 +689,9 @@ class Game:
         if self.phase is not Phase.ROUND_OVER:
             raise RuntimeError(f"cannot start a round from {self.phase}")
         self.round_index += 1
-        self.dealer = (self.dealer + 1) % NUM_SEATS
+        # Sidi: the seat after the declarer deals. Schieber: the deal passes on.
+        after = self.declarer if self.cfg.sidi else self.dealer
+        self.dealer = (after + 1) % NUM_SEATS
         self.start_round()
 
     _weis: tuple[int, int] = (0, 0)

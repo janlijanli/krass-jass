@@ -629,7 +629,8 @@ fn rs_infer_from_bid(
 
 /// The search's reward, exposed so the Python mirror can be held to the same numbers.
 #[pyfunction]
-#[pyo3(signature = (ours, theirs, team, scores, weis, target, multiplier))]
+#[pyo3(signature = (ours, theirs, team, scores, weis, target, multiplier, sidi_bid=0, sidi_declarers=0, sidi_doubled=false))]
+#[allow(clippy::too_many_arguments)]
 fn rs_reward(
     ours: i32,
     theirs: i32,
@@ -638,6 +639,9 @@ fn rs_reward(
     weis: (i32, i32),
     target: i32,
     multiplier: i32,
+    sidi_bid: i32,
+    sidi_declarers: usize,
+    sidi_doubled: bool,
 ) -> f64 {
     reward(
         ours,
@@ -649,8 +653,56 @@ fn rs_reward(
             target,
             multiplier,
             risk_lambda: 0.0,
+            sidi_bid,
+            sidi_declarers,
+            sidi_doubled,
         },
     )
+}
+
+/// Sidi: `(P(the declarers reach the bid), their expected points)` as seen from `seat` —
+/// `sidi_estimate.rs`. What a bot doubles on.
+#[pyfunction]
+#[pyo3(signature = (seat, hand, history, leader, contract, declarer, bid, auction, samples=400, alpha=1.0, seed=0))]
+#[allow(clippy::too_many_arguments)]
+fn rs_sidi_make_probability(
+    py: Python<'_>,
+    seat: usize,
+    hand: u64,
+    history: Vec<(usize, usize)>,
+    leader: usize,
+    contract: usize,
+    declarer: usize,
+    bid: i32,
+    auction: Vec<(usize, usize, i32)>,
+    samples: usize,
+    alpha: f32,
+    seed: u64,
+) -> (f64, f64) {
+    let bids: Vec<crate::sidi_read::Bid> = auction
+        .into_iter()
+        .map(|(seat, contract, value)| crate::sidi_read::Bid { seat, contract, value })
+        .collect();
+    py.allow_threads(|| {
+        let q = crate::sidi_estimate::Question {
+            seat: seat & 3, hand, history: &history, leader: leader & 3, contract,
+            declarer: declarer & 3, bid, auction: &bids, alpha,
+        };
+        crate::sidi_estimate::make_probability(&q, samples, seed)
+    })
+}
+
+/// log P(the auction | the dealt hands), for every seat but `root` — `sidi_read.rs`. Exposed so
+/// the reading can be tested and inspected without running a search.
+#[pyfunction]
+fn rs_sidi_auction_loglik(dealt: Vec<u64>, auction: Vec<(usize, usize, i32)>, root: usize) -> f64 {
+    let mut hands = [0u64; 4];
+    hands.copy_from_slice(&dealt[..4]);
+    let bids: Vec<crate::sidi_read::Bid> = auction
+        .into_iter()
+        .map(|(seat, contract, value)| crate::sidi_read::Bid { seat, contract, value })
+        .collect();
+    crate::sidi_read::auction_log_likelihood(&hands, &bids, root) as f64
 }
 
 /// What the discards suggest, per seat and suit. Mirror of `krass_jass/reading.py`.
@@ -815,7 +867,7 @@ pub struct PyGame {
 #[pymethods]
 impl PyGame {
     #[new]
-    #[pyo3(signature = (seed, target_score=1000, weis_enabled=true, weis_manual=false, stoeck_enabled=true, multipliers=None))]
+    #[pyo3(signature = (seed, target_score=1000, weis_enabled=true, weis_manual=false, stoeck_enabled=true, multipliers=None, sidi=false))]
     fn new(
         seed: u64,
         target_score: i32,
@@ -823,13 +875,15 @@ impl PyGame {
         weis_manual: bool,
         stoeck_enabled: bool,
         multipliers: Option<Vec<i32>>,
+        sidi: bool,
     ) -> Self {
+        let base = if sidi { Rules::sidi() } else { Rules::default() };
         let mut rules = Rules {
             target_score,
-            weis_enabled,
+            weis_enabled: weis_enabled && !sidi,
             weis_manual,
-            stoeck_enabled,
-            ..Rules::default()
+            stoeck_enabled: stoeck_enabled && !sidi,
+            ..base
         };
         if let Some(m) = multipliers {
             for (i, v) in m.iter().take(6).enumerate() {
@@ -877,6 +931,44 @@ impl PyGame {
         use pyo3::exceptions::PyValueError;
         let a = if action < 0 { crate::trump::SHOVE } else { action as usize };
         self.inner.bid(seat, a).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    /// Sidi: one call in the auction, in its wire form (`PASS`, `DOUBLE`, `HEARTS 100`).
+    fn call(&mut self, seat: usize, call: &str) -> PyResult<()> {
+        use pyo3::exceptions::PyValueError;
+        let parsed = crate::auction::Call::parse(call)
+            .ok_or_else(|| PyValueError::new_err(format!("unknown call {call:?}")))?;
+        self.inner.call(seat, parsed).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    /// Sidi: the calls the seat may make now, in their wire form.
+    fn legal_calls(&self, seat: usize) -> Vec<String> {
+        self.inner.auction.as_ref().map_or(Vec::new(), |a| {
+            a.legal_calls(seat).iter().map(|c| c.name()).collect()
+        })
+    }
+
+    /// Sidi: an opponent's answer after the lead.
+    fn double(&mut self, seat: usize, double: bool) -> PyResult<()> {
+        use pyo3::exceptions::PyValueError;
+        self.inner.double(seat, double).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    #[getter]
+    fn declarer(&self) -> usize {
+        self.inner.declarer
+    }
+    #[getter]
+    fn dealer(&self) -> usize {
+        self.inner.dealer
+    }
+    #[getter]
+    fn bid_value(&self) -> i32 {
+        self.inner.bid_value
+    }
+    #[getter]
+    fn doubled(&self) -> bool {
+        self.inner.doubled
     }
 
     fn choose_weis(&mut self, seat: usize, announce: bool) -> PyResult<()> {
@@ -934,6 +1026,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_convention_choose, m)?)?;
     m.add_function(wrap_pyfunction!(rs_infer_affinity, m)?)?;
     m.add_function(wrap_pyfunction!(rs_reward, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_sidi_auction_loglik, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_sidi_make_probability, m)?)?;
     m.add_function(wrap_pyfunction!(rs_infer_from_bid, m)?)?;
     m.add_function(wrap_pyfunction!(rs_leaf_samples, m)?)?;
     m.add_function(wrap_pyfunction!(rs_card_features, m)?)?;

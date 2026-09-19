@@ -15,6 +15,7 @@ use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 
 pub mod announce;
+pub mod auction;
 pub mod awareness;
 pub mod belief;
 pub mod beliefnet;
@@ -38,6 +39,8 @@ pub mod rng;
 pub mod rollout;
 pub mod round;
 pub mod search;
+pub mod sidi_estimate;
+pub mod sidi_read;
 pub mod tables;
 pub mod valuenet;
 pub mod scoring;
@@ -172,7 +175,8 @@ fn play_out_many(
     weis_called=None, weis_played=None, weis_large=false, weis_four_nines=true, weis_four_beats_sequence=true, weis_draws=16,
     declarer=4, history=None, belief_alpha=0.0, belief_pool=0, bid_alpha=0.0, bid_temperature=3.0,
     rollout_temperature=0.0, tree_policy=false, policy_temperature=1.0, belief_gamma=0.0, known=None, play_model_json=None,
-    value_net=false, value_model_json=None
+    value_net=false, value_model_json=None,
+    sidi_bid=0, sidi_declarers=0, sidi_doubled=false, sidi_auction=None, sidi_alpha=0.0
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -234,6 +238,13 @@ fn dmcts(
     play_model_json: Option<String>,
     value_net: bool,
     value_model_json: Option<String>,
+    // Sidi Barrani: the bid, who must reach it, the double, and the auction's bids as
+    // `(seat, contract, value)` for `sidi_read.rs`. All off in the Schieber.
+    sidi_bid: i32,
+    sidi_declarers: usize,
+    sidi_doubled: bool,
+    sidi_auction: Option<Vec<(usize, usize, i32)>>,
+    sidi_alpha: f32,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -304,6 +315,9 @@ fn dmcts(
             target,
             multiplier,
             risk_lambda,
+            sidi_bid,
+            sidi_declarers: sidi_declarers & 1,
+            sidi_doubled,
         },
         adversarial,
         leaf_weights: leaf_weights.unwrap_or_default(),
@@ -331,6 +345,12 @@ fn dmcts(
             value_net,
             value_model: value_model_json
                 .map(|t| std::sync::Arc::new(crate::valuenet::ValueNet::from_json(&t))),
+            sidi_auction: sidi_auction
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(seat, contract, value)| crate::sidi_read::Bid { seat: seat & 3, contract, value })
+                .collect(),
+            sidi_alpha,
         },
     };
     // Long CPU-bound work: release the GIL so the caller stays responsive and rayon can

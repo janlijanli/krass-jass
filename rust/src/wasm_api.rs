@@ -270,6 +270,8 @@ fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u
                 target: game.rules.target_score,
                 multiplier: game.rules.multiplier(contract),
                 risk_lambda: 0.0,
+                // The browser build does not offer the Sidi yet; its search plays the Schieber.
+                ..Default::default()
             },
             adversarial: true,
             leaf_weights: Vec::new(),
