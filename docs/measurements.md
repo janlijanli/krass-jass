@@ -1702,13 +1702,17 @@ arms bid with the same rule bidder.
 | playing for the bid vs for the cards (`sidi_objective`) | −5.14 ± 73.9 | 49.15% | 0.028 |
 | doubling on an estimate vs a stopper count (`sidi_double_model`) | −0.18 ± 80.3 | 49.97% | 0.94 |
 | knocking out of turn vs only on turn (`sidi_knock_anytime`) | **−7.61 ± 59.0** | 48.74% | 4.5e-05 |
+| the same, but only with nothing left to bid (`sidi_knock_holds_bid`) | **−11.08 ± 67.1** | 48.14% | 1.8e-07 |
 
 Knocking out of turn — a double the moment an opponent bids, which the rules allow and the player
 may do — **loses**, and it is the clearest loss measured here. A double ends the auction, so a seat
 that knocks early throws away its own contract and whatever its partner still had to say; asking
 both opponents after every bid doubled about half of all hands against a third. It is off for the
-bots (the player keeps the button). The variant worth a second look is knocking only with nothing
-left to bid, which `sidi_knock_holds_bid` implements and a match is deciding.
+bots (the player keeps the button, because the rule is the rule at a table). Restricting it to
+seats with nothing left to bid did not rescue it — that lost 11.08, worse than the unrestricted
+version — so the cost is not the forfeited contract alone: **these bots simply double too often**,
+and every extra double doubles a stake their estimate is only roughly right about. What to try
+next is the threshold (`sidi_double_below`, 0.35), not the timing.
 
 Reading the auction is on, and is the largest effect in this document — against bidders who speak
 the language literally, and with doubling blind to the auction in the B arm as well, so it bounds
