@@ -674,9 +674,9 @@ impl Game {
             return Err(GameError::WrongPhase("round is not over"));
         }
         self.round_index += 1;
-        // Sidi: the seat after the declarer deals. Schieber: the deal passes on.
-        let after = if self.rules.sidi { self.declarer } else { self.dealer };
-        self.dealer = (after + 1) % NUM_SEATS;
+        // Sidi: the declarer deals, so the seat on their right calls first. Schieber: the deal
+        // passes on. Mirror of `next_round` in `game.py`.
+        self.dealer = if self.rules.sidi { self.declarer } else { (self.dealer + 1) % NUM_SEATS };
         self.start_round();
         Ok(())
     }

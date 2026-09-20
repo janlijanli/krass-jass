@@ -691,9 +691,9 @@ class Game:
         if self.phase is not Phase.ROUND_OVER:
             raise RuntimeError(f"cannot start a round from {self.phase}")
         self.round_index += 1
-        # Sidi: the seat after the declarer deals. Schieber: the deal passes on.
-        after = self.declarer if self.cfg.sidi else self.dealer
-        self.dealer = (after + 1) % NUM_SEATS
+        # Sidi: the declarer deals, so the seat on their right — the next in play order — makes
+        # the first call (owner, 2026-09-20). Schieber: the deal simply passes on.
+        self.dealer = self.declarer if self.cfg.sidi else (self.dealer + 1) % NUM_SEATS
         self.start_round()
 
     _weis: tuple[int, int] = (0, 0)

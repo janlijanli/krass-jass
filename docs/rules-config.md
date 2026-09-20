@@ -325,5 +325,6 @@ team has 2000 or more, the higher score wins. There is **no end rule** (neither 
 "Überbiet-" nor the "Bonus-Schlussregel"): a wild bid near the target is part of the tactics.
 A dead level score at or above the target (2021 : 2021) has no rule of its own: nobody has won, so another hand is dealt. Deliberately not treated further (owner, 2026-09-18).
 
-**Dealer.** After a played hand, the seat to the right of the declarer — the next seat in
-play order — deals. The very first dealer is settled by the Ecken 10, as in the Schieber.
+**Dealer.** After a played hand the **declarer deals**, so the seat to their right — the next in
+play order — makes the first call (owner, 2026-09-20). After a hand thrown in, the deal simply
+passes on. The very first dealer is settled by the Ecken 10, as in the Schieber.

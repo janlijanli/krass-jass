@@ -241,7 +241,9 @@ def test_whole_games_end_at_the_target_with_the_higher_score(seed):
         if game.phase is Phase.ROUND_OVER:
             declarer = game.declarer
             game.next_round()
-            assert game.dealer == (declarer + 1) % 4
+            # The declarer deals; the seat on their right opens the bidding.
+            assert game.dealer == declarer
+            assert game.to_act == (declarer + 1) % 4
         rounds += 1
         assert rounds < 200
     assert max(game.scores) >= 2000 and game.scores[0] != game.scores[1]
