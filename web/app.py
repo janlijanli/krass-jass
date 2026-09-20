@@ -93,6 +93,12 @@ class Table:
     knock_declined: tuple | None = None
     #: The bid the bots have already been asked about, same key.
     bots_knocked: tuple | None = None
+    #: Test mode: publish what a bot on the player's own seat believes about the other hands.
+    #: Off unless the client asks for it, because it costs a belief pool per frame.
+    show_beliefs: bool = False
+    #: The agent that answers that, in this process. The seats may be served by containers, which
+    #: have no business being asked what *this* seat believes.
+    belief_agent: Agent | None = None
 
     def is_bot(self, seat: int) -> bool:
         return seat != self.human_seat
@@ -477,6 +483,10 @@ def view(table: Table, seat: int) -> dict:
         "doubled": game.doubled,
         "double_pending": game.phase is Phase.DOUBLING and game.to_act == seat,
         "knock": table.knock_offer(),
+        # Test mode (off by default): the probabilities a bot on this seat would be reasoning
+        # from. Derived from this seat's own hand and the public history — it reveals nothing
+        # hidden, it only shows what the bot's own belief pool says.
+        "beliefs": beliefs_view(table, seat),
         # The trump Jack decides most tricks it appears in; the engine names it so the client
         # does not have to work out what trump means.
         "puur": format_card(game.contract.trump_suit * 9 + 3)
@@ -502,6 +512,21 @@ def view(table: Table, seat: int) -> dict:
     }
 
 
+def beliefs_view(table: Table, seat: int) -> dict | None:
+    game = table.game
+    if not table.show_beliefs or game.phase not in (Phase.PLAYING, Phase.WEIS) or game.round is None:
+        return None
+    if table.belief_agent is None:
+        table.belief_agent = DmctsAgent(cfg=game.cfg, label="beliefs")
+    view = table.belief_agent.beliefs(game.observation(seat))
+    return {
+        "ess": view["ess"],
+        "cards": [
+            {"card": format_card(entry["card"]), "seats": entry["seats"]} for entry in view["cards"]
+        ],
+    }
+
+
 async def handle(table: Table, seat: int, message: dict, socket: WebSocket) -> None:
     """Apply one client intent. Everything is re-validated; nothing is trusted."""
     game = table.game
@@ -521,6 +546,8 @@ async def handle(table: Table, seat: int, message: dict, socket: WebSocket) -> N
                     table.knock_declined = (game.round_index, len(game.auction.calls))
         elif kind == "weis":
             game.choose_weis(seat, bool(message.get("announce")))
+        elif kind == "beliefs":
+            table.show_beliefs = bool(message.get("on"))
         elif kind == "ack_trick":
             table.acked_tricks = table.completed_tricks()
         elif kind == "next_round":

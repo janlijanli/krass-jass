@@ -211,6 +211,26 @@ body {
 .bid.word { font-size: 12px; }
 .bid.shove { grid-column: 1 / -1; background: rgba(216,180,90,.2); }
 
+/* ---------- test mode: the bot's beliefs ---------- */
+
+.beliefs {
+  width: 100%; max-width: 340px; max-height: 78vh; overflow: auto;
+  background: #16281f; border: 1px solid rgba(255,255,255,.12); border-radius: 12px;
+  padding: 10px 12px 14px; color: var(--paper);
+}
+.beliefs header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.beliefs header span { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+.beliefs table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.beliefs th { text-align: right; font-weight: 600; opacity: .6; padding: 4px 3px; }
+.beliefs th:first-child { text-align: left; }
+.beliefs td { text-align: right; padding: 3px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.beliefs td:first-child { text-align: left; font-weight: 700; }
+.beliefs td.red { color: #ff8a90; }
+/* The likeliest holder of each card, so a column can be read down at a glance. */
+.beliefs td.best { background: rgba(216,180,90,.22); border-radius: 4px; }
+.beliefs td.sure { background: rgba(216,180,90,.45); }
+.beliefs .note { margin: 8px 0 0; font-size: 11px; opacity: .55; }
+
 /* ---------- Sidi Barrani ---------- */
 
 .auction {

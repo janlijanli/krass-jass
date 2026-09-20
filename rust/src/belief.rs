@@ -236,6 +236,8 @@ pub fn bid_log_likelihood(
 pub struct Pool {
     worlds: Vec<[u64; NUM_SEATS]>,
     cumulative: Vec<f64>,
+    /// Each world's share of the weight, in the order they were drawn.
+    weights: Vec<f64>,
     /// Effective sample size, `(Σw)² / Σw²`. Equal to the pool size when the weights are flat.
     pub ess: f64,
 }
@@ -324,7 +326,27 @@ impl Pool {
                 acc
             })
             .collect();
-        Some(Pool { worlds, cumulative, ess: sum * sum / sq })
+        Some(Pool { worlds, cumulative, weights: w.iter().map(|x| x / sum).collect(), ess: sum * sum / sq })
+    }
+
+    /// P(card is held by each seat), weighted as the search samples the pool.
+    ///
+    /// This is what the search believes, read off the same pool it plays from — nothing is
+    /// recomputed and nothing hidden is consulted: the worlds were drawn from `unseen` under the
+    /// constraints and weighted by the table's own play, calls and bids.
+    pub fn marginals(&self) -> [[f32; crate::cards::NUM_CARDS]; NUM_SEATS] {
+        let mut out = [[0.0f32; crate::cards::NUM_CARDS]; NUM_SEATS];
+        for (world, &w) in self.worlds.iter().zip(&self.weights) {
+            for (seat, &hand) in world.iter().enumerate() {
+                let mut m = hand;
+                while m != 0 {
+                    let card = m.trailing_zeros() as usize;
+                    m &= m - 1;
+                    out[seat][card] += w as f32;
+                }
+            }
+        }
+        out
     }
 
     pub fn draw(&self, rng: &mut Rng) -> [u64; NUM_SEATS] {

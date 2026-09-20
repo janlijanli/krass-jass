@@ -21,6 +21,12 @@ const STORAGE_KEY = "kj_lang";
 
 const STRINGS = {
   en: {
+    "menu.beliefs": "Card distribution",
+    "menu.beliefsNote": "Test mode: what a bot on your seat thinks the others hold.",
+    "beliefs.title": "Card distribution",
+    "beliefs.open": "Distribution",
+    "beliefs.card": "Card",
+    "beliefs.note": "What the bot believes, from your cards and the play so far — {n} distinct deals behind it.",
     "sidi.knockAsk": "{who} bids {bid}. Double?",
     "sidi.rules": "Rules",
     "menu.mode": "Game",
@@ -189,6 +195,12 @@ const STRINGS = {
   },
 
   de: {
+    "menu.beliefs": "Kartenverteilung",
+    "menu.beliefsNote": "Testmodus: was ein Bot auf deinem Platz bei den anderen vermutet.",
+    "beliefs.title": "Kartenverteilung",
+    "beliefs.open": "Verteilung",
+    "beliefs.card": "Karte",
+    "beliefs.note": "Was der Bot glaubt, aus deinen Karten und dem bisherigen Spiel — {n} verschiedene Verteilungen dahinter.",
     "sidi.knockAsk": "{who} sagt {bid}. Doppeln?",
     "sidi.rules": "Regeln",
     "menu.mode": "Spiel",
@@ -310,6 +322,12 @@ const STRINGS = {
   },
 
   fr: {
+    "menu.beliefs": "Répartition des cartes",
+    "menu.beliefsNote": "Mode test : ce qu'un bot à ta place suppose chez les autres.",
+    "beliefs.title": "Répartition des cartes",
+    "beliefs.open": "Répartition",
+    "beliefs.card": "Carte",
+    "beliefs.note": "Ce que le bot croit, d'après tes cartes et le jeu jusqu'ici — {n} donnes distinctes derrière.",
     "sidi.knockAsk": "{who} annonce {bid}. Doubler ?",
     "sidi.rules": "Règles",
     "menu.mode": "Jeu",
@@ -478,6 +496,12 @@ const STRINGS = {
   },
 
   it: {
+    "menu.beliefs": "Distribuzione delle carte",
+    "menu.beliefsNote": "Modo test: cosa un bot al tuo posto suppone negli altri.",
+    "beliefs.title": "Distribuzione delle carte",
+    "beliefs.open": "Distribuzione",
+    "beliefs.card": "Carta",
+    "beliefs.note": "Ciò che il bot crede, dalle tue carte e dal gioco finora — {n} distribuzioni distinte dietro.",
     "sidi.knockAsk": "{who} punta {bid}. Raddoppi?",
     "sidi.rules": "Regole",
     "menu.mode": "Gioco",

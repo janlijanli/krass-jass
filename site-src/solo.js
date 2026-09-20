@@ -12,7 +12,7 @@
 
 import { loadEngine, CARD_INDEX } from "./engine.js";
 import { render, setSender, speak } from "./render.js";
-import { initMenu, adviceOn, talkOn } from "./menu.js";
+import { initMenu, adviceOn, talkOn, beliefsOn } from "./menu.js";
 import { maybeSay, resetTalk } from "./talk.js";
 
 const HUMAN_SEAT = 0;
@@ -70,6 +70,9 @@ function knockOffer(v) {
 function view() {
   const v = engine.view(handle, HUMAN_SEAT, acked);
   v.knock = knockOffer(v);
+  // Test mode: what a bot on this seat believes about the other three hands. Computed here
+  // rather than sent, because here the engine is in the tab.
+  v.beliefs = beliefsOn() && v.phase === "playing" ? engine.beliefs(handle, HUMAN_SEAT) : null;
   return v;
 }
 
@@ -268,6 +271,7 @@ initMenu({
   onLanguageChange: () => draw(),
   onAdviceChange: () => draw(),
   onTalkChange: () => {},
+  onBeliefsChange: () => draw(),
 });
 
 newGame();

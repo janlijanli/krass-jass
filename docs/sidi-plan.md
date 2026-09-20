@@ -121,6 +121,10 @@ with Obenabe 40, pricing their *own* bid by what the hand can make. Those are st
 (`tests/test_sidi_bidding.py`), and `wasm_api.rs` doubles on the same estimate, plays for the bid
 and reads the auction with the same weights as `DmctsAgent`. Its settings offer both games.
 
+**The test mode** (`Card distribution` in the settings, off by default) shows the same belief pool
+the search plays from, including the auction's weight: with `sidi_alpha` on, a bid visibly moves
+the probabilities of the Bauer and the Nell in the suit it named.
+
 ## Measuring
 
 `arena/sidi_ab.py` — the Schieber protocol for a Sidi hand: every hand twice with the teams

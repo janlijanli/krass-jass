@@ -200,3 +200,25 @@ def sidi_make_probability(
         seat, hand, list(history), leader, int(contract), declarer, bid, list(auction),
         samples=samples, alpha=alpha, seed=seed,
     )
+
+
+def belief_marginals(obs, agent, pool: int = 4096, seed: int = 1) -> tuple[list, float]:
+    """P(each unseen card sits at each other seat), as `agent` believes it from `obs`.
+
+    The pool the search plays from, summarised instead of sampled (`rust/src/belief.rs`): the same
+    worlds under the same constraints, weighted by the table's play, calls and bids. It reads
+    nothing hidden — which is what makes it safe to show a player (the app's test mode).
+
+    Returns `[(card, p_next, p_partner, p_previous)]` in play order from the seat, and the pool's
+    effective sample size.
+    """
+    require()
+    forbidden, weis = agent._beliefs(obs)
+    play = agent._play(obs)
+    return _core.rs_belief_marginals(
+        obs.seat, obs.hand, obs.unseen, list(obs.trick), obs.trick_leader, int(obs.contract),
+        forbidden, obs.declarer_seat, play["history"], pool, seed,
+        play["belief_alpha"], play["bid_alpha"], play["policy_temperature"],
+        play["bid_temperature"], weis.get("weis_called"), weis.get("weis_played"),
+        play.get("sidi_auction"), play.get("sidi_alpha", 0.0),
+    )

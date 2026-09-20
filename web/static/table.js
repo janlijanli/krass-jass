@@ -34,6 +34,9 @@ const el = {
   trickTake: document.getElementById("trick-take"),
   tafel: document.getElementById("tafel"),
   tafelSlate: document.getElementById("tafel-slate"),
+  beliefs: document.getElementById("beliefs"),
+  beliefsBody: document.getElementById("beliefs-body"),
+  beliefsOpen: document.getElementById("beliefs-open"),
   auction: document.getElementById("auction"),
   sidiBidding: document.getElementById("sidi-bidding"),
   sidiPrompt: document.getElementById("sidi-prompt"),
@@ -168,9 +171,48 @@ document.getElementById("scoreboard").addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTafel(); }
 });
 document.getElementById("tafel-x").addEventListener("click", closeTafel);
+el.beliefsOpen.addEventListener("click", () => { el.beliefs.hidden = false; renderBeliefs(lastView); });
+document.getElementById("beliefs-x").addEventListener("click", () => { el.beliefs.hidden = true; });
+el.beliefs.addEventListener("click", (e) => { if (e.target === el.beliefs) el.beliefs.hidden = true; });
 el.tafel.addEventListener("click", (e) => { if (e.target === el.tafel) closeTafel(); });
 
 const CONTRACT_PIPS = { DIAMONDS: "♦", HEARTS: "♥", SPADES: "♠", CLUBS: "♣" };
+
+/* ---------- test mode: what the bot believes -----------------------------
+ *
+ * The search's own belief pool, published rather than sampled (`rust/src/belief.rs`): for every
+ * card it cannot see, how likely it is at each of the other three seats. Read off this seat's
+ * hand and the public history, so it shows the reasoning without showing a card.
+ */
+function renderBeliefs(view) {
+  const on = !!view.beliefs;
+  el.beliefsOpen.hidden = !on;
+  if (!on) { el.beliefs.hidden = true; return; }
+  if (el.beliefs.hidden) return;              // built when opened, and on every frame after
+
+  const table = document.createElement("table");
+  const name = (rel) => seatName(view, (view.seat + rel) % 4);
+  table.innerHTML =
+    `<thead><tr><th>${t("beliefs.card")}</th>` +
+    `<th>${name(1)}</th><th>${name(2)}</th><th>${name(3)}</th></tr></thead>`;
+  const body = document.createElement("tbody");
+  for (const { card, seats } of view.beliefs.cards) {
+    const row = document.createElement("tr");
+    const best = Math.max(...seats);
+    row.innerHTML =
+      `<td class="${SUIT_IS_RED[card[0]] ? "red" : ""}">${SUIT_GLYPHS[card[0]]} ${card.slice(1)}</td>` +
+      seats
+        .map((p) => {
+          const cls = p < best ? "" : p > 0.85 ? "best sure" : "best";
+          return `<td class="${cls}">${Math.round(p * 100)}%</td>`;
+        })
+        .join("");
+    body.append(row);
+  }
+  table.append(body);
+  el.beliefsBody.replaceChildren(table);
+  el.beliefsBody.append(html("p", "note", t("beliefs.note", { n: Math.round(view.beliefs.ess) })));
+}
 
 /* ---------- Sidi Barrani ---------- */
 
@@ -705,6 +747,7 @@ function render(view) {
   el.bidding.hidden = !bidding;
   renderAuction(view);
   renderSidi(view);
+  renderBeliefs(view);
 
   const askingWeis = view.phase === "weis" && view.to_act === view.seat && view.weis_offer;
   el.weisPrompt.hidden = !askingWeis;
@@ -764,10 +807,14 @@ document.getElementById("weis-no").addEventListener("click", () =>
 // on the serverless page stayed in its English placeholder text.
 applyStatic();
 
-import { initMenu } from "./menu.js";
+import { initMenu, beliefsOn } from "./menu.js";
 
 initMenu({
   measurementsUrl: MEASUREMENTS_URL,
+  onBeliefsChange: () => {
+    send({ type: "beliefs", on: beliefsOn() });
+    if (!beliefsOn()) el.beliefs.hidden = true;
+  },
   // Switching language has to redraw everything already on screen, not just the chrome.
   onLanguageChange: () => {
     if (lastView) render(lastView);
@@ -793,7 +840,11 @@ function connect() {
     el.status.textContent = t("status.disconnected");
     setTimeout(connect, 1200);
   };
-  socket.onopen = () => { el.status.textContent = t("status.connected"); };
+  socket.onopen = () => {
+    el.status.textContent = t("status.connected");
+    // Test mode is a per-browser setting, and the beliefs are computed where the game is.
+    send({ type: "beliefs", on: beliefsOn() });
+  };
 }
 
 connect();

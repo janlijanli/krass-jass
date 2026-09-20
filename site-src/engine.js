@@ -40,6 +40,8 @@ export async function loadEngine(url = "krass_jass_core.wasm") {
     botCall: (h, seat) => callText(w.bot_call(h, seat)),
     botDouble: (h, seat) => w.bot_double(h, seat) === 1,
     botKnock: (h, seat) => w.bot_knock(h, seat) === 1,
+    // Test mode: the search's own belief pool, summarised — see wasm_api.rs.
+    beliefs: (h, seat) => readView(w.belief_marginals(h, seat)),
   };
 }
 

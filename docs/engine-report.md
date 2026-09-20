@@ -422,6 +422,16 @@ signal exists, not as a forecast of points — and read the three nulls together
 channel being saturated at the shipped setting**: what remains of the gap to perfect information is
 not reachable by improving which worlds get imagined.
 
+### 4.3b Showing the pool: the app's test mode
+
+The same pool, summarised instead of sampled, is what the app's **Card distribution** switch shows
+(off by default): for every card the seat cannot see, the weighted share of the pool that puts it at
+each of the other three seats, with the pool's effective sample size beside it. It reads the seat's
+own hand and the public history and nothing else, so it publishes the *reasoning* and never a card
+— exact constraints show as a hard 0, and the weights show as everything in between. It exists
+because a player who wants to check the bot has otherwise no way in;
+`tests/test_belief_view.py` holds it to the pool it claims to be.
+
 ### 4.4 The bidding prior that did not work, and why this did
 
 §5e put the bid into the sampler as a bounded per-suit tilt (a suit-caller holds 3.7 of the suit

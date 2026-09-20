@@ -75,6 +75,23 @@
 
       <!-- Shown only by the offline build, which has an engine on the page to ask. Unlike
            everything else in this form it takes effect immediately, so it says so. -->
+      <!-- Test mode: the bot's own belief pool, published so a player can follow the reasoning.
+           Off by default; it costs a pool per frame and it is a lot to look at. -->
+      <fieldset id="beliefs-toggle" hidden>
+        <legend data-i18n="menu.beliefs">Card distribution</legend>
+        <div class="chips">
+          <label class="chip">
+            <input type="radio" name="beliefs" value="on">
+            <span data-i18n="menu.on">On</span>
+          </label>
+          <label class="chip">
+            <input type="radio" name="beliefs" value="off" checked>
+            <span data-i18n="menu.off">Off</span>
+          </label>
+        </div>
+        <p class="menu-note" data-i18n="menu.beliefsNote">Test mode: what a bot on your seat thinks the others hold.</p>
+      </fieldset>
+
       <!-- Atmosphere, not assistance: on by default, and it says nothing about the cards. -->
       <fieldset id="talk-toggle" hidden>
         <legend data-i18n="menu.talk">Jass-Sprüche</legend>
@@ -229,6 +246,16 @@
     <div class="hand" id="hand"></div>
   </section>
 
+  <div class="tafel-backdrop" id="beliefs" hidden>
+    <div class="beliefs">
+      <header>
+        <span data-i18n="beliefs.title">Card distribution</span>
+        <button type="button" class="menu-close" id="beliefs-x" data-i18n-aria="menu.close" aria-label="Close">×</button>
+      </header>
+      <div id="beliefs-body"></div>
+    </div>
+  </div>
+
   <div class="scorecard-backdrop" id="scorecard" hidden>
     <div class="scorecard">
       <header><span id="sc-title">Round</span><span id="sc-contract" class="sc-contract"></span></header>
@@ -242,6 +269,8 @@
 
   <footer class="statusbar">
     <span id="status" data-i18n="status.connecting">Connecting…</span>
+    <!-- Only in test mode: the bot's own belief pool, one tap away from the table. -->
+    <button type="button" class="link-button" id="beliefs-open" data-i18n="beliefs.open" hidden>Distribution</button>
     <!-- You have no seat pill of your own, so the trump marker needs somewhere to live when
          the choice was yours. -->
     <span class="declarer-pip mine" id="my-declarer" hidden></span>

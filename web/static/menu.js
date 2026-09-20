@@ -39,6 +39,21 @@ try {
 
 export const talkOn = () => talk;
 
+/* Test mode: show what a bot on your own seat believes about the other three hands.
+ *
+ * Off by default and remembered per browser. It is not assistance in the sense advice mode is —
+ * it publishes the search's own belief pool so a player can follow the reasoning — but it is a
+ * live switch, so it lives beside the others rather than in the new-game form. */
+const BELIEFS_KEY = "kj_beliefs";
+let beliefs = false;
+try {
+  beliefs = localStorage.getItem(BELIEFS_KEY) === "on";
+} catch {
+  beliefs = false;
+}
+
+export const beliefsOn = () => beliefs;
+
 /** The language chips. Browser detection is a guess; this is how a wrong guess is fixed. */
 function buildLanguagePicker(onChange) {
   const host = document.getElementById("lang-chips");
@@ -71,6 +86,7 @@ export function initMenu({
   onLanguageChange = null,
   onAdviceChange = null,
   onTalkChange = null,
+  onBeliefsChange = null,
 }) {
   const menu = document.getElementById("menu");
   const opener = document.getElementById("menu-open");
@@ -163,6 +179,23 @@ export function initMenu({
           /* not being able to remember it is not a reason to refuse to do it */
         }
         onAdviceChange();
+      });
+    });
+  }
+
+  const beliefHost = document.getElementById("beliefs-toggle");
+  if (beliefHost) {
+    beliefHost.hidden = false;
+    beliefHost.querySelectorAll('input[name="beliefs"]').forEach((input) => {
+      input.checked = (input.value === "on") === beliefs;
+      input.addEventListener("change", () => {
+        beliefs = input.value === "on";
+        try {
+          localStorage.setItem(BELIEFS_KEY, beliefs ? "on" : "off");
+        } catch {
+          /* not remembering it is no reason to refuse it */
+        }
+        onBeliefsChange?.();
       });
     });
   }

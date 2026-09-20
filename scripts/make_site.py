@@ -24,7 +24,10 @@ def build_render_js() -> None:
     src = (ROOT / "web/static/table.js").read_text()
     # Cut at the transport, not at the menu: the menu and the "How it works" panels are a
     # shared module now, so both builds get them.
-    render = src[: src.index('import { initMenu } from "./menu.js";')]
+    # Cut at the menu import, whatever it names: the controller below it is the hosted build's,
+    # and `solo.js` provides its own. Fails loudly if the marker ever moves.
+    cut = src.index('import { initMenu')
+    render = src[:cut]
     render = render.replace(
         """function send(message) {
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));

@@ -501,6 +501,21 @@ class DmctsAgent(Agent):
             ),
         }
 
+    def beliefs(self, obs: Observation) -> dict:
+        """What this agent believes about the other three hands, as probabilities per card.
+
+        The app's test mode shows it, so a player can see what the bot is reasoning from. It is
+        the search's own pool (`krass_jass/native.py`), not a second opinion.
+        """
+        cards, ess = native.belief_marginals(obs, self)
+        return {
+            "cards": [
+                {"card": card, "seats": [round(a, 4), round(b, 4), round(c, 4)]}
+                for card, a, b, c in cards
+            ],
+            "ess": round(ess, 1),
+        }
+
     def _priors(self, obs: Observation) -> dict:
         """Everything that tilts which worlds get imagined, and nothing that forbids one.
 
