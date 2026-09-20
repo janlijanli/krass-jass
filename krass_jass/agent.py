@@ -199,7 +199,9 @@ class DmctsAgent(Agent):
     #: both opponents instead of whoever happens to be on turn. **Not yet measured.**
     sidi_knock_anytime: bool = True
     sidi_double_below: float = 0.35
-    sidi_double_samples: int = 400
+    #: Deals per estimate. At 400 the estimate's own spread is ±0.03, which flips decisions near
+    #: the threshold; 1,200 halves it for ~140 ms a question.
+    sidi_double_samples: int = 1200
     #: Read the other seats' discards as signals and tilt the determinization towards the
     #: worlds they suggest. **Off**, and the flag exists because that is a measured decision
     #: rather than an opinion: it is worth nothing at this budget even against a partner who

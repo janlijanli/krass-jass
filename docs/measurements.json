@@ -357,13 +357,24 @@
     "rounds": {"a": "fitted weights", "b": "shipped weights", "cfg": "HOUSE", "iterations": 38400, "deals": 2000, "share": 51.73, "std": 9.61, "p": 8.9e-16}
   },
 
+  "play_model_conventions": {
+    "deals": 1000,
+    "runs": [
+      { "seed": 93, "share": 50.39, "std": 5.43, "p": 0.0238 },
+      { "seed": 94, "share": 50.50, "std": 5.38, "p": 0.00315 }
+    ],
+    "decisions": 310184,
+    "note": "The play model refitted to self-play in which every seat plays the Swiss conventions, against the model fitted without them. Replicated; it ships. measurements.md §5w.",
+    "when": "2026-09-20"
+  },
+
   "play_model": {
-    "measured_on": "2026-09-15",
-    "note": "measurements.md §5o. rust/src/playmodel.rs: 36 features, 32 hidden units, trained on the shipped search's own play at 38,400 iterations.",
-    "decisions": 161850,
-    "validation_nll": 0.885,
+    "measured_on": "2026-09-20",
+    "note": "measurements.md §5w. rust/src/playmodel.rs: 36 features, 32 hidden units, trained on the shipped search's own play at 38,400 iterations — with the Swiss conventions on, so the model reads a table that plays them.",
+    "decisions": 310184,
+    "validation_nll": 0.837,
     "uniform_nll": 1.289,
-    "top1": 61.4,
+    "top1": 65.2,
     "previous_linear_top1": 48.0
   },
 

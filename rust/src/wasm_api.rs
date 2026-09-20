@@ -170,7 +170,7 @@ fn sidi_bids(game: &Game) -> Vec<Bid> {
 const SIDI_ALPHA: f32 = 1.0;
 const SIDI_OBJECTIVE: bool = false;
 const SIDI_DOUBLE_BELOW: f64 = 0.35;
-const SIDI_DOUBLE_SAMPLES: usize = 400;
+const SIDI_DOUBLE_SAMPLES: usize = 1200;
 
 fn declarers_make(
     game: &Game, seat: usize, hand: u64, history: &[(usize, usize)],

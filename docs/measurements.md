@@ -1658,6 +1658,37 @@ Not yet done: the bot *plays* the conventions but does not *read* them — the p
 the tree policy use was trained on play without them. Retraining it on self-play with conventions is
 the next step.
 
+## 5w. The play model, retrained on convention self-play — the first learned gain since §5p
+
+*2026-09-19/20.* §5u shipped the Swiss conventions, and noted that the bot *played* them but could
+not *read* them: the play model the beliefs (§5o) and the tree policy (§5p) see the table through
+was fitted to self-play in which nobody played them. So the corpus was taken again with them on.
+
+**Data.** 12,000 rounds of the shipped bot playing itself under `HOUSE` at 38,400 iterations, every
+seat with conventions at the shipped price — 310,184 decisions (`arena/policy_data.py`), 3.5 h.
+Trained exactly as the shipped model was, 32 hidden units, only the data different:
+
+| | shipped model (§5.2) | retrained |
+|---|---|---|
+| validation cross-entropy | 0.885 | **0.837** (uniform 1.288) |
+| top-1 agreement with the search | 61.4% | **65.2%** |
+
+**In play**, against the bot with the shipped model, everything else equal, 1,000 double deals at
+153,600 with the tree policy on:
+
+| seed | share | p |
+|---|---|---|
+| 93 | 50.39% ± 5.43 | 0.024 |
+| 94 | **50.50% ± 5.38** | **0.003** |
+
+Replicated, so it ships. About +0.45 of a round's share — small beside §5o's +1.3, and the first
+gain in this project that comes from a behaviour the owner chose rather than one the search found:
+the model now expects a partner to cash aces before kings and to draw trumps, and reads them that
+way inside the tree and in the belief weights. Offline model quality predicted the direction here,
+which §5q–§5r warned it would not; one agreement is not a licence to trust it again.
+
+---
+
 ## 5v. Sidi Barrani: the first screens
 
 *2026-09-19.* The second game mode (`docs/rules-config.md`, `docs/sidi-plan.md`) measured the Schieber

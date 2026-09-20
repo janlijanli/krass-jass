@@ -26,6 +26,7 @@ Where the two disagree, the record is the source and this report is wrong.
 | **Beliefs** | worlds weighted by the other seats' plays and the bid, α = β = 1, pool 4,096 | **+1.31, replicated +1.32** (§5o) |
 | **Trump selection** | rule-based, weights tuned by simulation | **58.3% of games** vs hand-written weights (§5n) |
 | **Tree policy** | the other three seats move by the play model inside the tree | **+0.86, replicated** at equal iterations, ~11× a move (§5p); off in the browser |
+| **Play model** | 32 hidden units, fitted to 310,184 decisions of convention self-play | **+0.45, replicated**, over the model fitted without conventions (§5w) |
 | **Swiss conventions** | draw trump, cash aces then kings, schmieren, never trump the partner, … — may choose any move within **0.01** of the best by the search's own score | **free** (50.03%, p = 0.86); the partner plays the expected card in **73%** of convention decisions, from 59% (§5u) |
 | Game objective | play for the game near the finishing line | null, kept because it cannot hurt (§5d) |
 
@@ -483,13 +484,14 @@ information, so inside an imagined world it asks "would *this* hand have played 
 
 ### 5.2 Fit
 
-Trained (`arena/train_policy.py`) on **161,850 decisions** of the shipped search playing itself at
-38,400 iterations under `HOUSE`, split by round:
+Trained (`arena/train_policy.py`) on **310,184 decisions** of the shipped search playing itself at
+38,400 iterations under `HOUSE` — with the conventions on, so the model learns a table that plays
+them (§5w: +0.45 of a round's share, replicated) — split by round:
 
 | | |
 |---|---|
-| validation cross-entropy | **0.885** (uniform over legal moves: 1.289) |
-| top-1 agreement with the search | **61.4%** (a linear model on 16 features, §5j: 48.0%; uniform: 30.7%) |
+| validation cross-entropy | **0.837** (uniform over legal moves: 1.288) |
+| top-1 agreement with the search | **65.2%** (a linear model on 16 features, §5j: 48.0%; uniform: 30.7%) |
 | Rust vs numpy, largest probability difference | 5e-06 |
 
 The weights live in `krass_jass/data/play_policy.json`, compiled into both native and wasm builds.
@@ -530,12 +532,12 @@ score). Measured against conventions off (§5u): the price 0.01 is free (50.03%,
 bot play the convention's card in 73.2% of the decisions a convention speaks to, against 65.9% for the
 old tie window and 58.9% for the search alone; 0.02 reaches 79.7% and costs half a point (p = 0.018).
 
-**Playing them is not reading them.** The beliefs (§4.3) and the tree policy (§5.3) see the other seats
-through the play model, and the play model was fitted to self-play without these conventions — so a
-partner's ace-then-king, or a Puur led from the declaring side, is weaker evidence to it than it should
-be. Retraining the model on self-play in which every seat plays the conventions is running as this is
-written; it is also the first time the play model is asked to learn a behaviour the owner chose rather
-than one the search found.
+**Playing them, and now reading them.** The beliefs (§4.3) and the tree policy (§5.3) see the other
+seats through the play model, which was fitted to self-play without these conventions — so a partner's
+ace-then-king said less to it than it should. Retrained on 12,000 rounds in which every seat plays
+them, it agrees with the search on 65.2% of decisions against 61.4%, and wins **+0.45** of a round's
+share, replicated on two seeds (§5w). It ships, and it is the first gain here from a behaviour the
+owner chose rather than one the search found.
 
 ---
 
@@ -690,7 +692,7 @@ strength over speed, a few seconds a move is acceptable.
 | re-take the cheating-agent gap | the ceiling predates the two big gains | ~800 deals |
 | any measurement against people | the only strength that matters to a player | an instrumented app, not an arena |
 | learning past the search | beliefs from learned models were the only learned gain | expert iteration on self-play, if a GPU is available |
-| reading the partner's conventions | the bot plays them but its play model was fitted without them (§5.4) | retrain the play model on convention self-play, then A/B — running |
+| more from convention self-play | one retrain on convention play was worth +0.45 (§5w); the corpus was 12,000 rounds | a larger corpus, or a model with more than 32 hidden units |
 
 ---
 

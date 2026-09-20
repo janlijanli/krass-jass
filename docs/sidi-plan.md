@@ -64,7 +64,7 @@ What exists, and what each part is. Nothing below is measured yet; the screens a
 
 **Doubling on an estimate — `rust/src/sidi_estimate.rs`** (the owner's idea, 2026-09-19): what
 will the declarers take, given my cards and everything the auction said? Deal the unseen cards
-400 times, weight each deal by the auction (`sidi_read.rs`, the search's own graded belief), play
+1,200 times, weight each deal by the auction (`sidi_read.rs`, the search's own graded belief), play
 it out with the play model — every seat from its own hand in that deal — and write it as the rules
 do. The weighted share of deals in which the declarers reach their bid is P(make).
 

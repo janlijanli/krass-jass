@@ -114,7 +114,7 @@ export const ABOUT = {
     "play.void.next": "Next →",
     "play.void.restart": "Start over",
     "play.weak.h": "Where it is weak",
-    "play.weak.p": "Its individual card play is much stronger than its <b>team</b> play. It <b>plays</b> the conventions above but does not yet <b>read</b> them: the model of play it reads everyone through was learned from games in which nobody played them, so a partner's ace-then-king says less to it than it should. Retraining that model on games with the conventions is the next step. The model also fits bots better than people, and reading a partner is a known limit of this kind of search — more thinking time does not fix it.",
+    "play.weak.p": "Its individual card play is much stronger than its <b>team</b> play, but it no longer ignores the conventions above: the model of play it reads everyone through was refitted on games in which all four bots play them, so a partner's ace-then-king now tells it something. That model still fits bots better than people, and reading a partner is a known limit of this kind of search — more thinking time does not fix it.",
     "play.human.p":
       "It has also <b>never been measured against a human</b>. The published work on this " +
       "exact variant found a comparable bot scored {parity} — roughly par with strong " +
@@ -318,7 +318,7 @@ export const ABOUT = {
     "play.void.next": "Weiter →",
     "play.void.restart": "Von vorn",
     "play.weak.h": "Wo es schwach ist",
-    "play.weak.p": "Sein Spiel mit den eigenen Karten ist deutlich stärker als sein <b>Zusammenspiel</b>. Die Konventionen oben <b>spielt</b> er, <b>lesen</b> tut er sie noch nicht: Das Spielmodell, durch das er alle anderen liest, stammt aus Partien, in denen niemand sie spielte — ein Ass-dann-König des Partners sagt ihm darum weniger, als es sollte. Das Modell auf Partien mit Konventionen neu zu trainieren ist der nächste Schritt. Es passt ausserdem besser auf Bots als auf Menschen, und einen Partner zu lesen ist eine bekannte Grenze dieser Art von Suche — mehr Bedenkzeit ändert nichts daran.",
+    "play.weak.p": "Sein Spiel mit den eigenen Karten ist deutlich stärker als sein <b>Zusammenspiel</b>, doch die Konventionen oben übergeht er nicht mehr: Das Spielmodell, durch das er alle anderen liest, wurde auf Partien neu trainiert, in denen alle vier Bots sie spielen. Ein Ass-dann-König des Partners sagt ihm jetzt etwas. Das Modell passt weiterhin besser auf Bots als auf Menschen, und einen Partner zu lesen ist eine bekannte Grenze dieser Art von Suche — mehr Bedenkzeit ändert nichts daran.",
     "play.human.p":
       "Ausserdem wurde es <b>nie gegen Menschen gemessen</b>. Die veröffentlichte Arbeit zu " +
       "genau dieser Variante fand für einen vergleichbaren Bot {parity} — etwa auf Augenhöhe " +
@@ -530,7 +530,7 @@ export const ABOUT = {
     "play.void.next": "Suite →",
     "play.void.restart": "Recommencer",
     "play.weak.h": "Où il est faible",
-    "play.weak.p": "Son jeu de la carte est bien plus fort que son jeu <b>en équipe</b>. Il <b>joue</b> les conventions ci-dessus mais ne les <b>lit</b> pas encore : le modèle de jeu à travers lequel il lit tout le monde a été appris sur des parties où personne ne les jouait, si bien qu'un as-puis-roi du partenaire lui en dit moins qu'il ne devrait. Réentraîner ce modèle sur des parties avec les conventions est la prochaine étape. Le modèle est en outre plus fidèle aux bots qu'aux humains, et lire un partenaire est une limite connue de ce type de recherche — davantage de temps de réflexion n'y change rien.",
+    "play.weak.p": "Son jeu de la carte est bien plus fort que son jeu <b>en équipe</b>, mais il n'ignore plus les conventions ci-dessus : le modèle de jeu à travers lequel il lit tout le monde a été réentraîné sur des parties où les quatre bots les jouent, si bien qu'un as-puis-roi du partenaire lui dit quelque chose. Ce modèle reste plus fidèle aux bots qu'aux humains, et lire un partenaire est une limite connue de ce type de recherche — davantage de temps de réflexion n'y change rien.",
     "play.human.p":
       "Il n'a par ailleurs <b>jamais été mesuré contre des humains</b>. Les travaux publiés " +
       "sur cette variante précise ont relevé pour un bot comparable {parity} — à peu près au " +
@@ -742,7 +742,7 @@ export const ABOUT = {
     "play.void.next": "Avanti →",
     "play.void.restart": "Ricomincia",
     "play.weak.h": "Dov'è debole",
-    "play.weak.p": "Il suo gioco di carta è molto più forte del suo gioco <b>di squadra</b>. Le convenzioni qui sopra le <b>gioca</b>, ma non le <b>legge</b> ancora: il modello di gioco con cui legge tutti è stato appreso da partite in cui nessuno le giocava, così un asso-poi-re del compagno gli dice meno di quanto dovrebbe. Riaddestrare quel modello su partite con le convenzioni è il prossimo passo. Il modello è inoltre più fedele ai bot che alle persone, e leggere un compagno è un limite noto di questo tipo di ricerca — più tempo di riflessione non lo risolve.",
+    "play.weak.p": "Il suo gioco di carta è molto più forte del suo gioco <b>di squadra</b>, ma non ignora più le convenzioni qui sopra: il modello di gioco con cui legge tutti è stato riaddestrato su partite in cui tutti e quattro i bot le giocano, così un asso-poi-re del compagno ora gli dice qualcosa. Il modello resta più fedele ai bot che alle persone, e leggere un compagno è un limite noto di questo tipo di ricerca — più tempo di riflessione non lo risolve.",
     "play.human.p":
       "Inoltre <b>non è mai stato misurato contro esseri umani</b>. Il lavoro pubblicato su " +
       "questa esatta variante ha rilevato per un bot paragonabile {parity} — più o meno alla " +
