@@ -2,6 +2,8 @@
 name = "krass-jass"
 version = "0.1.0"
 description = "Schieber Jass engine, bots and web app"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = []
 

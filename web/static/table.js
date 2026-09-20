@@ -8,10 +8,13 @@
 import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js";
 import { applyStatic, contractName, getLang, t } from "./i18n.js";
 import { drawTafel } from "./tafel.js";
+import { maybeSay, resetTalk } from "./talk.js";
 
 const MEASUREMENTS_URL = "/static/measurements.json";
 
 const mySeat = Number(document.body.dataset.seat);
+//: Only the bots talk. Putting words in the player's mouth is a different feature.
+const BOT_SEATS = [0, 1, 2, 3].filter((s) => s !== mySeat);
 const el = {
   hand: document.getElementById("hand"),
   trick: document.getElementById("trick"),
@@ -807,7 +810,7 @@ document.getElementById("weis-no").addEventListener("click", () =>
 // on the serverless page stayed in its English placeholder text.
 applyStatic();
 
-import { initMenu, adviceOn, beliefsOn } from "./menu.js";
+import { initMenu, adviceOn, beliefsOn, talkOn } from "./menu.js";
 
 initMenu({
   measurementsUrl: MEASUREMENTS_URL,
@@ -836,7 +839,11 @@ function connect() {
       const rel = (event.seat - mySeat + 4) % 4;
       el.status.textContent =
         rel === 0 ? t("status.youTake") : rel === 2 ? t("status.partnerTakes") : t("status.theyTake");
+      // A remark belongs to the pause after a trick, when nobody is waiting on you. From the
+      // event, not from a redraw, so it is said once rather than on every repaint.
+      if (talkOn()) speak(maybeSay(event.trick, BOT_SEATS));
     }
+    if (event.type === "round_started") resetTalk();   // a new deal starts the talk fresh
   };
   socket.onclose = () => {
     el.status.textContent = t("status.disconnected");

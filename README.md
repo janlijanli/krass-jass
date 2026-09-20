@@ -144,3 +144,11 @@ Implementations of other trick-taking games get these wrong. They are not bugs:
    illegal — unless your hand is nothing but trumps.
 3. **The Puur is exempt from a trump lead.** If your only trump is the trump Jack, you need
    not play it.
+
+---
+
+## Licence
+
+[MIT](LICENSE). The card faces, the bidding and play conventions the bots speak, and the model
+weights in `krass_jass/data/` are our own work and fall under the same licence; no printed card
+art is reproduced here.

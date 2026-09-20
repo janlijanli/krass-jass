@@ -805,7 +805,9 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
    2 = partner (top), 1 = right, 3 = left — the anticlockwise mapping the trick uses. */
 .speech-3 { bottom: 10px; left: 8px; }
 .speech-1 { bottom: 10px; right: 8px; }
-.speech-2 { top: 8px; right: 8px; }
+/* Below the partner's nameplate, not across it: that plate lights up while they are talking,
+   and a bubble that covers it hides the one thing that says who is speaking. */
+.speech-2 { top: 36px; right: 8px; }
 .speech-who {
   display: block;
   font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em;
