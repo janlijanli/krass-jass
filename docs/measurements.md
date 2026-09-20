@@ -1701,6 +1701,14 @@ arms bid with the same rule bidder.
 | reading the auction (`sidi_alpha` 1 vs 0) | **+32.02 ± 109.4** | 55.10% | ≈ 0 |
 | playing for the bid vs for the cards (`sidi_objective`) | −5.14 ± 73.9 | 49.15% | 0.028 |
 | doubling on an estimate vs a stopper count (`sidi_double_model`) | −0.18 ± 80.3 | 49.97% | 0.94 |
+| knocking out of turn vs only on turn (`sidi_knock_anytime`) | **−7.61 ± 59.0** | 48.74% | 4.5e-05 |
+
+Knocking out of turn — a double the moment an opponent bids, which the rules allow and the player
+may do — **loses**, and it is the clearest loss measured here. A double ends the auction, so a seat
+that knocks early throws away its own contract and whatever its partner still had to say; asking
+both opponents after every bid doubled about half of all hands against a third. It is off for the
+bots (the player keeps the button). The variant worth a second look is knocking only with nothing
+left to bid, which `sidi_knock_holds_bid` implements and a match is deciding.
 
 Reading the auction is on, and is the largest effect in this document — against bidders who speak
 the language literally, and with doubling blind to the auction in the B arm as well, so it bounds

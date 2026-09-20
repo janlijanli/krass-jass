@@ -51,9 +51,10 @@ What exists, and what each part is. Nothing below is measured yet; the screens a
   Nell bid only with the Bauer; the support's parity names the supporter's own card, and it is at
   least what the supporter would have opened with. Obenabe / Undenufe +10 per ace / six.
 - Competing: bid the highest of those that beats the standing bid, capped at 150; otherwise pass.
-- Knocking out of turn: every opponent of the standing bid is asked the moment it is made, as the
-  player is (`DmctsAgent.sidi_knock_anytime`, on). It doubles roughly half of all hands against a
-  third when only the seat on turn could knock — **not yet measured**, queued.
+- Knocking out of turn: the bots may be asked the moment a bid is made, as the player is
+  (`sidi_knock_anytime`). **Off**: it lost 7.61 points a hand (p = 4.5e-05, §5v) — a double ends
+  the auction, so an early knock gives away the seat's own contract. `sidi_knock_holds_bid` keeps
+  a seat quiet while it can still outbid the call, which is the variant now being measured.
 - Never outbid the opponents in a contract they named (owner, 2026-09-19): holding their trumps
   is a reason to wait for the knock, not to buy them out of a contract they would likely lose.
 - A seat that has already named the contract its partner now holds passes — without that rule

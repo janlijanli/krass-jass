@@ -144,12 +144,21 @@ def test_a_bot_never_takes_the_opponents_suit_off_them():
 
 
 def test_a_bot_knocks_on_a_hopeless_bid_out_of_turn_and_not_on_its_partner():
+    """Knocking out of turn is off by default — it lost 7.61 points a hand (measurements §5v).
+    With it on, a seat knocks only on an opponent's bid it cannot beat with one of its own."""
     from krass_jass.agent import DmctsAgent
 
-    agent = DmctsAgent(determinizations=4, iterations=30, cfg=SIDI)
+    shipped = DmctsAgent(determinizations=4, iterations=30, cfg=SIDI)
+    agent = DmctsAgent(determinizations=4, iterations=30, cfg=SIDI, sidi_knock_anytime=True)
     strong = hand("HJ", "H9", "HA", "HK", "DA", "SA", "CA", "D6", "S6")
+    assert shipped.sidi_knock(strong, ((1, "HEARTS 120"),), 2) is False  # the shipped default
     assert agent.sidi_knock(strong, ((1, "HEARTS 120"),), 2) is True
-    assert agent.sidi_knock(strong, ((0, "HEARTS 120"),), 2) is False   # its partner's bid
-    assert agent.sidi_knock(strong, (), 2) is False                     # nothing bid yet
-    quiet = DmctsAgent(determinizations=4, iterations=30, cfg=SIDI, sidi_knock_anytime=False)
-    assert quiet.sidi_knock(strong, ((1, "HEARTS 120"),), 2) is False
+    assert agent.sidi_knock(strong, ((0, "HEARTS 120"),), 2) is False    # its partner's bid
+    assert agent.sidi_knock(strong, (), 2) is False                      # nothing bid yet
+    # Holding the opponents' own suit: their bid is hopeless, but this hand can outbid it at 110,
+    # which is the cheaper answer — a double would end the auction and give that bid away.
+    spades = hand("SJ", "S9", "SA", "SK", "S8", "HA", "DA", "C6", "D6")
+    assert agent.sidi_knock(spades, ((1, "SPADES 70"),), 2) is False
+    loud = DmctsAgent(determinizations=4, iterations=30, cfg=SIDI, sidi_knock_anytime=True,
+                      sidi_knock_holds_bid=False)
+    assert loud.sidi_knock(spades, ((1, "SPADES 70"),), 2) is True

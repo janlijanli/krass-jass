@@ -195,9 +195,14 @@ class DmctsAgent(Agent):
     #: instead of 3%. Kept as the principled rule the owner asked for; its threshold is untuned.
     sidi_double_model: bool = True
     #: Knock out of turn: answer "double?" the moment an opponent bids, as the player may
-    #: (`krass_jass/auction.py`). It roughly doubles how often a hand is doubled — every bid asks
-    #: both opponents instead of whoever happens to be on turn. **Not yet measured.**
-    sidi_knock_anytime: bool = True
+    #: (`krass_jass/auction.py`). **Off: it lost 7.61 points written a hand**, p = 4.5e-05
+    #: (`docs/measurements.md` §5v). A double ends the auction, so knocking early throws away the
+    #: seat's own contract and everything its partner still had to say — and asking both opponents
+    #: after every bid doubled about half of all hands against a third. With `sidi_knock_holds_bid`
+    #: the seat keeps quiet while it still has a bid of its own; that variant is being measured.
+    sidi_knock_anytime: bool = False
+    #: Only knock out of turn with nothing left to bid — the part of the rule that costs nothing.
+    sidi_knock_holds_bid: bool = True
     sidi_double_below: float = 0.35
     #: Deals per estimate. At 400 the estimate's own spread is ±0.03, which flips decisions near
     #: the threshold; 1,200 halves it for ~140 ms a question.
@@ -338,6 +343,12 @@ class DmctsAgent(Agent):
         standing = _sidi_standing(auction, seat)
         if standing is None or not self.sidi_knock_anytime:
             return False
+        if self.sidi_knock_holds_bid:
+            # A double ends the auction. A seat that could still outbid the standing call has a
+            # cheaper answer than spending the auction on a knock.
+            own = sidi_bidding.opening(hand)
+            if own is not None and min(own[1], 150) > standing[1]:
+                return False
         if not self.sidi_double_model:
             return super().sidi_knock(hand, auction, seat)
         contract, value = standing
