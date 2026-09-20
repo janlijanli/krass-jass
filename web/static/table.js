@@ -807,10 +807,12 @@ document.getElementById("weis-no").addEventListener("click", () =>
 // on the serverless page stayed in its English placeholder text.
 applyStatic();
 
-import { initMenu, beliefsOn } from "./menu.js";
+import { initMenu, adviceOn, beliefsOn } from "./menu.js";
 
 initMenu({
   measurementsUrl: MEASUREMENTS_URL,
+  // The hosted build runs the fourth bot on the server — the same search, on your own hand.
+  onAdviceChange: () => send({ type: "advice", on: adviceOn() }),
   onBeliefsChange: () => {
     send({ type: "beliefs", on: beliefsOn() });
     if (!beliefsOn()) el.beliefs.hidden = true;
@@ -842,8 +844,9 @@ function connect() {
   };
   socket.onopen = () => {
     el.status.textContent = t("status.connected");
-    // Test mode is a per-browser setting, and the beliefs are computed where the game is.
+    // Both are per-browser settings, and both are computed where the game is.
     send({ type: "beliefs", on: beliefsOn() });
+    send({ type: "advice", on: adviceOn() });
   };
 }
 

@@ -99,6 +99,15 @@ class Table:
     #: The agent that answers that, in this process. The seats may be served by containers, which
     #: have no business being asked what *this* seat believes.
     belief_agent: Agent | None = None
+    #: Advice mode: a fourth bot on the player's own seat, ranking their legal cards. Off unless
+    #: asked for; it is a whole extra search per turn.
+    show_advice: bool = False
+    #: Its answer and the position it answered for — a search a move is dear enough to cache.
+    advice: list = field(default_factory=list)
+    advice_key: tuple | None = None
+    #: The agent that runs it. Its own, because it searches at the bots' budget while the belief
+    #: agent only ever draws a pool.
+    advice_agent: Agent | None = None
 
     def is_bot(self, seat: int) -> bool:
         return seat != self.human_seat
@@ -320,11 +329,17 @@ def create_app() -> FastAPI:
         try:
             await flush()
             await drive(table, seat, socket, flush)
+            if await ensure_advice(table, seat):
+                await flush()
             while True:
                 message = await socket.receive_json()
                 await handle(table, seat, message, socket)
                 await flush()
                 await drive(table, seat, socket, flush)
+                # After the table has been drawn, never before it: the search is most of a
+                # second and the player should see their cards first.
+                if await ensure_advice(table, seat):
+                    await flush()
         except WebSocketDisconnect:
             return
 
@@ -487,6 +502,9 @@ def view(table: Table, seat: int) -> dict:
         # from. Derived from this seat's own hand and the public history — it reveals nothing
         # hidden, it only shows what the bot's own belief pool says.
         "beliefs": beliefs_view(table, seat),
+        # Advice mode (off by default): what a fourth bot on this seat would play, best first.
+        # Computed off the event loop by `ensure_advice`; this only publishes the answer.
+        "advice": table.advice if table.advice_key == advice_key(table, seat) else [],
         # The trump Jack decides most tricks it appears in; the engine names it so the client
         # does not have to work out what trump means.
         "puur": format_card(game.contract.trump_suit * 9 + 3)
@@ -527,6 +545,41 @@ def beliefs_view(table: Table, seat: int) -> dict | None:
     }
 
 
+def advice_key(table: Table, seat: int) -> tuple | None:
+    """The position advice would be for, or None when there is nothing to advise on."""
+    game = table.game
+    if not table.show_advice or game.phase is not Phase.PLAYING or game.round is None:
+        return None
+    if game.round.to_play != seat or table.awaiting_ack():
+        return None
+    if game.round.legal_moves(seat).bit_count() < 2:
+        return None                      # one legal card is not advice
+    return (game.round_index, len(game.round.tricks_played), len(game.round.trick), game.hand_of(seat))
+
+
+async def ensure_advice(table: Table, seat: int) -> bool:
+    """Run the fourth bot for this seat, off the event loop. True when the answer is new.
+
+    The same search the three opponents use, run on the player's own hand, so it sees exactly what
+    they see and guesses as they do — and it costs the same, which is why it is cached per position
+    and only runs while the switch is on.
+    """
+    key = advice_key(table, seat)
+    if key is None or key == table.advice_key:
+        return False
+    if table.advice_agent is None:
+        table.advice_agent = DmctsAgent(
+            determinizations=BOT_DETERMINIZATIONS, iterations=BOT_ITERATIONS,
+            cfg=table.game.cfg, label="advice",
+        )
+    observation = table.game.observation(seat)
+    loop = asyncio.get_running_loop()
+    ranked = await loop.run_in_executor(None, table.advice_agent.trace, observation)
+    table.advice = [format_card(card) for card, *_ in ranked]
+    table.advice_key = key
+    return True
+
+
 async def handle(table: Table, seat: int, message: dict, socket: WebSocket) -> None:
     """Apply one client intent. Everything is re-validated; nothing is trusted."""
     game = table.game
@@ -548,6 +601,9 @@ async def handle(table: Table, seat: int, message: dict, socket: WebSocket) -> N
             game.choose_weis(seat, bool(message.get("announce")))
         elif kind == "beliefs":
             table.show_beliefs = bool(message.get("on"))
+        elif kind == "advice":
+            table.show_advice = bool(message.get("on"))
+            table.advice, table.advice_key = [], None
         elif kind == "ack_trick":
             table.acked_tricks = table.completed_tricks()
         elif kind == "next_round":
