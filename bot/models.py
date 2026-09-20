@@ -57,6 +57,12 @@ class SidiCallResponse(BaseModel):
     call: str
 
 
+class SidiKnockResponse(BaseModel):
+    """Sidi Barrani: double the standing bid without waiting for this seat's turn?"""
+
+    knock: bool
+
+
 class SidiDoubleRequest(BaseModel):
     """Sidi Barrani: the question after the lead."""
 

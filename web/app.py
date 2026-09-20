@@ -91,6 +91,8 @@ class Table:
     #: Sidi: the last knock the player let pass, as (round, calls so far), so the question is
     #: asked once per opposing bid.
     knock_declined: tuple | None = None
+    #: The bid the bots have already been asked about, same key.
+    bots_knocked: tuple | None = None
 
     def is_bot(self, seat: int) -> bool:
         return seat != self.human_seat
@@ -532,6 +534,36 @@ async def handle(table: Table, seat: int, message: dict, socket: WebSocket) -> N
         await socket.send_json({"type": "rejected", "message": str(exc)})
 
 
+async def bots_knock(table: Table) -> None:
+    """Sidi: every bot opposing the standing bid gets to knock, the moment it is made.
+
+    A double may come out of turn (`krass_jass/auction.py`), so waiting for a bot's turn would
+    make the bots play by a different rule than the player. Asked once per bid, in play order
+    from the bidder, and the first one to knock ends the auction.
+    """
+    game = table.game
+    auction = game.auction
+    if not game.cfg.sidi or game.phase is not Phase.BIDDING or auction is None or auction.high is None:
+        return
+    key = (game.round_index, len(auction.calls))
+    if table.bots_knocked == key or auction.doubled:
+        return
+    table.bots_knocked = key
+    public = game.public_auction()
+    loop = asyncio.get_running_loop()
+    for step in (1, 3):
+        actor = (auction.high[0] + step) % NUM_SEATS
+        if not table.is_bot(actor) or not auction.may_double(actor):
+            continue
+        knock = await loop.run_in_executor(
+            None, table.bots[actor].sidi_knock, game.hand_of(actor), public, actor
+        )
+        if knock:
+            await asyncio.sleep(random.uniform(0.3, 0.6))
+            game.bid(actor, "DOUBLE")
+            return
+
+
 async def drive(table: Table, seat: int, socket: WebSocket, flush) -> None:
     """Let the bots act until it is the human's turn again."""
     game = table.game
@@ -541,6 +573,8 @@ async def drive(table: Table, seat: int, socket: WebSocket, flush) -> None:
                 return  # the player is still looking at the last trick
             if table.knock_offer() is not None:
                 return  # the player is being asked whether to knock
+            await bots_knock(table)
+            await flush()
             actor = game.to_act
             if actor is None or actor == seat:
                 return

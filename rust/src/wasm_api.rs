@@ -230,6 +230,26 @@ pub extern "C" fn bot_call(handle: u32, seat: u32) -> i32 {
     })
 }
 
+/// Sidi: does this bot knock on the standing bid, without waiting for its turn? 1 = double.
+///
+/// A double may come out of turn (`auction.rs`) and the page asks the player that way, so the
+/// bots are asked the same: every opponent of the bidder, the moment the bid is made.
+#[no_mangle]
+pub extern "C" fn bot_knock(handle: u32, seat: u32) -> u32 {
+    GAMES.with(|g| {
+        let games = g.borrow();
+        let Some(game) = games.get(&handle) else { return 0 };
+        let Some(auction) = game.auction.as_ref() else { return 0 };
+        let seat = seat as usize;
+        let Some((bidder, contract, value)) = auction.high else { return 0 };
+        if !auction.may_double(seat) {
+            return 0;
+        }
+        let hand = game.hand_of(seat);
+        u32::from(declarers_make(game, seat, hand, &[], contract, bidder, value) < SIDI_DOUBLE_BELOW)
+    })
+}
+
 /// Sidi: a bot's answer to "double?" after the lead. 1 = double.
 #[no_mangle]
 pub extern "C" fn bot_double(handle: u32, seat: u32) -> u32 {

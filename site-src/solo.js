@@ -131,9 +131,34 @@ function newGame() {
   if (handle !== null) engine.free(handle);
   acked = 0;
   knockDeclined = null;
+  botsKnockedKey = null;
   handle = engine.newGame({ seed: Math.floor(Math.random() * 2 ** 48), ...settings() });
   draw();
   drive();
+}
+
+// Sidi: the bid the bots have already been asked about, so each bid asks once.
+let botsKnockedKey = null;
+
+/** Every bot opposing the standing bid knocks or not, the moment the bid is made — the rule
+ *  the player plays by, so the bots play by it too. Returns true if one of them doubled. */
+async function botsKnock(v) {
+  if (v.mode !== "sidi" || v.phase !== "bidding" || !v.auction?.length) return false;
+  const bids = v.auction.filter((c) => !["PASS", "DOUBLE"].includes(c.call));
+  const key = `${v.round}|${v.auction.length}`;
+  if (!bids.length || v.auction.some((c) => c.call === "DOUBLE") || botsKnockedKey === key) return false;
+  botsKnockedKey = key;
+  const bidder = bids[bids.length - 1].seat;
+  for (const step of [1, 3]) {
+    const seat = (bidder + step) % 4;
+    if (seat === HUMAN_SEAT || (seat - bidder + 4) % 2 !== 1) continue;
+    if (engine.botKnock(handle, seat)) {
+      await sleep(300 + Math.random() * 300);
+      engine.call(handle, seat, "DOUBLE");
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Let the bots act until it is the human's turn again. */
@@ -151,6 +176,7 @@ async function drive() {
       }
       if (v.to_act === null || v.to_act === HUMAN_SEAT) break;
       if (v.knock) break;                     // the player is being asked whether to knock
+      if (await botsKnock(v)) { draw(); continue; }
       const seat = v.to_act;
       const trick = Math.max(0, v.round);
 

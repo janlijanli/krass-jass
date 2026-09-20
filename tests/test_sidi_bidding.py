@@ -141,3 +141,15 @@ def test_a_bot_never_takes_the_opponents_suit_off_them():
     assert sb.choose_call(strong_hearts, ((1, "HEARTS 60"),), 2, SIDI, double=True) == "DOUBLE"
     # Its partner's hearts it still supports.
     assert sb.choose_call(strong_hearts, ((0, "HEARTS 60"),), 2, SIDI).startswith("HEARTS")
+
+
+def test_a_bot_knocks_on_a_hopeless_bid_out_of_turn_and_not_on_its_partner():
+    from krass_jass.agent import DmctsAgent
+
+    agent = DmctsAgent(determinizations=4, iterations=30, cfg=SIDI)
+    strong = hand("HJ", "H9", "HA", "HK", "DA", "SA", "CA", "D6", "S6")
+    assert agent.sidi_knock(strong, ((1, "HEARTS 120"),), 2) is True
+    assert agent.sidi_knock(strong, ((0, "HEARTS 120"),), 2) is False   # its partner's bid
+    assert agent.sidi_knock(strong, (), 2) is False                     # nothing bid yet
+    quiet = DmctsAgent(determinizations=4, iterations=30, cfg=SIDI, sidi_knock_anytime=False)
+    assert quiet.sidi_knock(strong, ((1, "HEARTS 120"),), 2) is False

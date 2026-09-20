@@ -39,6 +39,7 @@ export async function loadEngine(url = "krass_jass_core.wasm") {
     double: (h, seat, yes) => w.game_double(h, seat, yes ? 1 : 0) === 0,
     botCall: (h, seat) => callText(w.bot_call(h, seat)),
     botDouble: (h, seat) => w.bot_double(h, seat) === 1,
+    botKnock: (h, seat) => w.bot_knock(h, seat) === 1,
   };
 }
 

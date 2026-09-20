@@ -100,6 +100,21 @@ class RemoteAgent(Agent):
             log.warning("bot %s sidi call failed (%s); passing", self.label, exc)
             return "PASS"   # the engine re-validates; a pass is always legal
 
+    def sidi_knock(self, hand: int, auction: tuple, seat: int) -> bool:
+        payload = {
+            "hand": [format_card(c) for c in card_list(hand)],
+            "auction": [{"seat": s, "call": c} for s, c in auction],
+            "seat": seat,
+        }
+        try:
+            response = self.client().post("/sidi_knock", json=payload, timeout=TIMEOUT_MARGIN_S)
+            response.raise_for_status()
+            return bool(response.json()["knock"])
+        except Exception as exc:  # noqa: BLE001 — a bot that cannot answer simply does not knock
+            self.failures += 1
+            log.warning("bot %s sidi knock failed (%s); not knocking", self.label, exc)
+            return False
+
     def sidi_double(self, obs: Observation) -> bool:
         payload = {
             "hand": [format_card(c) for c in card_list(obs.hand)],

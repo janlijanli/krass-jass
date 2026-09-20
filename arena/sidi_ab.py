@@ -39,10 +39,34 @@ def build(pairs: list[str], iterations: int) -> DmctsAgent:
     return DmctsAgent(**kw)
 
 
+def knock(game: Game, seats: dict, asked: set) -> None:
+    """Every seat opposing the standing bid gets to knock, the moment the bid is made.
+
+    A double may come out of turn, and the app asks the bots that way, so the arena does too.
+    """
+    auction = game.auction
+    if game.phase is not Phase.BIDDING or auction is None or auction.high is None or auction.doubled:
+        return
+    key = (game.round_index, len(auction.calls))
+    if key in asked:
+        return
+    asked.add(key)
+    public = game.public_auction()
+    for step in (1, 3):
+        actor = (auction.high[0] + step) % 4
+        if auction.may_double(actor) and seats[actor].sidi_knock(game.hand_of(actor), public, actor):
+            game.bid(actor, "DOUBLE")
+            return
+
+
 def play_hand(seed: int, seats: dict) -> list[int]:
     """One Sidi hand to the end; what each team wrote."""
     game = Game(cfg=SIDI_EVAL, seed=seed, game_id=f"sidi-{seed}")
+    asked: set = set()
     while game.phase is not Phase.ROUND_OVER:
+        knock(game, seats, asked)
+        if game.phase is Phase.ROUND_OVER:
+            break
         seat = game.to_act
         agent = seats[seat]
         if game.phase is Phase.BIDDING:

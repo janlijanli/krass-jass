@@ -26,6 +26,7 @@ from bot.models import (
     SelectTrumpResponse,
     SidiCallRequest,
     SidiCallResponse,
+    SidiKnockResponse,
     SidiDoubleRequest,
     SidiDoubleResponse,
 )
@@ -100,6 +101,12 @@ def create_app() -> FastAPI:
         auction = tuple((c.seat, c.call) for c in request.auction)
         call = sidi_agent.sidi_call(parse_hand(request.hand), auction, request.seat)
         return SidiCallResponse(call=call)
+
+    @app.post("/sidi_knock", response_model=SidiKnockResponse)
+    async def sidi_knock(request: SidiCallRequest) -> SidiKnockResponse:
+        auction = tuple((c.seat, c.call) for c in request.auction)
+        knock = sidi_agent.sidi_knock(parse_hand(request.hand), auction, request.seat)
+        return SidiKnockResponse(knock=knock)
 
     @app.post("/sidi_double", response_model=SidiDoubleResponse)
     async def sidi_double(request: SidiDoubleRequest) -> SidiDoubleResponse:

@@ -31,6 +31,26 @@ def _read_text(path: str) -> str:
     return Path(path).read_text()
 
 
+def _sidi_standing(auction: tuple, seat: int):
+    """`(contract, value)` of a bid this seat may knock on, or None.
+
+    None when nobody has bid, when it is this seat's own side bidding, or when the bid has
+    already been doubled — the same test `Auction.may_double` makes.
+    """
+    from .auction import Call
+
+    high = None
+    for other, text in auction:
+        call = Call.parse(text)
+        if call.kind == "bid":
+            high = (other, call.contract, call.value)
+        elif call.kind == "double":
+            return None            # already doubled; there is nothing left to knock on
+    if high is None or (high[0] - seat) % 2 == 0:
+        return None
+    return high[1], high[2]
+
+
 def _sidi_bids(auction: tuple) -> list[tuple[int, int, int]]:
     """The auction's bids as `(seat, contract, value)`. Passes and doubles claim nothing."""
     from .auction import Call
@@ -74,6 +94,18 @@ class Agent:
     def sidi_double(self, obs: Observation) -> bool:
         """Sidi Barrani: the question after the lead — double the declarers' bid?"""
         return sidi_bidding.double_after_lead(obs.hand, obs.contract, obs.bid_value)
+
+    def sidi_knock(self, hand: int, auction: tuple, seat: int) -> bool:
+        """Sidi Barrani: double the standing bid without waiting for this seat's turn.
+
+        At a table you knock the moment you hear the bid. The caller asks every opponent of the
+        bidder after each bid; `False` simply means "not this one".
+        """
+        standing = _sidi_standing(auction, seat)
+        if standing is None:
+            return False
+        contract, value = standing
+        return sidi_bidding.may_double(hand, contract, value)
 
 
 class RandomAgent(Agent):
@@ -162,6 +194,10 @@ class DmctsAgent(Agent):
     #: stopper count: −0.18 points a hand, p = 0.94 (§5v), while doubling in 36% of auctions
     #: instead of 3%. Kept as the principled rule the owner asked for; its threshold is untuned.
     sidi_double_model: bool = True
+    #: Knock out of turn: answer "double?" the moment an opponent bids, as the player may
+    #: (`krass_jass/auction.py`). It roughly doubles how often a hand is doubled — every bid asks
+    #: both opponents instead of whoever happens to be on turn. **Not yet measured.**
+    sidi_knock_anytime: bool = True
     sidi_double_below: float = 0.35
     sidi_double_samples: int = 400
     #: Read the other seats' discards as signals and tilt the determinization towards the
@@ -295,6 +331,19 @@ class DmctsAgent(Agent):
             p = self._declarers_make(seat, hand, [], call.contract, bidder, call.value, auction, seed)
             double = p < self.sidi_double_below
         return sidi_bidding.choose_call(hand, auction, seat, self.cfg, double=double)
+
+    def sidi_knock(self, hand: int, auction: tuple, seat: int) -> bool:
+        standing = _sidi_standing(auction, seat)
+        if standing is None or not self.sidi_knock_anytime:
+            return False
+        if not self.sidi_double_model:
+            return super().sidi_knock(hand, auction, seat)
+        contract, value = standing
+        bidder = next(s for s, text in reversed(auction) if text == f"{contract.name} {value}")
+        seed = hash((hand, len(auction), seat, "knock")) & 0xFFFF_FFFF
+        return self._declarers_make(seat, hand, [], contract, bidder, value, auction, seed) < (
+            self.sidi_double_below
+        )
 
     def sidi_double(self, obs: Observation) -> bool:
         if not self.sidi_double_model:
