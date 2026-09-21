@@ -166,10 +166,11 @@ fn sidi_bids(game: &Game) -> Vec<Bid> {
 /// In step with `DmctsAgent` in `agent.py` (measurements.md §5v): the auction read at weight 1
 /// (+32 points a hand), the hand played for a share of the cards rather than for the bid (playing
 /// for the bid lost 5.1), and a double when the declarers make their bid in fewer than 35% of 400
-/// imagined deals (`sidi_estimate.rs`; null against the stopper count, kept).
+/// imagined deals (`sidi_estimate.rs`; null against the stopper count, kept — and 0.25 rather than
+/// a third, which cost 4.93 and 7.14 points a hand, §5v).
 const SIDI_ALPHA: f32 = 1.0;
 const SIDI_OBJECTIVE: bool = false;
-const SIDI_DOUBLE_BELOW: f64 = 0.35;
+const SIDI_DOUBLE_BELOW: f64 = 0.25;
 const SIDI_DOUBLE_SAMPLES: usize = 1200;
 
 fn declarers_make(

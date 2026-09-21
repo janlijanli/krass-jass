@@ -203,7 +203,11 @@ class DmctsAgent(Agent):
     sidi_knock_anytime: bool = False
     #: Only knock out of turn with nothing left to bid — the part of the rule that costs nothing.
     sidi_knock_holds_bid: bool = True
-    sidi_double_below: float = 0.35
+    #: **0.25**: doubling below a third of a chance lost 4.93 and 7.14 points a hand against this
+    #: (§5v, two seeds). Below 0.25 nothing more is on offer — 0.15 and never doubling at all are
+    #: both indistinguishable from it — so this is where a double stops costing, not where it
+    #: starts paying.
+    sidi_double_below: float = 0.25
     #: Deals per estimate. At 400 the estimate's own spread is ±0.03, which flips decisions near
     #: the threshold; 1,200 halves it for ~140 ms a question.
     sidi_double_samples: int = 1200

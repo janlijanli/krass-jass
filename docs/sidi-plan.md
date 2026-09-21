@@ -71,7 +71,8 @@ it out with the play model — every seat from its own hand in that deal — and
 do. The weighted share of deals in which the declarers reach their bid is P(make).
 
 For the defenders a stake is worth B·(1 − 2p) undoubled and 2B·(1 − 2p) doubled, so doubling pays
-exactly when p < ½. The agent doubles below `sidi_double_below` = 0.35: the margin is for the
+exactly when p < ½. The agent doubles below `sidi_double_below` = **0.25** (measured, §5v: 0.35 lost 4.93 and 7.14
+points a hand; 0.15 and never doubling are indistinguishable from 0.25): the margin is for the
 estimate's error (the play model plays like an average bot, not like the search), and for what a
 double in the auction gives up — it ends the bidding, the team's own contract with it.
 
