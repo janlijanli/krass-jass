@@ -15,6 +15,8 @@ bot services. The substantial goal is training an algorithm that plays the game 
 - **`docs/plan-review.md`** — review of the plan, and why M5 is gated on engine throughput.
 - **`docs/measurements.md`** — every measurement, dated, in the order it was taken, with the ones
   that turned out wrong left in and marked.
+- **[Engine report](https://janlijanli.github.io/krass-jass/report.html)** — the same, as a page with
+  charts: what happens when, a timeline, and every experiment on one axis (`web/static/report.*`).
 - **`docs/engine-report.md`** — the statistical summary: protocol, the search, beliefs, trump
   selection, and every number that decides how the bots play.
 

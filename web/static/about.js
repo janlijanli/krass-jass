@@ -339,7 +339,15 @@ function strengthPanel(data, L) {
       })
     ),
 
-    html("p", "warn", about(L, "strength.caveat"))
+    html("p", "warn", about(L, "strength.caveat")),
+    // Resolved against this module, so it lands on /static/report.html on the server and next
+    // to index.html on the static site.
+    html(
+      "p",
+      null,
+      `<a href="${new URL("report.html", import.meta.url).pathname}" target="_blank" rel="noopener">` +
+        "Full statistical report, with every experiment (English) →</a>"
+    )
   );
   return wrap;
 }

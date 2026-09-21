@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>krass-jass — engine report</title>
+<meta name="description" content="How strong the krass-jass bots are, what happens during a round and a move, and every measurement behind the defaults.">
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+<main class="page">
+
+<header class="hero">
+  <p class="kicker"><a href="./">← krass-jass</a> · engine report</p>
+  <h1>How the bots play, and what each part is worth</h1>
+  <p class="lede">A statistical account of the Schieber bots: what happens during a round and during a
+    single move, when each part was built, and the measurement behind every default. Every figure on
+    this page is read from <code>docs/measurements.json</code>. None of them are typed into the page, so
+    re-measuring updates the page. It covers Schieber. Sidi Barrani, the second game mode, is measured
+    in points a hand and is recorded in <code>docs/measurements.md</code> §5v.</p>
+  <p class="meta" id="meta"></p>
+  <div class="tiles" id="tiles"></div>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <a href="#flow">What happens when</a>
+  <a href="#timeline">Timeline</a>
+  <a href="#protocol">Protocol</a>
+  <a href="#forest">Every experiment</a>
+  <a href="#search">Search</a>
+  <a href="#beliefs">Beliefs</a>
+  <a href="#trump">Trump</a>
+  <a href="#networks">Networks</a>
+  <a href="#ladder">Ladder &amp; cost</a>
+  <a href="#artifacts">Trained files</a>
+</nav>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<section id="flow">
+  <h2>1. What happens when</h2>
+  <p>A game is a series of rounds. In each round the engine deals the cards, the dealer's seat picks
+    trump, and nine tricks are played. The Python engine is the authority on the rules. It decides what
+    each seat may see and re-checks every move a bot sends back.</p>
+
+  <h3>A round</h3>
+  <ol class="flow">
+    <li><b>Deal</b><span>SplitMix64 → Fisher–Yates from one game seed, identical in Python and Rust, so any game replays exactly.</span><code>deal.py · deal.rs</code></li>
+    <li><b>Trump</b><span>A rule-based score for each of the six contracts, or "schieben" (pass trump choice to the partner). Weights tuned by simulation.</span><code>trump_weights.json</code></li>
+    <li><b>Weis &amp; Stöck</b><span>Each seat announces its Weis in the first trick, and the best one is shown. These are exact facts: bots rule out every imagined deal that contradicts them.</span><code>weis.py · announce.rs</code></li>
+    <li><b>9 tricks</b><span>36 moves in total. Each bot move goes through the pipeline below.</span><code>game.py</code></li>
+    <li><b>Score</b><span>Points × the contract multiplier. The game runs to the target score.</span><code>scoring.py</code></li>
+  </ol>
+
+  <h3>One bot move (~2 s natively)</h3>
+  <ol class="flow move">
+    <li><b>Observation</b><span>Own hand, public history, legal moves, <code>decision_seed</code>. Nothing else, and a fuzz test enforces it.</span><code>observation.py</code></li>
+    <li><b>Hard constraints</b><span>Voids proven by play, shown Weis cards, called Weis values. Worlds that contradict them are dropped, not down-weighted.</span><code>voids.py · belief.rs</code></li>
+    <li><b>Pool of worlds</b><span>4,096 deals of the hidden cards consistent with everything proven.</span><code>determinize.rs</code></li>
+    <li><b>Weights</b><span>Each world weighted by how likely the other seats' plays and bid were under it, using a small learned play model.</span><code>play_policy.json</code></li>
+    <li><b>ISMCTS</b><span>A single search tree shared across all imagined deals: 40 × 3,840 = 153,600 iterations. Inside the tree the other seats move by the play model.</span><code>ismcts.rs</code></li>
+    <li><b>Conventions</b><span>A Swiss convention (a card the partner expects) may replace the search's pick if it scores within 0.01 of the best.</span><code>convention.py</code></li>
+    <li><b>Validate</b><span>The server re-checks the move. If a bot times out, a random legal card is played instead.</span><code>legal.py</code></li>
+  </ol>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<section id="timeline">
+  <h2>2. Timeline</h2>
+  <p>From September 9 to 20. Each shipped improvement below is its measured gain against the
+    bot of the day, in points of a round's share. The steps were measured one at a time against
+    different baselines, so the stacked line is <em>a sum of increments</em>, not one measured total.
+    Trump selection is left out of the stack because it is measured in games won, a different unit.</p>
+  <figure class="chart" id="chart-cumulative"></figure>
+  <div class="legend" id="legend-timeline"></div>
+  <ol class="timeline" id="timeline-list"></ol>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<section id="protocol">
+  <h2>3. Protocol and statistics</h2>
+  <div class="cols">
+    <div>
+      <h3>The unit</h3>
+      <p>The unit is <b>the share of a round's points</b> one agent's team takes, averaged over deals.
+        50% means the two agents are equal, and <b>+1.0</b> is one percentage point of the round's
+        points. Whole-game figures count games won instead. They are about 20 times noisier per
+        sample.</p>
+      <h3>Double rounds, common random numbers</h3>
+      <p>Each deal is played twice with the teams swapped, both times from the <em>same</em> game seed.
+        So the cards and the random numbers are the same for both sides, and only the agents differ.
+        An agent playing itself scores exactly 50% on every deal, and a test checks this.</p>
+    </div>
+    <div>
+      <h3>The test</h3>
+      <pre class="formula">d<sub>i</sub> = s<sub>i</sub> − 0.5
+t = mean(d) / (sd(d) / √n)
+p = 2 · (1 − Φ(|t|))</pre>
+      <p>This is a paired test on per-deal differences. <code>± sd</code> in a table is the
+        <em>per-deal standard deviation</em>, not a standard error. The error bars on this page are
+        95% confidence intervals, <code>1.96 · sd / √n</code>.</p>
+      <h3>Rules adopted after six borderline results died</h3>
+      <ol class="rules">
+        <li>Predict the direction and the mechanism before measuring.</li>
+        <li>Replicate on a fresh seed before anything becomes a default.</li>
+        <li>If a change makes a move more expensive, it must win at equal wall-clock time to ship.</li>
+      </ol>
+    </div>
+  </div>
+  <h3>Power: the smallest effect a run can see</h3>
+  <p class="note">Minimum detectable effect at α = 0.05 with 80% power, ≈ 2.8 · sd / √n, in points
+    of a round's share. This is why effects of a few tenths of a point needed 3,000–6,000 deals.</p>
+  <div class="table-wrap"><table id="power"></table></div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<section id="forest">
+  <h2>4. Every experiment, on one axis</h2>
+  <p>Effect against the bot of the day, in points of a round's share, with 95% confidence intervals.
+    Most of what was tried did nothing. The results that did not ship are kept here on purpose.</p>
+  <div class="legend" id="legend-forest"></div>
+  <figure class="chart" id="chart-forest"></figure>
+  <details><summary>As a table</summary><div class="table-wrap"><table id="forest-table"></table></div></details>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<section id="search">
+  <h2>5. The search</h2>
+  <div class="grid2">
+    <div>
+      <h3>Budget: the shared tree keeps paying</h3>
+      <p class="note">Each budget plays against the same algorithm at 2,400 iterations. The old
+        voting search (a separate tree per imagined deal, then a vote) stopped improving near 2,400.
+        The shared tree keeps improving up to 64 × 2,400 and is flat after that. The bots serve
+        153,600.</p>
+      <figure class="chart" id="chart-budget"></figure>
+      <div class="legend" id="legend-budget"></div>
+    </div>
+    <div>
+      <h3>Splitting a fixed budget</h3>
+      <p class="note">2,400 iterations split between imagined deals and iterations per deal, against 40 × 60.
+        The curve is an inverted U with a broad flat top. Too few worlds is as bad as too little
+        search per world.</p>
+      <figure class="chart" id="chart-split"></figure>
+    </div>
+    <div>
+      <h3>Resampling: a cliff, not a slope</h3>
+      <p class="note">How many iterations share one imagined world before the next is drawn. The
+        gain from ISMCTS is intact at 4 and gone at 8. Shipped: 4.</p>
+      <figure class="chart" id="chart-resample"></figure>
+    </div>
+    <div>
+      <h3>The exact endgame solver: less is better</h3>
+      <p class="note">Handing the last <i>k</i> cards to a perfect-information solver, against
+        <i>k</i> = 5. A perfect solve inside a world that is mostly wrong adds strategy fusion (the
+        search acts as if it knew the hidden cards). Switching the solver off was the largest single
+        gain in the record.</p>
+      <figure class="chart" id="chart-endgame"></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<section id="beliefs">
+  <h2>6. Beliefs: the largest lever</h2>
+  <p>With probability <i>p</i> the search is handed the true deal instead of an imagined one. The
+    curve prices information about the hidden cards: a fifth of an oracle buys a third of the
+    cheater's advantage. Reading the other seats' plays and bid put the shipped bot at about 12% of an
+    oracle, and it landed on the curve in real play. Sharper settings, a larger pool, a belief network
+    and a retrained play model each scored higher offline and measured null in play.</p>
+  <figure class="chart" id="chart-oracle"></figure>
+  <div class="legend" id="legend-oracle"></div>
+  <h3>After the first step, offline gains stopped predicting play</h3>
+  <div class="table-wrap"><table id="belief-table"></table></div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<section id="trump">
+  <h2>7. Trump selection</h2>
+  <p>The selector is linear in its weights. <code>arena/contracts.py</code> priced every contract
+    on 3,000 hands × 16 deals, and <code>arena/fit_trump.py</code> searched the weights on half of the
+    hands and reported the gain on the other half. The result was written to
+    <code>trump_weights.json</code>, which Python and Rust both read.</p>
+  <div class="tiles" id="trump-tiles"></div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<section id="networks">
+  <h2>8. Networks on a CPU: closed</h2>
+  <div class="grid2">
+    <div>
+      <h3>A value network at the leaves</h3>
+      <p class="note">Error of each way to judge a leaf position, measured against how the round
+        actually ended (RMSE, lower is better). The network beats the single random playout a
+        leaf gets, but not the average of the thousands of playouts the search builds, and it is
+        null in play.</p>
+      <figure class="chart" id="chart-rmse"></figure>
+    </div>
+    <div>
+      <h3>A policy network instead of the search</h3>
+      <p class="note">Distilled from 311,756 of the search's decisions and played with no search at
+        all. Share of points against each opponent.</p>
+      <figure class="chart" id="chart-policy"></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<section id="ladder">
+  <h2>9. Ladder and cost</h2>
+  <div class="grid2">
+    <div>
+      <h3>The baseline ladder</h3>
+      <p class="note">Share of points for A against B, 300 deals each, with the same trump
+        selector on both sides, so only card play differs. "Cheating" sees all four hands and is the
+        upper bound. It lives in <code>arena/</code>, never in the served code.</p>
+      <figure class="chart" id="chart-ladder"></figure>
+    </div>
+    <div>
+      <h3>Throughput</h3>
+      <p class="note">Search iterations per second, single core, at the 2,400-iteration benchmark.</p>
+      <figure class="chart" id="chart-throughput"></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<section id="artifacts">
+  <h2>10. The trained files, and when they change</h2>
+  <p>Everything learned lives in <code>krass_jass/data/</code> as JSON and is committed. Rust
+    compiles it in with <code>include_str!</code>, so the browser build needs no file system. Nothing
+    regenerates these files during play, a build or a deploy. Each one changes only when its training
+    script is run by hand and the result is committed.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>file</th><th>written by</th><th>read by</th><th>trained on</th><th>status</th></tr></thead>
+    <tbody>
+      <tr><td><code>trump_weights.json</code></td><td><code>arena/fit_trump.py</code></td><td><code>trump.py</code>, <code>trump.rs</code></td><td>3,000 hands × 16 simulated deals</td><td><span class="tag gain">ships</span></td></tr>
+      <tr><td><code>play_policy.json</code></td><td><code>arena/train_policy.py</code></td><td><code>playmodel.rs</code></td><td id="pp-decisions"></td><td><span class="tag gain">ships</span></td></tr>
+      <tr><td><code>belief_net.json</code></td><td><code>arena/train_belief.py</code></td><td><code>beliefnet.rs</code></td><td id="bn-decisions"></td><td><span class="tag null">off, null in play</span></td></tr>
+      <tr><td><code>value_net.json</code></td><td><code>arena/train_value.py</code></td><td><code>valuenet.rs</code></td><td>untrained placeholder</td><td><span class="tag null">off, kill criterion fired</span></td></tr>
+    </tbody>
+  </table></div>
+  <ol class="flow pipeline">
+    <li><b>Self-play</b><span>The bot plays thousands of rounds against itself and its decisions are saved.</span><code>arena/*_data.py</code></li>
+    <li><b>Fit</b><span>numpy, on the Mac's CPU. Validation loss and top-1 accuracy go into the file's comment.</span><code>arena/train_*.py</code></li>
+    <li><b>Commit</b><span>The JSON is written into <code>krass_jass/data/</code>. The raw training data is not committed.</span><code>git</code></li>
+    <li><b>Rebuild</b><span><code>maturin develop</code> for Python, <code>build-site.sh</code> for the browser. The weights are compiled in.</span><code>rust/</code></li>
+    <li><b>Measure</b><span>An A/B run in the arena with double rounds, then a replication on a fresh seed. The file ships only if both show a gain.</span><code>arena/ab.py</code></li>
+  </ol>
+</section>
+
+<footer class="foot">
+  <p>Sources: <code>docs/engine-report.md</code> (the narrative) and <code>docs/measurements.md</code>
+    (the dated record). Section references such as §5h point to the record. Where the two disagree,
+    the record is right.</p>
+</footer>
+</main>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<script type="module" src="report.js"></script>
+</body>
+</html>

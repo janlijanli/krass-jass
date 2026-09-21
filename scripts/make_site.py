@@ -64,6 +64,7 @@ def asset_version() -> str:
             "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
             "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js",
             "render.js", "solo.js", "engine.js", "krass_jass_core.wasm",
+            "report.html", "report.css", "report.js",
         )
     ):
         path = SITE / name
@@ -83,6 +84,7 @@ def build_index() -> None:
         '<link rel="stylesheet" href="table.css">',
     )
     html = html.replace('<body data-seat="{{ seat }}">', '<body data-seat="0">')
+    html = html.replace('href="/static/report.html"', 'href="report.html"')
     html = html.replace("<title>krass-jass</title>", "<title>krass-jass — offline</title>")
     html = html.replace(
         '<form class="menu menu-mode-panel" id="mode-settings" method="post" action="/new">',
@@ -162,7 +164,15 @@ def build_index() -> None:
 
     # The modules import each other by bare name, so version those too — otherwise solo.js
     # is fresh and everything it pulls in is not.
-    for name in ("solo.js", "render.js", "menu.js", "engine.js", "about.js", "walkthrough.js"):
+    # The engine report is a page of its own; its assets get the same version.
+    report = (SITE / "report.html").read_text()
+    report = report.replace('href="report.css"', f'href="report.css?v={version}"')
+    report = report.replace('src="report.js"', f'src="report.js?v={version}"')
+    (SITE / "report.html").write_text(report)
+
+    for name in (
+        "solo.js", "render.js", "menu.js", "engine.js", "about.js", "walkthrough.js", "report.js",
+    ):
         path = SITE / name
         text = path.read_text()
         for dep in (
@@ -189,6 +199,7 @@ def copy_assets() -> None:
     for name in (
         "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
         "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js",
+        "report.html", "report.css", "report.js",
     ):
         (SITE / name).write_text((ROOT / "web/static" / name).read_text())
     for name in ("engine.js", "solo.js", "README.md"):

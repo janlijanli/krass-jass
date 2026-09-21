@@ -117,6 +117,7 @@ const STRINGS = {
 
     "menu.settings": "Settings",
     "menu.about": "How it works",
+    "menu.report": "Report ↗",
     "menu.gameSettings": "Game settings",
     "menu.note": "Changing these starts a new game.",
     "menu.noteOffline": "Changing these starts a new game. Everything runs in this tab — no server.",
@@ -291,6 +292,7 @@ const STRINGS = {
 
     "menu.settings": "Einstellungen",
     "menu.about": "Wie es funktioniert",
+    "menu.report": "Bericht ↗",
     "menu.gameSettings": "Spieleinstellungen",
     "menu.note": "Änderungen starten ein neues Spiel.",
     "menu.noteOffline": "Änderungen starten ein neues Spiel. Alles läuft in diesem Tab — ohne Server.",
@@ -418,6 +420,7 @@ const STRINGS = {
 
     "menu.settings": "Réglages",
     "menu.about": "Comment ça marche",
+    "menu.report": "Rapport ↗",
     "menu.gameSettings": "Réglages de la partie",
     "menu.note": "Les modifier lance une nouvelle partie.",
     "menu.noteOffline": "Les modifier lance une nouvelle partie. Tout tourne dans cet onglet — sans serveur.",
@@ -592,6 +595,7 @@ const STRINGS = {
 
     "menu.settings": "Impostazioni",
     "menu.about": "Come funziona",
+    "menu.report": "Rapporto ↗",
     "menu.gameSettings": "Impostazioni partita",
     "menu.note": "Modificarle avvia una nuova partita.",
     "menu.noteOffline": "Modificarle avvia una nuova partita. Tutto gira in questa scheda — senza server.",

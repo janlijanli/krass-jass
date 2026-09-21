@@ -550,5 +550,45 @@
       "shipped_change": false
     },
     "lesson": "Oracle-equivalent p predicted the first belief step (+1.31, twice) and has predicted nothing since: +0.031 and +0.034 more both measured null in play."
+  },
+  "tree_policy_shipped": {
+    "measured_on": "2026-09-16",
+    "note": "measurements.md §5p. The other three seats move by the play model inside the tree, equal iterations at the shipped 153,600 on both sides; the A side costs ~11x a move. Ships on in agent.py (server and bot containers); off in the browser build.",
+    "rows": [
+      {"seed": "first", "share": 50.62, "std": 6.16, "deals": 1000, "p": 1.4e-03},
+      {"seed": "fresh", "share": 51.10, "std": 6.52, "deals": 1000, "p": 8.5e-08}
+    ],
+    "pooled": {"share": 50.86, "se": 0.14, "deals": 2000, "p": 1e-09},
+    "shipped": true
+  },
+  "policy_network": {
+    "measured_on": "2026-09-16",
+    "note": "measurements.md §5s. A network trained on the search's visit distributions (311,756 decisions of today's bot), played with no search at all. Both gates missed (70% agreement, within 1% of the search); kept as a fast difficulty level, not a replacement.",
+    "decisions": 311756,
+    "heads": [
+      {"head": "flat, 36 logits", "val_ce": 1.236, "top1": 51.0, "vs_random": 59.94, "vs_greedy": 62.16, "vs_search": {"share": 42.42, "std": 7.36, "deals": 1000, "p": 0.0}},
+      {"head": "conditioned", "val_ce": 1.179, "top1": 60.3, "vs_random": 65.48, "vs_greedy": 67.66, "vs_search": {"share": 45.97, "std": 7.04, "deals": 1000, "p": 0.0}}
+    ],
+    "uniform_ce": 1.296,
+    "ms_per_move": 0.18,
+    "shipped": false
+  },
+  "value_network": {
+    "measured_on": "2026-09-18",
+    "note": "measurements.md §5t. A value network (295 -> 128 -> 64 -> 1) in place of the random playout, trained on 432,000 positions labelled with what actually happened. Kill criterion fired: null in a small search. krass_jass/data/value_net.json ships untrained.",
+    "rmse": [
+      {"estimator": "constant 0.5", "rmse": 0.346},
+      {"estimator": "1 random playout", "rmse": 0.210},
+      {"estimator": "value network", "rmse": 0.188},
+      {"estimator": "4 random playouts", "rmse": 0.159},
+      {"estimator": "16 random playouts", "rmse": 0.143},
+      {"estimator": "64 random playouts", "rmse": 0.139},
+      {"estimator": "256 random playouts", "rmse": 0.137}
+    ],
+    "matches": [
+      {"iterations": 2400, "share": 49.85, "std": 7.58, "deals": 2000, "p": 0.39},
+      {"iterations": 153600, "share": 50.40, "std": 6.96, "deals": 1000, "p": 0.068, "seconds_per_move": 2.64, "baseline_seconds_per_move": 1.68}
+    ],
+    "shipped": false
   }
 }
