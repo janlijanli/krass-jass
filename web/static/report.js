@@ -223,9 +223,23 @@ const EVENTS = [
   { day: 16, kind: "gain", title: "The other seats move by the play model inside the tree", ref: "§5p", path: "tree_policy_shipped.pooled", stack: true },
   { day: 16, kind: "loss", title: "A policy network playing without search", ref: "§5s", path: "policy_network.heads.1.vs_search" },
   { day: 18, kind: "null", title: "A value network at the leaves", ref: "§5t", path: "value_network.matches.0" },
+  { day: 19, kind: "built", title: "Sidi Barrani, a second game mode — auction, stake, doubling; Python, Rust and the browser", ref: "sidi" },
+  { day: 19, kind: "gain", title: "Sidi: reading the auction into the imagined deals", ref: "§5v", sidi: "read_auction" },
+  { day: 19, kind: "loss", title: "Sidi: playing for the bid instead of the cards", ref: "§5v", sidi: "objective" },
+  { day: 19, kind: "null", title: "Sidi: doubling on a simulated estimate vs a stopper count", ref: "§5v", sidi: "double_model" },
   { day: 19, kind: "gain", title: "Swiss conventions, allowed to cost up to 0.01", ref: "§5u", path: "convention_price", aside: (d) => `free, and ${d.convention_price.predictable.toFixed(0)}% conventional` },
   { day: 20, kind: "gain", title: "Play model retrained on self-play with the conventions on", ref: "§5w", pool: "play_model_conventions.runs", stack: true },
+  { day: 20, kind: "loss", title: "Sidi: knocking out of turn", ref: "§5v", sidi: "knock_anytime" },
+  { day: 21, kind: "gain", title: "Sidi: double only below a quarter", ref: "§5v", sidi: "double_below_025", aside: (d) => `replicated at ${signed(sidiRow(d, "double_below_025_rep").diff, 1)}` },
 ];
+
+const sidiRow = (d, key) => d.sidi.rows.find((r) => r.key === key);
+
+/** A Sidi row as an effect in points written a hand, with a 95% interval. */
+function sidiEffect(d, r) {
+  const se = r.sd / Math.sqrt(d.sidi.hands);
+  return { d: r.diff, se, lo: r.diff - 1.96 * se, hi: r.diff + 1.96 * se, n: d.sidi.hands, p: r.p };
+}
 
 function eventEffect(d, ev) {
   if (ev.pool) {
@@ -262,9 +276,9 @@ function renderTimeline(d) {
   }
   lineChart($("chart-cumulative"), {
     w: 720, h: 250,
-    x: { domain: [9, 20.6], ticks: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], fmt: (t) => `Sep ${t}`, label: "2026" },
+    x: { domain: [9, 21.6], ticks: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21], fmt: (t) => `Sep ${t}`, label: "2026" },
     y: { domain: [0, Math.ceil(acc)], ticks: Array.from({ length: Math.ceil(acc) + 1 }, (_, i) => i), fmt: (t) => (t ? `+${t}` : "0"), label: "points" },
-    series: [{ cls: "gain", pts, step: true, stepTo: 20.6, label: `sum of shipped steps ${signed(acc, 1)}` }],
+    series: [{ cls: "gain", pts, step: true, stepTo: 21.6, label: `sum of shipped steps ${signed(acc, 1)}` }],
     aria: "Cumulative shipped gains by date",
   });
   legend($("legend-timeline"), [["gain", "ships"], ["null", "null — measured, no effect"], ["loss", "harmful"], ["built", "built — infrastructure and instruments"]]);
@@ -273,7 +287,9 @@ function renderTimeline(d) {
   $("timeline-list").innerHTML = days.map((day) => {
     const evs = EVENTS.filter((e) => e.day === day).map((ev) => {
       let fx = "";
-      if (ev.games) {
+      if (ev.sidi) {
+        fx = `${signed(sidiRow(d, ev.sidi).diff, 1)} a hand`;
+      } else if (ev.games) {
         const g = get(d, ev.games);
         fx = `${(g.a_wins ?? g.wins).toFixed(1)}% of games`;
       } else {
@@ -520,6 +536,67 @@ function renderLadder(d) {
   });
 }
 
+const SIDI_KIND = { read_auction: "gain", objective: "loss", double_model: "null", knock_anytime: "loss",
+  knock_holds_bid: "loss", double_below_025: "gain", double_below_025_rep: "gain", double_below_015: "null", never_double: "null" };
+
+function renderSidi(d) {
+  const S = d.sidi;
+  const fill = {
+    target: int(S.target_score),
+    samples: int(S.estimate_samples),
+    below: `${Math.round(S.double_below * 100)}%`,
+    protocol: `${int(S.hands)} double hands each at ${int(S.iterations)} iterations, teams swapped, paired test (${S.measured_on}).`,
+  };
+  document.querySelectorAll("[data-sidi]").forEach((el) => { el.textContent = fill[el.dataset.sidi]; });
+
+  const groups = [["gain", "Ships"], ["null", "Measured null"], ["loss", "Harmful — off"]].map(([cls, title]) => ({
+    title: `${tag(cls)} ${title}`,
+    items: S.rows.filter((r) => SIDI_KIND[r.key] === cls).map((r) => {
+      const e = sidiEffect(d, r);
+      return { label: r.a, sub: `vs ${r.b} · ${r.flag} · ${r.when.slice(5).replace("-", ".")}`, cls, v: e.d, lo: e.lo, hi: e.hi,
+        text: signed(e.d, 1), r, e,
+        tip: `<b>${r.a} vs ${r.b}</b><br>${signed(e.d)} points a hand, 95% CI ${signed(e.lo, 1)} to ${signed(e.hi, 1)}<br>written share ${r.share.toFixed(2)}% · ${pEq(r.p)} · ${r.decision}` };
+    }),
+  }));
+  rowChart($("chart-sidi"), {
+    domain: [-16, 40], ticks: [-10, 0, 10, 20, 30, 40], fmtTick: (t) => (t > 0 ? `+${t}` : `${t}`.replace("-", "−")), groups,
+  });
+  legend($("legend-sidi"), [["gain", "ships"], ["null", "null"], ["loss", "harmful, off"]]);
+  $("sidi-table").innerHTML = `<thead><tr><th>A vs B</th><th></th><th class="num">points a hand</th><th class="num">95% CI</th><th class="num">written share</th><th class="num">p</th></tr></thead><tbody>${
+    groups.flatMap((g) => g.items.map((it) => `<tr><td>${it.r.a}<br><small>vs ${it.r.b} · <code>${it.r.flag}</code></small></td><td>${tag(it.cls, it.r.decision)}</td><td class="num">${signed(it.e.d)}</td><td class="num">${signed(it.e.lo, 1)} … ${signed(it.e.hi, 1)}</td><td class="num">${it.r.share.toFixed(2)}%</td><td class="num">${fmtP(it.r.p)}</td></tr>`)).join("")
+  }</tbody>`;
+
+  // Every threshold against the shipped 0.25. The 0.35 comparison was measured the other way
+  // round, twice; pooled here and negated.
+  const a = sidiRow(d, "double_below_025");
+  const b = sidiRow(d, "double_below_025_rep");
+  const pooled = { diff: -(a.diff + b.diff) / 2, sd: Math.sqrt((a.sd ** 2 + b.sd ** 2) / 2) };
+  const se035 = pooled.sd / Math.sqrt(2 * S.hands);
+  const thr = [
+    ["never", sidiEffect(d, sidiRow(d, "never_double")), "null", "never doubling"],
+    ["below 0.15", sidiEffect(d, sidiRow(d, "double_below_015")), "null", "doubling below 0.15"],
+    ["below 0.25", null, "gain", "the shipped threshold"],
+    ["below 0.35", { d: pooled.diff, lo: pooled.diff - 1.96 * se035, hi: pooled.diff + 1.96 * se035, n: 2 * S.hands }, "loss", "the old threshold, two seeds pooled"],
+  ];
+  rowChart($("chart-sidi-double"), {
+    domain: [-10, 5], ticks: [-10, -5, 0, 5], fmtTick: (t) => (t > 0 ? `+${t}` : `${t}`.replace("-", "−")),
+    groups: [{ items: thr.map(([label, e, cls, what]) => e
+      ? { label, sub: what, cls, v: e.d, lo: e.lo, hi: e.hi, text: signed(e.d, 1),
+          tip: `<b>${what}</b><br>${signed(e.d)} points a hand vs 0.25, 95% CI ${signed(e.lo, 1)} to ${signed(e.hi, 1)}, ${int(e.n)} double hands` }
+      : { label, sub: `${what} · reference`, cls, v: 0, text: "0", tip: `<b>${what}</b><br>the reference` }) }],
+  });
+
+  const dp = S.doubling_profile;
+  const tiles = [
+    [signed(sidiRow(d, "read_auction").diff, 1), "points a hand from reading the auction", "an upper bound: the table bids literally"],
+    [`${dp.doubled_estimate}%`, "of auctions doubled on the estimate", `${dp.doubled_stopper_count}% with the stopper count · ${int(dp.auctions)} auctions, at 0.35`],
+    [`${dp.p_make_doubled.toFixed(2)}`, "declarer's own P(make) of the doubled bids", `${dp.p_make_undoubled.toFixed(2)} for the undoubled — the doubles do pick worse bids`],
+    [`${dp.median_bid_doubled}`, "median doubled bid", `${dp.median_bid_undoubled} undoubled; ${S.bidder_profile.median_bid} over ${int(S.bidder_profile.auctions)} bidder-only auctions`],
+  ];
+  $("sidi-tiles").innerHTML = tiles.map(([v, l, sub]) =>
+    `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div><div class="s">${sub}</div></div>`).join("");
+}
+
 function renderArtifacts(d) {
   $("pp-decisions").textContent = `${int(d.play_model.decisions)} decisions · top-1 ${d.play_model.top1}%`;
   $("bn-decisions").textContent = `${int(d.belief_network.more_data.decisions)} decisions`;
@@ -538,7 +615,7 @@ async function main() {
     document.querySelector(".lede").insertAdjacentHTML("afterend", `<p><b>Could not load ${DATA_URL}.</b> ${err}</p>`);
     return;
   }
-  for (const fn of [renderHeader, renderTimeline, renderForest, renderSearch, renderBeliefs, renderTrump, renderNetworks, renderLadder, renderArtifacts]) {
+  for (const fn of [renderHeader, renderTimeline, renderForest, renderSearch, renderBeliefs, renderTrump, renderNetworks, renderLadder, renderSidi, renderArtifacts]) {
     try { fn(d); } catch (err) { console.error(fn.name, err); }
   }
 }

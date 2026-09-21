@@ -590,5 +590,37 @@
       {"iterations": 153600, "share": 50.40, "std": 6.96, "deals": 1000, "p": 0.068, "seconds_per_move": 2.64, "baseline_seconds_per_move": 1.68}
     ],
     "shipped": false
+  },
+  "sidi": {
+    "measured_on": "2026-09-19 – 2026-09-21",
+    "note": "measurements.md §5v, docs/sidi-plan.md. Sidi Barrani, the second game mode: the Schieber protocol for a Sidi hand (arena/sidi_ab.py) — every hand twice with the teams swapped on one seed, a paired test — in points written a hand (cards plus the stake), A's team minus B's. 1,000 double hands each at 38,400 iterations. 'sd' is the per-hand standard deviation of the difference.",
+    "unit": "points written a hand",
+    "iterations": 38400,
+    "hands": 1000,
+    "rows": [
+      {"key": "read_auction", "when": "2026-09-19", "a": "reading the auction", "b": "not reading it", "flag": "sidi_alpha 1 vs 0", "diff": 32.02, "sd": 109.4, "share": 55.10, "p": 0.0, "decision": "on"},
+      {"key": "objective", "when": "2026-09-19", "a": "playing for the bid", "b": "playing for the cards", "flag": "sidi_objective", "diff": -5.14, "sd": 73.9, "share": 49.15, "p": 0.028, "decision": "off"},
+      {"key": "double_model", "when": "2026-09-19", "a": "doubling on an estimate", "b": "a stopper count", "flag": "sidi_double_model", "diff": -0.18, "sd": 80.3, "share": 49.97, "p": 0.94, "decision": "on (null)"},
+      {"key": "knock_anytime", "when": "2026-09-20", "a": "knocking out of turn", "b": "only on turn", "flag": "sidi_knock_anytime", "diff": -7.61, "sd": 59.0, "share": 48.74, "p": 4.5e-05, "decision": "off"},
+      {"key": "knock_holds_bid", "when": "2026-09-20", "a": "out of turn, only with nothing left to bid", "b": "only on turn", "flag": "sidi_knock_holds_bid", "diff": -11.08, "sd": 67.1, "share": 48.14, "p": 1.8e-07, "decision": "off"},
+      {"key": "double_below_025", "when": "2026-09-21", "a": "doubling below 0.25", "b": "below 0.35", "flag": "sidi_double_below", "diff": 4.93, "sd": 54.0, "share": 50.84, "p": 0.0039, "decision": "ships"},
+      {"key": "double_below_025_rep", "when": "2026-09-21", "a": "doubling below 0.25, seed 80", "b": "below 0.35", "flag": "sidi_double_below", "diff": 7.14, "sd": 58.2, "share": 51.19, "p": 1.0e-04, "decision": "ships"},
+      {"key": "double_below_015", "when": "2026-09-21", "a": "doubling below 0.15", "b": "below 0.25", "flag": "sidi_double_below", "diff": 1.73, "sd": 44.1, "share": 50.30, "p": 0.21, "decision": "null"},
+      {"key": "never_double", "when": "2026-09-21", "a": "never doubling", "b": "below 0.25", "flag": "sidi_double_below", "diff": 0.33, "sd": 69.5, "share": 50.06, "p": 0.88, "decision": "null"}
+    ],
+    "doubling_profile": {
+      "auctions": 600,
+      "doubled_estimate": 36,
+      "doubled_stopper_count": 3,
+      "p_make_doubled": 0.46,
+      "p_make_undoubled": 0.61,
+      "median_bid_doubled": 110,
+      "median_bid_undoubled": 90,
+      "note": "Measured with the 0.35 threshold that §5v later replaced by 0.25."
+    },
+    "bidder_profile": {"auctions": 3000, "thrown_in": 0, "doubled_stopper_count": 3, "median_bid": 100},
+    "estimate_samples": 1200,
+    "double_below": 0.25,
+    "target_score": 2000
   }
 }

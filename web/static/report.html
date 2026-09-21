@@ -16,8 +16,9 @@
   <p class="lede">A statistical account of the Schieber bots: what happens during a round and during a
     single move, when each part was built, and the measurement behind every default. Every figure on
     this page is read from <code>docs/measurements.json</code>. None of them are typed into the page, so
-    re-measuring updates the page. It covers Schieber. Sidi Barrani, the second game mode, is measured
-    in points a hand and is recorded in <code>docs/measurements.md</code> §5v.</p>
+    re-measuring updates the page. Sections 1–10 are the Schieber. Section 11 covers
+    <a href="#sidi">Sidi Barrani</a>, the second game mode, which has its own auction and scoring and
+    is measured in its own unit.</p>
   <p class="meta" id="meta"></p>
   <div class="tiles" id="tiles"></div>
 </header>
@@ -32,6 +33,7 @@
   <a href="#trump">Trump</a>
   <a href="#networks">Networks</a>
   <a href="#ladder">Ladder &amp; cost</a>
+  <a href="#sidi">Sidi Barrani</a>
   <a href="#artifacts">Trained files</a>
 </nav>
 
@@ -224,8 +226,95 @@ p = 2 · (1 − Φ(|t|))</pre>
 </section>
 
 <!-- ─────────────────────────────────────────────────────────────── -->
+<section id="sidi">
+  <h2>11. Sidi Barrani</h2>
+  <p>Sidi Barrani is the second game mode. The tricks are played exactly as in the Schieber, but
+    trump is not chosen by one seat: the four seats bid for it. The highest bid names the contract and
+    how many points its team promises to take. That promise is a <b>stake</b>. The bots use the same
+    search and the same play model as in the Schieber. What is new is bidding, reading the other
+    seats' bids, and deciding when to double.</p>
+
+  <div class="cols">
+    <div>
+      <h3>The rules, in short</h3>
+      <ul class="rules">
+        <li><b>Auction.</b> Bids from 40 to 150 in tens, then 157 (every card point) and 257 (Match).
+          Every contract counts ×1, and there is no order among contracts: Hearts 100 beats
+          Spades 90.</li>
+        <li><b>Doubling.</b> Only the declarers' opponents may double, at any time until the second
+          card of the first trick is played. A double ends the auction. There is no redouble.</li>
+        <li><b>Scoring.</b> Both teams write their card points. The bid is written on top as a bonus:
+          by the declarers if they reach it, by the opponents if they do not. A double doubles the
+          bonus.</li>
+        <li>No Weis and no Stöck. The game is played to <span data-sidi="target"></span>, and the
+          declarer deals the next hand.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>What a hand is worth</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>hand</th><th class="num">declarers</th><th class="num">opponents</th></tr></thead>
+        <tbody>
+          <tr><td>Hearts 100, made with 113</td><td class="num">113 + 100</td><td class="num">44</td></tr>
+          <tr><td>Hearts 120 doubled, 113 taken</td><td class="num">113</td><td class="num">44 + 240</td></tr>
+          <tr><td>Match (257) made</td><td class="num">257 + 257</td><td class="num">0</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">From <code>docs/rules-config.md</code>. A failed bid gives its whole stake to the
+        other team, so a single hand can swing by several hundred points.</p>
+    </div>
+  </div>
+
+  <h3>A Sidi hand, and what the bots do at each step</h3>
+  <ol class="flow move">
+    <li><b>Deal</b><span>The same deal as in the Schieber. The seat to the dealer's right calls first.</span><code>deal.py</code></li>
+    <li><b>Bid</b><span>A shared bidding language. For a trump bid, odd tens mean the <i>Bauer</i> (trump jack) plus 1–4 more trumps, and even tens mean the <i>Nell</i> (trump nine) without the Bauer. Obenabe/Undenufe bids count aces/sixes. A partner supports by bidding again.</span><code>sidi_bidding.py · .rs</code></li>
+    <li><b>Read the auction</b><span>Each bid is a statement about the bidder's hand. Imagined deals that contradict it are down-weighted, never removed, because a bid can be a bluff.</span><code>sidi_read.rs</code></li>
+    <li><b>Double?</b><span>Deal the unseen cards <span data-sidi="samples"></span> times, weighted by the auction, and play each deal out with the play model. Double when the declarers make their bid in fewer than <span data-sidi="below"></span> of them.</span><code>sidi_estimate.rs</code></li>
+    <li><b>Play 9 tricks</b><span>The Schieber's search. It plays for a share of the card points, not for the bid, because playing for the bid measured worse.</span><code>ismcts.rs</code></li>
+    <li><b>Write</b><span>Card points plus the stake, doubled if someone doubled.</span><code>scoring.py</code></li>
+  </ol>
+
+  <h3>Every Sidi experiment</h3>
+  <p class="note">A against B, in <b>points written per hand</b>: A's team minus B's, card points
+    plus the stake, with 95% confidence intervals. These numbers cannot be compared with the
+    Schieber's share of points above. <span data-sidi="protocol"></span></p>
+  <div class="legend" id="legend-sidi"></div>
+  <figure class="chart" id="chart-sidi"></figure>
+  <details><summary>As a table</summary><div class="table-wrap"><table id="sidi-table"></table></div></details>
+
+  <div class="grid2">
+    <div>
+      <h3>Doubling: the threshold was the lever</h3>
+      <p class="note">The value of each doubling threshold relative to the shipped 0.25, in points
+        per hand. Stricter than 0.25 makes no measurable difference, and never doubling at all is
+        also indistinguishable from it. The only thing that mattered was to stop making the bad
+        doubles.</p>
+      <figure class="chart" id="chart-sidi-double"></figure>
+    </div>
+    <div>
+      <h3>How often the bots double</h3>
+      <div class="tiles" id="sidi-tiles"></div>
+    </div>
+  </div>
+
+  <h3>What these numbers do and do not show</h3>
+  <ul class="rules">
+    <li><b>Reading the auction</b> is the largest effect the project has measured. But every seat at
+      the arena table bids the language literally, so a bid there is nearly the truth, and the B arm
+      also doubled without reading the auction. The figure is an upper bound on what a human
+      partner's bids are worth, not a measurement of it.</li>
+    <li><b>Knocking out of turn</b> (doubling the moment an opponent bids) loses. A double ends the
+      auction, and these bots already double too often. The player still has the button, because the
+      rule allows it at a real table.</li>
+    <li><b>Where the bots lose most</b> is bidding numbers the opponents can punish. A hand evaluator
+      that prices each contract by simulation is the next step in <code>docs/sidi-plan.md</code>.</li>
+  </ul>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
 <section id="artifacts">
-  <h2>10. The trained files, and when they change</h2>
+  <h2>12. The trained files, and when they change</h2>
   <p>Everything learned lives in <code>krass_jass/data/</code> as JSON and is committed. Rust
     compiles it in with <code>include_str!</code>, so the browser build needs no file system. Nothing
     regenerates these files during play, a build or a deploy. Each one changes only when its training
