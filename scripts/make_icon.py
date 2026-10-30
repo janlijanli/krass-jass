@@ -1,4 +1,4 @@
-"""The app icon: two cards on the felt, the front one a heart.
+"""The app icon: four cards fanned in the hand, one of each suit, on the felt.
 
 Drawn from signed distance functions and written as PNG with the standard library, so the
 build needs no image tooling and no binary sits in git. Antialiasing comes from the
@@ -15,36 +15,72 @@ import math
 import struct
 import zlib
 
-FELT = (0x1D, 0x5B, 0x45)
-FELT_DARK = (0x16, 0x44, 0x2F)
-PAPER = (0xFB, 0xFA, 0xF7)
-GOLD = (0xD8, 0xB4, 0x5A)
-RED = (0xB6, 0x21, 0x2C)
+FELT = (0x1F, 0x5C, 0x49)
+FELT_DARK = (0x0B, 0x28, 0x1F)
+PAPER = (0xFD, 0xFB, 0xF6)
+RED = (0xC0, 0x26, 0x2F)
+BLACK = (0x1B, 0x1B, 0x1B)
 EDGE = (0x9A, 0x96, 0x8C)
 
+# The fan: each card turns about a point below the hand, like cards held in one hand.
+# Red and black alternate, as in the app's own hand.
+PIVOT = (0.5, 0.9)
+FAN = [("C", -24.0), ("D", -8.0), ("S", 8.0), ("H", 24.0)]
+CARD = dict(cx=0.5, cy=0.47, hw=0.14, hh=0.205, r=0.024)
+# Each card shows its suit where a hand is read: the top-left corner, the one strip the next
+# card leaves uncovered. The front card also carries a large pip in the middle.
+CORNER = (CARD["cx"] - CARD["hw"] + 0.052, CARD["cy"] - CARD["hh"] + 0.068)
+CORNER_SIZE = 0.042
+PIP = (CARD["cx"] + 0.012, CARD["cy"] + 0.01)
+PIP_SIZE = 0.08
 
-def _rounded_box(x: float, y: float, cx: float, cy: float, hw: float, hh: float,
-                 r: float, angle: float) -> float:
-    """Distance to a rounded rectangle rotated by `angle` radians about its centre."""
-    c, s = math.cos(angle), math.sin(angle)
-    px, py = x - cx, y - cy
-    px, py = c * px + s * py, -s * px + c * py
+
+def _box(px: float, py: float, hw: float, hh: float, r: float) -> float:
+    """Distance to a rounded rectangle centred on the origin."""
     qx, qy = abs(px) - hw + r, abs(py) - hh + r
-    outside = math.hypot(max(qx, 0.0), max(qy, 0.0))
-    return outside + min(max(qx, qy), 0.0) - r
+    return math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - r
 
 
-def _heart(x: float, y: float, cx: float, cy: float, a: float, angle: float) -> float:
-    """Distance to a heart: a square stood on its corner, with a circle on each upper side."""
-    c, s = math.cos(angle), math.sin(angle)
-    px, py = x - cx, y - cy
-    px, py = c * px + s * py, -s * px + c * py + 0.073 * a  # centre the shape's height
+def _convex(px: float, py: float, points: list[tuple[float, float]]) -> float:
+    """Distance (exact enough to antialias) to a convex polygon, points clockwise on screen."""
+    d = -math.inf
+    for (ax, ay), (bx, by) in zip(points, points[1:] + points[:1]):
+        nx, ny = by - ay, ax - bx
+        length = math.hypot(nx, ny)
+        d = max(d, ((px - ax) * nx + (py - ay) * ny) / length)
+    return d
+
+
+def _heart(px: float, py: float, a: float) -> float:
+    """A square stood on its corner with a circle on each upper side, centred on the origin."""
+    py += 0.073 * a
     k = a / (2 * math.sqrt(2))
     d = min(math.hypot(px + k, py + k), math.hypot(px - k, py + k)) - a / 2
     rx, ry = (px + py) / math.sqrt(2), (py - px) / math.sqrt(2)
     qx, qy = abs(rx) - a / 2, abs(ry) - a / 2
-    square = math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0)
-    return min(d, square)
+    return min(d, math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0))
+
+
+def _pip(suit: str, px: float, py: float, s: float) -> float:
+    """The four suits, in the same silhouettes as the app's cards (cards.js), size `s`."""
+    if suit == "H":
+        return _heart(px, py, 1.25 * s)
+    if suit == "D":
+        w, h = 0.74 * s, s
+        return (abs(px) * h + abs(py) * w - w * h) / math.hypot(w, h)
+    if suit == "S":
+        blade = _heart(px, -(py + 0.28 * s), 0.98 * s)      # a heart turned over
+        stem = _convex(px, py, [(0.0, 0.2 * s), (0.34 * s, s), (-0.34 * s, s)])
+        return min(blade, stem)
+    # C: three lobes that do not touch, and a stem that flares at its foot
+    r = 0.36 * s
+    lobes = min(
+        math.hypot(px, py + 0.6 * s) - r,
+        math.hypot(px + 0.58 * s, py - 0.12 * s) - r,
+        math.hypot(px - 0.58 * s, py - 0.12 * s) - r,
+    )
+    stem = _convex(px, py, [(0.0, -0.25 * s), (0.32 * s, s), (-0.32 * s, s)])
+    return min(lobes, stem)
 
 
 def _over(base: tuple[float, ...], top: tuple[int, ...], alpha: float) -> tuple[float, ...]:
@@ -58,8 +94,7 @@ def _cover(distance: float, pixel: float) -> float:
 def render(size: int) -> bytes:
     """The icon at `size` x `size`, as PNG bytes."""
     pixel = 1.0 / size
-    back = dict(cx=0.42, cy=0.53, hw=0.165, hh=0.235, r=0.03, angle=math.radians(-14))
-    front = dict(cx=0.57, cy=0.49, hw=0.165, hh=0.235, r=0.03, angle=math.radians(9))
+    turns = [(suit, math.cos(math.radians(a)), math.sin(math.radians(a))) for suit, a in FAN]
     rows = bytearray()
     for j in range(size):
         rows.append(0)  # PNG filter type: none
@@ -69,15 +104,20 @@ def render(size: int) -> bytes:
             t = min(math.hypot((x - 0.5) / 1.2, y / 0.9), 1.0)
             colour: tuple[float, ...] = _over(FELT, FELT_DARK, t)
 
-            d = _rounded_box(x, y, **back)
-            colour = _over(colour, EDGE, _cover(d, pixel))
-            colour = _over(colour, GOLD, _cover(d + 0.006, pixel))
-            colour = _over(colour, PAPER, _cover(abs(d + 0.03) - 0.004, pixel))
-
-            d = _rounded_box(x, y, **front)
-            colour = _over(colour, EDGE, _cover(d, pixel))
-            colour = _over(colour, PAPER, _cover(d + 0.006, pixel))
-            colour = _over(colour, RED, _cover(_heart(x, y, 0.57, 0.49, 0.13, front["angle"]), pixel))
+            for suit, c, s in turns:
+                # Into the card's own frame: turn the pixel back about the pivot.
+                dx, dy = x - PIVOT[0], y - PIVOT[1]
+                lx, ly = PIVOT[0] + c * dx + s * dy, PIVOT[1] - s * dx + c * dy
+                d = _box(lx - CARD["cx"], ly - CARD["cy"], CARD["hw"], CARD["hh"], CARD["r"])
+                if d > pixel:
+                    continue
+                colour = _over(colour, EDGE, _cover(d, pixel))
+                colour = _over(colour, PAPER, _cover(d + 0.005, pixel))
+                ink = RED if suit in "HD" else BLACK
+                pip = _pip(suit, lx - CORNER[0], ly - CORNER[1], CORNER_SIZE)
+                if suit == FAN[-1][0]:
+                    pip = min(pip, _pip(suit, lx - PIP[0], ly - PIP[1], PIP_SIZE))
+                colour = _over(colour, ink, _cover(pip, pixel))
 
             rows.extend(round(c) for c in colour)
 

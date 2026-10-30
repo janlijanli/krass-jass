@@ -900,6 +900,23 @@ export function rollNames() {
   }
 }
 
+/** The names and titles at the table, for a saved game to carry. */
+export function tableIdentity() {
+  return { names: tableNames, titles: aiTitles };
+}
+
+/** Put a saved game's faces back at the table. */
+export function restoreIdentity({ names, titles } = {}) {
+  if (Array.isArray(names) && names.length === 3) tableNames = names;
+  if (Array.isArray(titles) && titles.length === 3) aiTitles = titles;
+  try {
+    sessionStorage.setItem(NAMES_KEY, JSON.stringify(tableNames));
+    sessionStorage.setItem(TITLES_KEY, JSON.stringify(aiTitles));
+  } catch {
+    /* fine: they are in memory */
+  }
+}
+
 /** A seat's name alone: "Sepp". You are "you". */
 function seatShort(view, seat) {
   // Anticlockwise: the next seat to play is to your right.

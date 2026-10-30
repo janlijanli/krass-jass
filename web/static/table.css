@@ -1202,3 +1202,6 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
   max-width: min(110px, 28vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .seat-marker.north span { max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* New game and Settings side by side at the right of the status bar. */
+.statusbar-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; }

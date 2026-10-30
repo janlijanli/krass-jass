@@ -118,6 +118,7 @@ const STRINGS = {
     "score.final": "Final score",
     "score.nextRound": "Next round",
     "score.newGame": "New game",
+    "menu.newGameConfirm": "Start a new game? The current one ends.",
 
     "tafel.title": "Jasstafel",
     "tafel.empty": "Nothing on the board yet — it fills in as rounds finish.",
@@ -301,6 +302,7 @@ const STRINGS = {
     "score.final": "Schlussresultat",
     "score.nextRound": "Nächste Runde",
     "score.newGame": "Neues Spiel",
+    "menu.newGameConfirm": "Neues Spiel starten? Das laufende Spiel endet.",
 
     "tafel.title": "Jasstafel",
     "tafel.empty": "Noch nichts auf der Tafel — sie füllt sich mit jeder Runde.",
@@ -437,6 +439,7 @@ const STRINGS = {
     "score.final": "Score final",
     "score.nextRound": "Manche suivante",
     "score.newGame": "Nouvelle partie",
+    "menu.newGameConfirm": "Commencer une nouvelle partie ? La partie en cours se termine.",
 
     "tafel.title": "Jasstafel",
     "tafel.empty": "Rien encore au tableau — il se remplit au fil des manches.",
@@ -620,6 +623,7 @@ const STRINGS = {
     "score.final": "Punteggio finale",
     "score.nextRound": "Mano successiva",
     "score.newGame": "Nuova partita",
+    "menu.newGameConfirm": "Iniziare una nuova partita? Quella in corso finisce.",
 
     "tafel.title": "Jasstafel",
     "tafel.empty": "Ancora niente sulla lavagna — si riempie a ogni mano.",

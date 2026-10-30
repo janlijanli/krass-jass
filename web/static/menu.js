@@ -154,6 +154,14 @@ export function initMenu({
 
   opener.addEventListener("click", open);
   document.getElementById("settings-open").addEventListener("click", open);
+
+  // Start over with the settings as they are. Asks first: a game is easy to lose and there is
+  // no way back to it.
+  document.getElementById("new-game")?.addEventListener("click", () => {
+    if (window.confirm(t("menu.newGameConfirm"))) {
+      document.querySelector("#mode-settings")?.requestSubmit();
+    }
+  });
   document.getElementById("menu-close").addEventListener("click", close);
   document.getElementById("menu-x").addEventListener("click", close);
   menu.addEventListener("click", (e) => {

@@ -11,7 +11,9 @@
  */
 
 import { loadEngine, CARD_INDEX } from "./engine.js";
-import { render, setSender, speak, setBeliefDisplay, rollNames } from "./render.js";
+import {
+  render, setSender, speak, setBeliefDisplay, rollNames, tableIdentity, restoreIdentity,
+} from "./render.js";
 import { initMenu, adviceOn, talkOn, beliefsOn, overlayOn } from "./menu.js";
 import { maybeSay, resetTalk } from "./talk.js";
 
@@ -51,6 +53,68 @@ const engine = await loadEngine();
 let handle = null;
 let acked = 0;
 let busy = false;
+
+/* Resume.
+ *
+ * The whole game lives in this tab's memory, so closing the app used to lose it. Now the game
+ * is saved as what it takes to rebuild it: the seed, the settings, and every move that changed
+ * it, in order — the bots' moves as they were made, not re-decided. On launch the engine deals
+ * the same seed and the moves are replayed, which lands on exactly the same position, a trick
+ * half-played included. Kept in localStorage, which survives the app being killed.
+ *
+ * A move that no longer replays (an update changed a rule) drops the save and deals afresh:
+ * a wrong game is worse than a new one.
+ */
+const SAVE_KEY = "kj_game";
+let journal = null;
+
+const MUTATORS = ["bid", "chooseWeis", "play", "nextRound", "call", "double"];
+for (const name of MUTATORS) {
+  const apply = engine[name];
+  engine[name] = (h, ...args) => {
+    const ok = apply(h, ...args);
+    if (ok && journal) journal.moves.push([name, ...args]);
+    return ok;
+  };
+}
+
+function save() {
+  if (!journal) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      ...journal, acked, knockDeclined, botsKnockedKey, ...tableIdentity(),
+    }));
+  } catch {
+    /* storage full or blocked: the game goes on, it just will not survive a restart */
+  }
+}
+
+/** Rebuild the saved game, if there is one that still replays. */
+function resume() {
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
+  } catch {
+    saved = null;
+  }
+  if (!saved || typeof saved.seed !== "number" || !Array.isArray(saved.moves)) return false;
+  const restored = engine.newGame({ seed: saved.seed, ...saved.settings });
+  journal = { seed: saved.seed, settings: saved.settings, moves: [] };
+  for (const [name, ...args] of saved.moves) {
+    if (!MUTATORS.includes(name) || !engine[name](restored, ...args)) {
+      engine.free(restored);
+      journal = null;
+      return false;
+    }
+  }
+  if (handle !== null) engine.free(handle);
+  handle = restored;
+  acked = saved.acked ?? 0;
+  knockDeclined = saved.knockDeclined ?? null;
+  botsKnockedKey = saved.botsKnockedKey ?? null;
+  restoreIdentity(saved);
+  return true;
+}
 
 // Sidi: the last knock the player let pass, as "round|calls", so each opposing bid asks once.
 let knockDeclined = null;
@@ -110,6 +174,7 @@ function draw() {
   }
   v.advice = key !== null && key === adviceKey ? advice : [];
   render(v);
+  save();                              // every change is drawn, so every change is saved
 
   if (key === null || key === adviceKey || advicePending) return;
   advicePending = true;
@@ -137,7 +202,9 @@ function newGame() {
   acked = 0;
   knockDeclined = null;
   botsKnockedKey = null;
-  handle = engine.newGame({ seed: Math.floor(Math.random() * 2 ** 48), ...settings() });
+  const seed = Math.floor(Math.random() * 2 ** 48);
+  journal = { seed, settings: settings(), moves: [] };
+  handle = engine.newGame({ seed, ...journal.settings });
   draw();
   drive();
 }
@@ -283,7 +350,13 @@ initMenu({
   onOverlayChange: () => { syncBeliefs(); draw(); },
 });
 
-newGame();
+// Pick up where the last session left off; deal a new game only if there is nothing to resume.
+if (resume()) {
+  draw();
+  drive();
+} else {
+  newGame();
+}
 
 // Offline play and "Add to Home Screen". Optional: a browser without service workers, or a
 // page opened from file://, simply plays online-only.
