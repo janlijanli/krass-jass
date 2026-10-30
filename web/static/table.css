@@ -97,10 +97,14 @@ body {
 .score .value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; display: inline-block; }
 .score.them .value { color: #f3efe6; }
 .score.us .value { color: var(--gold); }
-.meta { text-align: center; }
+/* The contract pill may wrap rather than widen the row: "♠ Schaufel 110 gedoppelt" is wider
+   than the room between the scores on a phone, and a flex row that cannot shrink pushed the
+   whole page past the screen edge. The radius stays a pill on one line and a soft box on two. */
+.meta { text-align: center; min-width: 0; }
 .contract {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 11px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: 0 5px;
+  padding: 3px 11px; border-radius: 14px;
   background: rgba(220, 184, 98, .16);
   border: 1px solid rgba(220, 184, 98, .38);
   font-size: 14px; font-weight: 700;
