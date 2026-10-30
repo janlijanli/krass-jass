@@ -1,6 +1,6 @@
 {
-  "name": "krass-jass",
-  "short_name": "Jass",
+  "name": "Krass Jass",
+  "short_name": "Krass Jass",
   "description": "Schieber Jass against three bots. Runs entirely on the device, no server.",
   "start_url": "./",
   "scope": "./",
