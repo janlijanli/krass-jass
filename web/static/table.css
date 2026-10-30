@@ -12,6 +12,12 @@
      picks light or dark text from it; with none set it painted white. This makes the bar the
      same green as the row below it. Keep in step with theme-color in scripts/make_site.py. */
   --chrome: #164033;
+  /* Room under the status bar in the installed app. Current iOS blurs and fades whatever sits
+     just below the status bar, and a web page cannot turn that off — but a blur over a plain
+     strip of one colour shows nothing. So the controls start this far down, and the strip
+     above them is the score row's own plain colour. Zero in a browser tab, which has no such
+     effect. */
+  --top-gap: 0px;
   --ink: #14201c;
   --paper: #fdfbf6;
   --line: rgba(0, 0, 0, .14);
@@ -31,6 +37,10 @@
   --card-h: 92px;
   --overlap: -30px;      /* how far each card tucks under the previous one */
   --lift: -18px;
+}
+
+@media (display-mode: standalone) {
+  :root { --top-gap: 22px; }
 }
 
 * { box-sizing: border-box; }
@@ -64,7 +74,7 @@ body {
   min-height: 100dvh;
   max-width: 720px;
   margin: 0 auto;
-  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  padding: calc(env(safe-area-inset-top) + var(--top-gap)) 0 env(safe-area-inset-bottom);
 }
 
 /* ---------- scoreboard ---------- */
@@ -503,7 +513,7 @@ body {
 /* ---------- settings menu ---------- */
 
 .hamburger {
-  position: absolute; top: calc(env(safe-area-inset-top) + 9px); left: 10px; z-index: 15;
+  position: absolute; top: calc(env(safe-area-inset-top) + var(--top-gap) + 9px); left: 10px; z-index: 15;
   width: 34px; height: 30px; padding: 6px 5px;
   display: grid; gap: 4px; align-content: center;
   appearance: none; border: none; background: transparent; cursor: pointer;
@@ -930,7 +940,7 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
    reaches the engine and the bots decide exactly as they did before. */
 .ai-btn {
   position: fixed;
-  top: calc(env(safe-area-inset-top) + 9px); right: 10px;
+  top: calc(env(safe-area-inset-top) + var(--top-gap) + 9px); right: 10px;
   z-index: 16;
   display: flex; align-items: center; gap: 6px;
   font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .08em;
@@ -986,7 +996,7 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
 
 .ai-banner {
   position: fixed;
-  top: calc(env(safe-area-inset-top) + 46px); right: 10px;
+  top: calc(env(safe-area-inset-top) + var(--top-gap) + 46px); right: 10px;
   z-index: 17;
   max-width: min(240px, 62vw);
   padding: 9px 12px; border-radius: 10px;
