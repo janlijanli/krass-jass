@@ -7,19 +7,22 @@
  *
  *   ┌───────────────────────────┐
  *   │  ╷ ╷ ╷                    │   ← their half, rotated 180°
- *   │  / /                      │
+ *   │  X /                      │
  *   │  │ │ │                 0  │      (their hundreds, and the remainder)
  *   ├─── 790 ──── 2500 ─── 1119 ┤   ← totals either side, target in the middle
- *   │  │ │ │ │ │                │   ← your hundreds
- *   │  ─────────╱──── / /       │      (a full line of five is struck through)
+ *   │  ┼┼┼┼  │ │                │   ← your hundreds: a five is four, struck through by a "\"
+ *   │  X X /                    │   ← your fifties: two of them cross into an X
  *   │  ╷ ╷                   9  │   ← your twenties, and the remainder
  *   └───────────────────────────┘
  *
  * **One denomination per line.** Hundreds on their own line, then the fifties, then the
  * twenties — never mixed along one row, because a row of `│ │ X` is read as a quantity of
- * something and the eye has to stop and re-sort it. Each line holds five before it is struck
- * through and continued below, which is the bundling rule the notation calls for
- * (jassverzeichnis.ch/schreiben-jassen-uebersicht).
+ * something and the eye has to stop and re-sort it.
+ *
+ * **Counted in bundles.** Hundreds and twenties are tallied in fives: four uprights, and the
+ * fifth a backslash across them — so a glance counts bundles, not strokes. Fifties are
+ * counted in pairs: one is a slash, the second crosses it into an X. That is the bundling
+ * the notation calls for (jassverzeichnis.ch/schreiben-jassen-uebersicht).
  *
  * Marks accumulate round by round and are never redrawn — see `accumulate`.
  *
@@ -44,9 +47,9 @@ const svg = (tag, attrs = {}) => {
  * identical vertical lines with no way to tell 140 from 400. Height and shape now carry the
  * value, not stroke count:
  *
- *   100  a full-height upright
- *    50  a single slash — one stroke per fifty, as on a real board; a cross reads as two
- *    20  a short tick on the baseline
+ *   100  a full-height upright, five as four struck through by a backslash
+ *    50  a slash; a second fifty crosses it into an X
+ *    20  a short tick on the baseline, bundled in fives like the hundreds
  *
  * Changing the notation is changing this table, not the drawing code.
  */
@@ -56,8 +59,15 @@ export const MARKS = [
   { value: 20, glyph: "tick" },
 ];
 
-/** Marks per row before it is struck through. */
-export const PER_ROW = 5;
+/** A tally bundle: four strokes and the fifth struck across them. */
+export const BUNDLE = 5;
+/** Bundles of five on one line before it continues below. */
+const BUNDLES_PER_LINE = 2;
+/** Crosses (two fifties each) on one line. */
+const CROSSES_PER_LINE = 6;
+
+/** How many marks of one kind fit on a line. */
+const perLine = (glyph) => (glyph === "slash" ? CROSSES_PER_LINE * 2 : BUNDLES_PER_LINE * BUNDLE);
 
 /** Break one amount into marks, largest first. The leftover under 20 is written as a number. */
 export function decompose(score) {
@@ -145,35 +155,55 @@ function text(x, y, content, cls, seed = 0) {
   return t;
 }
 
-const MARK_W = 16;
+const MARK_W = 14;
 const MARK_H = 24;
 const ROW_H = 36;
+const BUNDLE_GAP = 16;
+const CROSS_W = 22;
 
-/** One mark: full-height upright for 100, a slash for 50, a short tick for 20. */
-function drawMark(g, glyph, x, y, seed) {
-  const top = y;
-  const bottom = y + MARK_H;
-  if (glyph === "slash") {
-    g.append(line(x - 6, bottom, x + 6, top, seed));
-  } else if (glyph === "tick") {
-    g.append(line(x, bottom - MARK_H * 0.45, x, bottom, seed));
-  } else {
-    g.append(line(x, top, x, bottom, seed));
-  }
-}
+/** Where a stroke of this kind starts: hundreds stand full height, twenties are short. */
+const strokeTop = (glyph, y) => (glyph === "tick" ? y + MARK_H * 0.55 : y);
 
-/** Lines one denomination takes: always one, more only once it runs past five. */
-function linesFor(count) {
-  return Math.max(1, Math.ceil(count / PER_ROW));
+/** Lines one denomination takes: always one, more only once a line is full. */
+function linesFor(count, glyph) {
+  return Math.max(1, Math.ceil(count / perLine(glyph)));
 }
 
 /** Lines a whole half takes — one band per denomination, so the board keeps its shape. */
 function rowsFor(marks) {
-  return marks.counts.reduce((sum, n) => sum + linesFor(n), 0);
+  return marks.counts.reduce((sum, n, band) => sum + linesFor(n, MARKS[band].glyph), 0);
+}
+
+/** Hundreds or twenties: uprights in bundles of five, the fifth a backslash across the four. */
+function drawTally(g, glyph, count, left, y0, seed) {
+  for (let i = 0; i < count; i++) {
+    const bundle = Math.floor(i / BUNDLE);
+    const y = y0 + Math.floor(bundle / BUNDLES_PER_LINE) * ROW_H;
+    const x = left + (bundle % BUNDLES_PER_LINE) * ((BUNDLE - 1) * MARK_W + BUNDLE_GAP);
+    const top = strokeTop(glyph, y);
+    const bottom = y + MARK_H;
+    const k = i % BUNDLE;
+    if (k < BUNDLE - 1) {
+      g.append(line(x + 6 + k * MARK_W, top, x + 6 + k * MARK_W, bottom, seed + i * 17));
+    } else {
+      g.append(line(x - 2, top - 3, x + 14 + (BUNDLE - 2) * MARK_W, bottom + 3, seed + i * 17, 2.3));
+    }
+  }
+}
+
+/** Fifties: a slash, and the next fifty crosses it into an X. */
+function drawCrosses(g, count, left, y0, seed) {
+  for (let i = 0; i < count; i++) {
+    const slot = Math.floor(i / 2);
+    const y = y0 + Math.floor(slot / CROSSES_PER_LINE) * ROW_H;
+    const x = left + 8 + (slot % CROSSES_PER_LINE) * CROSS_W;
+    if (i % 2 === 0) g.append(line(x - 7, y + MARK_H, x + 7, y, seed + i * 17));
+    else g.append(line(x - 7, y, x + 7, y + MARK_H, seed + i * 17));
+  }
 }
 
 /**
- * One team's half: a line per denomination, each full line of five struck through.
+ * One team's half: a line per denomination, counted in bundles.
  *
  * Hundreds first, then fifties, then twenties, each on its own line and each keeping its line
  * even when empty — so the board holds still between rounds instead of re-flowing every time
@@ -191,20 +221,11 @@ function drawHalf(root, x0, y0, width, marks, rows, flip, seedBase) {
   let row = 0;
   MARKS.forEach(({ glyph }, band) => {
     const count = marks.counts[band];
-    for (let i = 0; i < count; i++) {
-      const line_ = row + Math.floor(i / PER_ROW);
-      const col = i % PER_ROW;
-      drawMark(g, glyph, left + col * MARK_W + 8, y0 + 6 + line_ * ROW_H, seedBase + band * 131 + i * 17);
-    }
-    // Five to a line, and a full one is struck through.
-    for (let full = 0; full < Math.floor(count / PER_ROW); full++) {
-      const y = y0 + 6 + (row + full) * ROW_H;
-      g.append(
-        line(left - 4, y + MARK_H + 3, left + PER_ROW * MARK_W + 6, y - 3,
-          seedBase + 900 + band * 7 + full, 2.2)
-      );
-    }
-    row += linesFor(count);
+    const y = y0 + 6 + row * ROW_H;
+    const seed = seedBase + band * 131;
+    if (glyph === "slash") drawCrosses(g, count, left, y, seed);
+    else drawTally(g, glyph, count, left, y, seed);
+    row += linesFor(count, glyph);
   });
 
   // The remainder, written where the marks are not: on the last line, off to the side.

@@ -8,6 +8,7 @@
 import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js";
 import { applyStatic, contractName, getLang, t } from "./i18n.js";
 import { drawTafel } from "./tafel.js";
+import { dealAiTitles, dealNames } from "./names.js";
 import { maybeSay, resetTalk } from "./talk.js";
 
 const MEASUREMENTS_URL = "/static/measurements.json";
@@ -76,8 +77,8 @@ function html(tag, cls, text) {
 
 /* AI mode — a display mode, and only that.
  *
- * It paints the table: the viewport gets a pulsing blue frame and each of the other three
- * seats gets a rotating blue ring. It changes **nothing** about how the bots decide a card —
+ * It paints the table: the other three seats glow blue and wear a silly AI title for the
+ * game ("Turbo-Sepp 3000"). It changes **nothing** about how the bots decide a card —
  * no flag reaches the engine, no budget changes, `botPlay` is called exactly as before.
  *
  * The bots have always been running a search (ISMCTS, `docs/measurements.md` §5h), so the
@@ -119,6 +120,7 @@ document.getElementById("ai-toggle")?.addEventListener("click", () => {
     /* not remembering it is not a reason to refuse it */
   }
   applyAi(true);
+  if (lastView?.hand) render(lastView);      // the titles are in every seat name on screen
 });
 applyAi(false);
 
@@ -155,12 +157,6 @@ function renderTafel(view) {
     board.rounds.map((r) => r.points[1 - mine]),
   ];
   drawTafel(slate, history, { target: view.target ?? board.target, t });
-
-  // What the marks mean, because a notation nobody can read is decoration.
-  const legend = document.createElement("p");
-  legend.className = "tafel-legend";
-  legend.innerHTML = t("tafel.legend");
-  slate.append(legend);
 }
 
 const openTafel = () => {
@@ -180,41 +176,161 @@ el.beliefs.addEventListener("click", (e) => { if (e.target === el.beliefs) el.be
 el.tafel.addEventListener("click", (e) => { if (e.target === el.tafel) closeTafel(); });
 
 const CONTRACT_PIPS = { DIAMONDS: "♦", HEARTS: "♥", SPADES: "♠", CLUBS: "♣" };
+// The no-trump contracts by direction: Obenabe runs from the top down, Undenufe from the
+// bottom up.
+const CONTRACT_ARROWS = { OBENABE: "↓", UNDENUFE: "↑" };
 
 /* ---------- test mode: what the bot believes -----------------------------
  *
  * The search's own belief pool, published rather than sampled (`rust/src/belief.rs`): for every
  * card it cannot see, how likely it is at each of the other three seats. Read off this seat's
  * hand and the public history, so it shows the reasoning without showing a card.
+ *
+ * Two displays of the same thing, each behind its own switch: the panel (a grid of suit by
+ * seat) and the overlay (the likely cards drawn beside each player's hidden fan). Both show
+ * one *likely deal*, so they always agree with each other.
  */
+
+// Set by the controller from the menu switches. The rendering code sits above the menu import
+// (the offline build is cut there), so it is told rather than asking.
+let beliefDisplay = { panel: true, overlay: false };
+export function setBeliefDisplay(flags) {
+  beliefDisplay = { ...beliefDisplay, ...flags };
+  if (lastView) { renderBeliefs(lastView); renderLikely(lastView); }
+}
+
+// Same order as your own hand (the engine's HAND_SUIT_ORDER): red and black alternating.
+const SUIT_ORDER = ["C", "D", "S", "H"];
+const CONTRACT_SUIT = { DIAMONDS: "D", HEARTS: "H", SPADES: "S", CLUBS: "C" };
+const PLAIN_ORDER = ["A", "K", "Q", "J", "T", "9", "8", "7", "6"];
+const TRUMP_ORDER = ["J", "9", "A", "K", "Q", "T", "8", "7", "6"];
+const rankLabel = (code) => (code.slice(1) === "T" ? "10" : code.slice(1));
+
+/** Suits in display order with trump first, and a strongest-first sort key for each card. */
+function strength(view) {
+  const trump = CONTRACT_SUIT[view.contract] ?? null;
+  const suits = trump ? [trump, ...SUIT_ORDER.filter((x) => x !== trump)] : SUIT_ORDER;
+  const key = (code) => {
+    const rank = code.slice(1);
+    if (code[0] === trump) return TRUMP_ORDER.indexOf(rank);
+    const i = PLAIN_ORDER.indexOf(rank);
+    return view.contract === "UNDENUFE" ? 8 - i : i;
+  };
+  return { trump, suits, key };
+}
+
+/**
+ * The likeliest deal the marginals allow: every unseen card goes to the seat that most
+ * probably holds it, but no seat gets more cards than it has in its hand. Greedy, highest
+ * probability first. A product of per-card guesses is not the single likeliest deal, but it
+ * is the one a player would write down, and it respects the counts.
+ */
+function likelyDeal(view) {
+  const cap = [1, 2, 3].map((rel) => view.hand_sizes?.[(view.seat + rel) % 4] ?? Infinity);
+  const pairs = [];
+  for (const { card, seats } of view.beliefs.cards) {
+    seats.forEach((p, i) => pairs.push({ card, seat: i, p, seats }));
+  }
+  pairs.sort((a, b) => b.p - a.p);
+  const hands = [[], [], []];
+  const placed = new Set();
+  for (const { card, seat, p, seats } of pairs) {
+    if (placed.has(card) || cap[seat] <= 0) continue;
+    placed.add(card);
+    cap[seat] -= 1;
+    hands[seat].push({ card, p, seats });
+  }
+  return hands;
+}
+
 function renderBeliefs(view) {
-  const on = !!view.beliefs;
+  const on = !!view.beliefs && beliefDisplay.panel;
   el.beliefsOpen.hidden = !on;
   if (!on) { el.beliefs.hidden = true; return; }
   if (el.beliefs.hidden) return;              // built when opened, and on every frame after
 
-  const table = document.createElement("table");
-  const name = (rel) => seatName(view, (view.seat + rel) % 4);
-  table.innerHTML =
-    `<thead><tr><th>${t("beliefs.card")}</th>` +
-    `<th>${name(1)}</th><th>${name(2)}</th><th>${name(3)}</th></tr></thead>`;
-  const body = document.createElement("tbody");
-  for (const { card, seats } of view.beliefs.cards) {
-    const row = document.createElement("tr");
-    const best = Math.max(...seats);
-    row.innerHTML =
-      `<td class="${SUIT_IS_RED[card[0]] ? "red" : ""}">${SUIT_GLYPHS[card[0]]} ${card.slice(1)}</td>` +
-      seats
-        .map((p) => {
-          const cls = p < best ? "" : p > 0.85 ? "best sure" : "best";
-          return `<td class="${cls}">${Math.round(p * 100)}%</td>`;
-        })
-        .join("");
-    body.append(row);
+  const { trump, suits, key } = strength(view);
+  const hands = likelyDeal(view);
+  // Which suits a seat has been shown to be out of: none of that suit's unseen cards can be
+  // there. Said as a dash, because "nothing here" and "out of it" are different news.
+  const unseen = new Map(suits.map((x) => [x, []]));
+  for (const entry of view.beliefs.cards) unseen.get(entry.card[0])?.push(entry);
+
+  const grid = html("div", "belief-grid");
+  grid.append(html("span", "bg-corner"));
+  // As you sit: Left, Partner, Right. `seats[i]` is relative seat i + 1, so the columns are
+  // indices 2, 1, 0.
+  const COLUMNS = [2, 1, 0];
+  for (const i of COLUMNS) grid.append(html("span", "bg-seat", seatShort(view, (view.seat + i + 1) % 4)));
+
+  for (const suit of suits) {
+    if (!unseen.get(suit).length) continue;   // every card of it is out or in your hand
+    const label = html("span", `bg-suit${SUIT_IS_RED[suit] ? " red" : ""}`, SUIT_GLYPHS[suit]);
+    if (suit === trump) label.append(html("em", null, t("beliefs.trump")));
+    grid.append(label);
+    for (const seat of COLUMNS) {
+      const cell = html("span", "bg-cell");
+      const out = unseen.get(suit).every((e) => e.seats[seat] < 0.005);
+      if (out) {
+        cell.classList.add("void");
+        cell.textContent = "—";
+      } else {
+        hands[seat]
+          .filter((e) => e.card[0] === suit)
+          .sort((a, b) => key(a.card) - key(b.card))
+          .forEach(({ card, p, seats }) => {
+            const chip = html("span", `bg-card ${confidence(p)}${SUIT_IS_RED[suit] ? " red" : ""}`);
+            chip.append(html("b", null, rankLabel(card)), html("i", null, `${Math.round(p * 100)}`));
+            chip.title = COLUMNS
+              .map((i) => `${seatName(view, (view.seat + i + 1) % 4)} ${Math.round(seats[i] * 100)}%`)
+              .join(" · ");
+            cell.append(chip);
+          });
+      }
+      grid.append(cell);
+    }
   }
-  table.append(body);
-  el.beliefsBody.replaceChildren(table);
-  el.beliefsBody.append(html("p", "note", t("beliefs.note", { n: Math.round(view.beliefs.ess) })));
+
+  el.beliefsBody.replaceChildren(
+    html("p", "intro", t("beliefs.intro")),
+    grid,
+    html("p", "legend", t("beliefs.legend")),
+    html("p", "note", t("beliefs.note", { n: Math.round(view.beliefs.ess) })),
+  );
+}
+
+const confidence = (p) => (p >= 0.85 ? "c-sure" : p >= 0.5 ? "c-likely" : "c-guess");
+
+/* The overlay: the likely deal laid beside each player's face-down cards. Off by default — it
+ * is the bot's guess, and next to the real backs it is easy to forget that it is one. */
+function renderLikely(view) {
+  const felt = document.querySelector(".felt");
+  const show = !!view.beliefs && beliefDisplay.overlay;
+  felt.querySelectorAll(".likely").forEach((n) => { n.hidden = !show; });
+  if (!show) return;
+
+  const { suits, key } = strength(view);
+  const hands = likelyDeal(view);
+  const where = { 1: "east", 2: "north", 3: "west" };
+  for (const rel of [1, 2, 3]) {
+    let host = felt.querySelector(`.likely.${where[rel]}`);
+    if (!host) {
+      host = html("div", `likely ${where[rel]}`);
+      host.setAttribute("aria-hidden", "true");
+      felt.append(host);
+    }
+    const cards = hands[rel - 1]
+      .slice()
+      .sort((a, b) => suits.indexOf(a.card[0]) - suits.indexOf(b.card[0]) || key(a.card) - key(b.card));
+    host.replaceChildren(
+      ...cards.map(({ card, p }, i) => {
+        const chip = html("span", `mini ${confidence(p)}${SUIT_IS_RED[card[0]] ? " red" : ""}`,
+          `${rankLabel(card)}${SUIT_GLYPHS[card[0]]}`);
+        if (i > 0 && cards[i - 1].card[0] !== card[0]) chip.classList.add("gap");
+        return chip;
+      }),
+    );
+  }
 }
 
 /* ---------- Sidi Barrani ---------- */
@@ -224,12 +340,24 @@ function callLabel(call) {
   if (call === "PASS") return t("sidi.pass");
   if (call === "DOUBLE") return t("sidi.double");
   const [contract, value] = call.split(" ");
-  return `${CONTRACT_PIPS[contract] ?? contractName(contract)} ${value}`;
+  const arrow = CONTRACT_ARROWS[contract] ? `${CONTRACT_ARROWS[contract]} ` : "";
+  return `${CONTRACT_PIPS[contract] ?? arrow + contractName(contract)} ${value}`;
 }
 
-/** The value the player has picked on the ladder. Kept between repaints, reset when it is
- *  no longer a legal bid. */
+/** The bid being put together: a value from the ladder and a contract. Neither is picked for
+ *  you — a pre-selected value is a bid made by accident — and the call goes out once both
+ *  are chosen, in either order. Cleared when the turn changes. */
 let sidiValue = null;
+let sidiContract = null;
+let sidiTurn = null;
+
+function sendSidiBid() {
+  if (sidiValue === null || sidiContract === null) return;
+  const action = `${sidiContract} ${sidiValue}`;
+  sidiValue = null;
+  sidiContract = null;
+  send({ type: "bid", action });
+}
 
 function legalValues(view) {
   const values = new Set();
@@ -240,6 +368,10 @@ function legalValues(view) {
   return [...values].sort((a, b) => a - b);
 }
 
+// How much of the auction was on screen last time, so only a call that has just been made
+// plays its gesture — the auction is redrawn on every view.
+let auctionSeen = { round: null, count: 0 };
+
 function renderAuction(view) {
   const show = view.mode === "sidi" && (view.phase === "bidding" || view.phase === "doubling");
   el.auction.hidden = !show || !view.auction.length;
@@ -248,9 +380,30 @@ function renderAuction(view) {
   // Only the calls of this deal: after a throw-in the engine starts a fresh auction.
   let highIndex = -1;
   view.auction.forEach((entry, i) => { if (!["PASS", "DOUBLE"].includes(entry.call)) highIndex = i; });
+  const seen = auctionSeen.round === view.round ? auctionSeen.count : 0;
+  auctionSeen = { round: view.round, count: view.auction.length };
   view.auction.forEach((entry, i) => {
     const node = html("span", "call" + (i === highIndex ? " high" : ""));
-    node.append(html("span", "who", seatName(view, entry.seat)), callLabel(entry.call));
+    if (i >= seen) node.classList.add("fresh");
+    const [contract, value] = entry.call.split(" ");
+    node.append(html("span", "who", seatName(view, entry.seat)));
+    if (CONTRACT_PIPS[contract]) {
+      // A suit call carries its pip in card colours, like the bid button it came from.
+      node.dataset.contract = contract;
+      node.append(html("span", "pip", CONTRACT_PIPS[contract]), value);
+    } else if (CONTRACT_ARROWS[contract]) {
+      node.dataset.contract = contract;
+      node.append(html("span", "arrow", CONTRACT_ARROWS[contract]), `${contractName(contract)} ${value}`);
+    } else if (entry.call === "PASS" || entry.call === "DOUBLE") {
+      // The table gestures: a wave for pass, a knock for double.
+      node.classList.add(entry.call === "DOUBLE" ? "doubled-call" : "pass-call");
+      node.append(
+        html("span", `gesture ${entry.call === "DOUBLE" ? "knock" : "wave"}`, entry.call === "DOUBLE" ? "👊" : "👋"),
+        callLabel(entry.call),
+      );
+    } else {
+      node.append(callLabel(entry.call));
+    }
     el.auction.append(node);
   });
 }
@@ -260,18 +413,30 @@ function renderSidi(view) {
   el.sidiBidding.hidden = !bidding;
   if (bidding) {
     const values = legalValues(view);
-    if (!values.includes(sidiValue)) sidiValue = values[0] ?? null;
+    const turn = `${view.round}|${view.auction?.length ?? 0}`;
+    if (turn !== sidiTurn) { sidiTurn = turn; sidiValue = null; sidiContract = null; }
+    if (!values.includes(sidiValue)) sidiValue = null;
     el.sidiValues.replaceChildren();
     for (const value of values) {
       const button = html("button", value === sidiValue ? "on" : "", String(value));
       button.type = "button";
-      button.addEventListener("click", () => { sidiValue = value; renderSidi(lastView); });
+      button.addEventListener("click", () => {
+        sidiValue = sidiValue === value ? null : value;
+        renderSidi(lastView);
+        sendSidiBid();
+      });
       el.sidiValues.append(button);
     }
-    el.sidiPrompt.textContent = values.length
-      ? t("sidi.prompt", { n: sidiValue })
-      : t("sidi.promptNoBid");
-    document.querySelectorAll("[data-sidi]").forEach((b) => { b.disabled = sidiValue === null; });
+    const contract = sidiContract ? CONTRACT_PIPS[sidiContract] ?? contractName(sidiContract) : null;
+    el.sidiPrompt.textContent = !values.length
+      ? t("sidi.promptNoBid")
+      : sidiValue !== null ? t("sidi.prompt", { n: sidiValue })
+      : contract ? t("sidi.pickValue", { c: contract })
+      : t("sidi.pickBoth");
+    document.querySelectorAll("[data-sidi]").forEach((b) => {
+      b.disabled = !values.length;
+      b.classList.toggle("on", b.dataset.sidi === sidiContract);
+    });
     el.sidiDouble.hidden = !(view.legal_calls || []).includes("DOUBLE");
   }
 
@@ -296,16 +461,19 @@ function renderContract(contract, multiplier) {
   // whether you are in trumps, Obenabe or Undenufe.
   if (!contract) {
     el.contract.className = "contract none";
+    delete el.contract.dataset.contract;
     el.contract.textContent = "—";
     return;
   }
   el.contract.className = "contract";
+  el.contract.dataset.contract = contract;     // a suit's pip in card colours, as on its bid
   const pip = CONTRACT_PIPS[contract];
   const name = contractName(contract);
   const red = contract === "HEARTS" || contract === "DIAMONDS";
   const sidi = lastView.mode === "sidi" && lastView.bid;
   el.contract.innerHTML =
     (pip ? `<span class="pip${red ? " red" : ""}">${pip}</span>` : "") +
+    (CONTRACT_ARROWS[contract] ? `<span class="arrow">${CONTRACT_ARROWS[contract]}</span>` : "") +
     `<span>${name}</span>` +
     (sidi
       ? `<span class="sidi-bid">${lastView.bid}</span>` +
@@ -637,7 +805,7 @@ export function speak(remark) {
  *  contract. Empty while nobody has chosen yet. */
 function declarerPip(view) {
   if (view.contract === null || view.contract === undefined) return "";
-  return CONTRACT_PIPS[view.contract] ?? (view.contract === "UNDENUFE" ? "↓" : "↑");
+  return CONTRACT_PIPS[view.contract] ?? CONTRACT_ARROWS[view.contract] ?? "";
 }
 
 function renderSeats(view) {
@@ -648,6 +816,11 @@ function renderSeats(view) {
   const pip = declarerPip(view);
   document.querySelectorAll(".seat-marker").forEach((marker) => {
     const seat = (view.seat + Number(marker.dataset.seat)) % 4;
+    const label = marker.querySelector("span");
+    if (label) {
+      label.textContent = seatName(view, seat);
+      label.title = label.textContent;
+    }
     marker.classList.toggle("active", view.to_act === seat && view.phase !== "round_over");
 
     const isDeclarer = pip !== "" && view.declarer === seat;
@@ -702,10 +875,50 @@ function renderCovered(view) {
   });
 }
 
-function seatName(view, seat) {
+/* The bots' names: dealt per game, kept for the tab's lifetime so a reload of the hosted
+ * page (the game lives on the server) keeps the same faces. A new game deals new ones. */
+const NAMES_KEY = "kj_names";
+const TITLES_KEY = "kj_ai_titles";
+let tableNames = null;
+let aiTitles = null;
+try {
+  tableNames = JSON.parse(sessionStorage.getItem(NAMES_KEY) || "null");
+  aiTitles = JSON.parse(sessionStorage.getItem(TITLES_KEY) || "null");
+} catch {
+  tableNames = null;
+}
+
+/** Deal three new names, and their AI-mode titles — called when a new game starts. */
+export function rollNames() {
+  tableNames = dealNames();
+  aiTitles = dealAiTitles();
+  try {
+    sessionStorage.setItem(NAMES_KEY, JSON.stringify(tableNames));
+    sessionStorage.setItem(TITLES_KEY, JSON.stringify(aiTitles));
+  } catch {
+    /* names for this page only, then */
+  }
+}
+
+/** A seat's name alone: "Sepp". You are "you". */
+function seatShort(view, seat) {
   // Anticlockwise: the next seat to play is to your right.
   const rel = (seat - view.seat + 4) % 4;
-  return [t("seat.you"), t("seat.right"), t("seat.partner"), t("seat.left")][rel];
+  if (rel === 0) return t("seat.you");
+  if (!Array.isArray(tableNames) || tableNames.length !== 3) rollNames();
+  return tableNames[rel - 1];
+}
+
+/** A seat as the table calls it: the name, in AI mode its title, and your partner marked. */
+function seatName(view, seat) {
+  const rel = (seat - view.seat + 4) % 4;
+  let name = seatShort(view, seat);
+  if (aiOn && rel !== 0) {
+    if (!Array.isArray(aiTitles) || aiTitles.length !== 3) aiTitles = dealAiTitles();
+    const [prefix, suffix] = aiTitles[rel - 1];
+    name = `${prefix}${name}${suffix}`;
+  }
+  return rel === 2 ? `${name} (${t("seat.partnerTag")})` : name;
 }
 
 function statusText(view) {
@@ -756,8 +969,36 @@ function setScore(node, value) {
   node.classList.add("bump");
 }
 
+/** Which seat doubled between the last view and this one, or null.
+ *
+ *  A double in the auction is a call with a seat on it; a double after the lead is only
+ *  `doubled` turning true, and then it was the seat that had just been asked. */
+function newDouble(prev, view) {
+  if (view.mode !== "sidi" || !view.doubled || prev?.doubled || prev?.round !== view.round) return null;
+  const call = (view.auction ?? []).find((c) => c.call === "DOUBLE");
+  if (call) return call.seat;
+  return prev?.phase === "doubling" ? prev.to_act : null;
+}
+
+/** A fist pounding the table at the seat that doubled, and the table jumping with it. */
+function poundAt(view, seat) {
+  const rel = (seat - view.seat + 4) % 4;
+  if (rel === 0) return;                       // your own double: the button already knocked
+  const felt = document.querySelector(".felt");
+  const fx = html("div", `pound pound-${rel}`);
+  fx.setAttribute("aria-hidden", "true");
+  fx.append(html("span", "ring"), html("span", "fist", "👊"), html("span", "word", `${seatName(view, seat)}: ${t("sidi.doubled")}!`));
+  felt.append(fx);
+  felt.classList.remove("jolt");
+  void felt.offsetWidth;
+  felt.classList.add("jolt");
+  setTimeout(() => { fx.remove(); felt.classList.remove("jolt"); }, 2200);
+}
+
 function render(view) {
+  const doubler = newDouble(lastView, view);
   lastView = view;
+  if (doubler !== null && doubler !== undefined) poundAt(view, doubler);
   recordRound(view);
   if (view.target) board.target = view.target;
   if (!el.tafel.hidden) renderTafel(view);
@@ -778,6 +1019,7 @@ function render(view) {
   renderAuction(view);
   renderSidi(view);
   renderBeliefs(view);
+  renderLikely(view);
 
   const askingWeis = view.phase === "weis" && view.to_act === view.seat && view.weis_offer;
   el.weisPrompt.hidden = !askingWeis;
@@ -813,7 +1055,9 @@ document.querySelectorAll(".bid[data-bid]").forEach((button) =>
 );
 document.querySelectorAll("[data-sidi]").forEach((button) =>
   button.addEventListener("click", () => {
-    if (sidiValue !== null) send({ type: "bid", action: `${button.dataset.sidi} ${sidiValue}` });
+    sidiContract = sidiContract === button.dataset.sidi ? null : button.dataset.sidi;
+    renderSidi(lastView);
+    sendSidiBid();
   })
 );
 document.querySelectorAll("[data-sidi-call]").forEach((button) =>
@@ -840,16 +1084,20 @@ document.getElementById("weis-no").addEventListener("click", () =>
 // on the serverless page stayed in its English placeholder text.
 applyStatic();
 
-import { initMenu, adviceOn, beliefsOn, talkOn } from "./menu.js";
+import { initMenu, adviceOn, beliefsOn, overlayOn, talkOn } from "./menu.js";
+
+/** Both belief displays read the same pool, so the server computes it if either is on. */
+function syncBeliefs() {
+  setBeliefDisplay({ panel: beliefsOn(), overlay: overlayOn() });
+  send({ type: "beliefs", on: beliefsOn() || overlayOn() });
+}
 
 initMenu({
   measurementsUrl: MEASUREMENTS_URL,
   // The hosted build runs the fourth bot on the server — the same search, on your own hand.
   onAdviceChange: () => send({ type: "advice", on: adviceOn() }),
-  onBeliefsChange: () => {
-    send({ type: "beliefs", on: beliefsOn() });
-    if (!beliefsOn()) el.beliefs.hidden = true;
-  },
+  onBeliefsChange: syncBeliefs,
+  onOverlayChange: syncBeliefs,
   // Switching language has to redraw everything already on screen, not just the chrome.
   onLanguageChange: () => {
     if (lastView) render(lastView);
@@ -882,7 +1130,7 @@ function connect() {
   socket.onopen = () => {
     el.status.textContent = t("status.connected");
     // Both are per-browser settings, and both are computed where the game is.
-    send({ type: "beliefs", on: beliefsOn() });
+    syncBeliefs();
     send({ type: "advice", on: adviceOn() });
   };
 }

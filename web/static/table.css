@@ -243,22 +243,82 @@ body {
 /* ---------- test mode: the bot's beliefs ---------- */
 
 .beliefs {
-  width: 100%; max-width: 340px; max-height: 78vh; overflow: auto;
-  background: #16281f; border: 1px solid rgba(255,255,255,.12); border-radius: 12px;
-  padding: 10px 12px 14px; color: var(--paper);
+  width: 100%; max-width: 380px; max-height: 82dvh; overflow: auto;
+  background: var(--panel); border: 1px solid var(--hairline); border-radius: 18px;
+  padding: 12px 14px 14px; color: var(--paper);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+  animation: sheet .34s var(--ease-out);
 }
 .beliefs header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .beliefs header span { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
-.beliefs table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
-.beliefs th { text-align: right; font-weight: 600; opacity: .6; padding: 4px 3px; }
-.beliefs th:first-child { text-align: left; }
-.beliefs td { text-align: right; padding: 3px; border-bottom: 1px solid rgba(255,255,255,.06); }
-.beliefs td:first-child { text-align: left; font-weight: 700; }
-.beliefs td.red { color: #ff8a90; }
-/* The likeliest holder of each card, so a column can be read down at a glance. */
-.beliefs td.best { background: rgba(216,180,90,.22); border-radius: 4px; }
-.beliefs td.sure { background: rgba(216,180,90,.45); }
-.beliefs .note { margin: 8px 0 0; font-size: 11px; opacity: .55; }
+.beliefs .intro { margin: 8px 0 10px; font-size: 12px; line-height: 1.45; opacity: .78; }
+/* Suit down the side (trump first), the three other seats across. Each card sits in the column
+   of its likeliest holder, strongest first, so a column reads as a hand. */
+.belief-grid {
+  display: grid; grid-template-columns: 30px repeat(3, minmax(0, 1fr));
+  gap: 4px; align-items: start;
+}
+.bg-seat {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  text-align: center; opacity: .6; padding-bottom: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bg-suit {
+  display: flex; flex-direction: column; align-items: center;
+  font-size: 19px; line-height: 1; padding-top: 3px;
+}
+.bg-suit.red { color: var(--rose); }
+.bg-suit em {
+  font-style: normal; font-size: 7.5px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--gold); margin-top: 2px;
+}
+.bg-cell {
+  display: flex; flex-wrap: wrap; gap: 3px; align-content: flex-start;
+  min-height: 30px; padding: 3px;
+  border-radius: 8px; background: rgba(255, 255, 255, .04);
+}
+.bg-cell.void { justify-content: center; align-items: center; opacity: .35; font-weight: 700; }
+.bg-card {
+  display: inline-flex; flex-direction: column; align-items: center;
+  min-width: 24px; padding: 2px 3px 1px; border-radius: 5px;
+  background: var(--paper); color: var(--black);
+  font-variant-numeric: tabular-nums; line-height: 1.05;
+}
+.bg-card.red { color: var(--red); }
+.bg-card b { font-size: 12.5px; }
+.bg-card i { font-style: normal; font-size: 8.5px; opacity: .6; }
+.bg-card.c-likely { opacity: .78; }
+.bg-card.c-guess { opacity: .45; }
+.bg-card.c-sure { box-shadow: 0 0 0 1.5px var(--gold); }
+.beliefs .legend { margin: 10px 0 0; font-size: 11px; line-height: 1.45; opacity: .62; }
+.beliefs .note { margin: 6px 0 0; font-size: 11px; opacity: .45; }
+
+/* The overlay: the likely cards, small and face up, beside each player's hidden fan. Faded by
+   how sure the bot is, so a guess never looks like a fact. */
+.likely {
+  position: absolute; z-index: 3; pointer-events: none;
+  display: flex; gap: 2px;
+  animation: fade .3s ease-out;
+}
+.likely.north { top: 38px; left: 50%; transform: translateX(-50%); flex-direction: row; }
+.likely.west  { left: 6px;  top: calc(50% + 20px); flex-direction: column; }
+.likely.east  { right: 6px; top: calc(50% + 20px); flex-direction: column; align-items: flex-end; }
+.likely .mini {
+  min-width: 27px; padding: 2px 4px; border-radius: 4px;
+  font-size: 11px; font-weight: 700; line-height: 1.2; text-align: center; white-space: nowrap;
+  background: var(--paper); color: var(--black);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+}
+.likely .mini.red { color: var(--red); }
+.likely .mini.c-likely { opacity: .8; }
+.likely .mini.c-guess { opacity: .5; outline: 1px dashed rgba(255, 255, 255, .7); outline-offset: -1px; }
+.likely .mini.c-sure { box-shadow: 0 0 0 1.5px var(--gold), 0 1px 3px rgba(0, 0, 0, .35); }
+.likely.north .mini.gap { margin-left: 5px; }
+.likely.west .mini.gap, .likely.east .mini.gap { margin-top: 4px; }
+@media (max-width: 560px) {
+  .likely .mini { min-width: 24px; padding: 1px 3px; font-size: 10px; }
+  .likely.west, .likely.east { gap: 1px; }
+}
 
 /* ---------- Sidi Barrani ---------- */
 
@@ -650,10 +710,6 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
   font-size: 11px; letter-spacing: .04em;
   color: #f3f1ea; opacity: .38;
 }
-.tafel-legend {
-  margin: 8px 12px 0; text-align: center; line-height: 1.5;
-  font-size: 10px; color: #f3f1ea; opacity: .33;
-}
 
 .tafel-grid {
   display: grid; grid-template-columns: 1fr 1px 1fr;
@@ -888,58 +944,31 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
 }
 .ai-btn.on .ai-dot { background: #58a6ff; box-shadow: 0 0 8px 2px rgba(88, 166, 255, .8); }
 
-/* The viewport frame. A separate fixed layer so it can glow without touching layout. */
-.ai-frame {
-  position: fixed; inset: 0; z-index: 14;
-  pointer-events: none;
-  opacity: 0;
-  border: 2px solid transparent;
-  transition: opacity .4s ease-out;
-}
-.ai-mode .ai-frame {
+/* The other three seats glow: a soft blue that breathes, a little out of step from seat to
+   seat so the table does not pulse as one. The one on turn glows brighter. Nothing at the edges
+   of the screen — the players are what the mode is about. */
+.ai-mode .seat-marker {
   opacity: 1;
-  border-color: rgba(88, 166, 255, .55);
-  animation: ai-frame-pulse 2.4s ease-in-out infinite;
+  color: #e3f0ff;
+  background: rgba(16, 38, 70, .72);
+  border-color: rgba(88, 166, 255, .7);
+  animation: ai-glow 2.4s ease-in-out infinite;
 }
-@keyframes ai-frame-pulse {
-  0%, 100% { box-shadow: inset 0 0 22px rgba(88,166,255,.30), 0 0 0 rgba(88,166,255,0); border-color: rgba(88,166,255,.40); }
-  50%      { box-shadow: inset 0 0 52px rgba(88,166,255,.60); border-color: rgba(88,166,255,.95); }
+.ai-mode .seat-marker.east  { animation-delay: -.8s; }
+.ai-mode .seat-marker.west  { animation-delay: -1.6s; }
+.ai-mode .seat-marker.active {
+  border-color: #8cc4ff;
+  animation-name: ai-glow-strong;
 }
-
-/* The other three seats, ringed.
- *
- * The beam travels *around* the pill; the pill does not turn. Rotating the pseudo-element
- * with `transform` spins the whole rounded rectangle, which on a non-circular pill reads as
- * the nameplate tumbling. Animating the conic gradient's own start angle instead leaves the
- * box still and moves only the light — which is the Copilot effect and what a "beam" is.
- *
- * `@property` is what makes an angle animatable at all; without it the custom property is
- * just a string and the gradient would jump. Browsers without it get a static ring that
- * still breathes, which is a fair degradation. */
-@property --ai-beam {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
+.ai-mode .seat-marker.active .turn { background: #8cc4ff; }
+@keyframes ai-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(88, 166, 255, .35), 0 0 0 0 rgba(88, 166, 255, 0); }
+  50%      { box-shadow: 0 0 14px rgba(88, 166, 255, .75), 0 0 28px 2px rgba(88, 166, 255, .25); }
 }
-.ai-mode .seat-marker { position: absolute; }
-.ai-mode .seat-marker::before {
-  content: "";
-  position: absolute; inset: -4px;
-  border-radius: 999px;
-  padding: 2px;
-  background: conic-gradient(from var(--ai-beam),
-    rgba(88,166,255,.12) 0deg, rgba(88,166,255,.12) 200deg,
-    #58a6ff 268deg, #bfe1ff 300deg, #58a6ff 330deg, rgba(88,166,255,.12) 360deg);
-  /* Mask out the middle so only the ring paints — the pill's own text stays readable. */
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-          mask-composite: exclude;
-  animation: ai-beam-travel 2.8s linear infinite, ai-ring-breathe 2.2s ease-in-out infinite;
-  pointer-events: none;
+@keyframes ai-glow-strong {
+  0%, 100% { box-shadow: 0 0 8px rgba(120, 186, 255, .6), 0 0 0 0 rgba(88, 166, 255, 0); }
+  50%      { box-shadow: 0 0 20px rgba(120, 186, 255, 1), 0 0 40px 6px rgba(88, 166, 255, .4); }
 }
-@keyframes ai-beam-travel { to { --ai-beam: 360deg; } }
-@keyframes ai-ring-breathe { 0%, 100% { opacity: .6; } 50% { opacity: 1; } }
 
 /* The covered fans pick up the tint so the seat reads as one object. */
 .ai-mode .card-back {
@@ -964,9 +993,7 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
 
 @media (prefers-reduced-motion: reduce) {
   /* The mode still reads as blue and lit; it simply stops moving. */
-  .ai-mode .ai-frame, .ai-mode .seat-marker::before { animation: none; }
-  .ai-mode .seat-marker::before { background: conic-gradient(from 270deg, rgba(88,166,255,.12), #58a6ff, rgba(88,166,255,.12)); }
-  .ai-mode .ai-frame { box-shadow: inset 0 0 34px rgba(88,166,255,.45); }
+  .ai-mode .seat-marker { box-shadow: 0 0 12px rgba(88, 166, 255, .6); }
   .ai-banner { animation: none; }
 }
 
@@ -1028,3 +1055,150 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
 @keyframes bump { 40% { scale: 1.25; text-shadow: 0 0 14px rgba(220, 184, 98, .7); } }
 
 .weis-prompt { animation: rise .3s var(--ease-out); }
+
+/* -- bids in card colours ------------------------------------------------ */
+/* A suit bid looks like the suit on a card: red or black on paper. Black on the felt would
+   vanish, so the paper comes along with it. Obenabe and Undenufe are not suits and stay as
+   they are. The same on the bid buttons, in the auction and on the scoreboard badge. */
+[data-bid="DIAMONDS"], [data-sidi="DIAMONDS"], [data-contract="DIAMONDS"],
+[data-bid="HEARTS"],   [data-sidi="HEARTS"],   [data-contract="HEARTS"]   { --suit-ink: var(--red); }
+[data-bid="SPADES"],   [data-sidi="SPADES"],   [data-contract="SPADES"],
+[data-bid="CLUBS"],    [data-sidi="CLUBS"],    [data-contract="CLUBS"]    { --suit-ink: var(--black); }
+
+.bid.suit-d, .bid.suit-h, .bid.suit-s, .bid.suit-c {
+  background: linear-gradient(170deg, #ffffff, var(--paper) 60%, #f1ece1);
+  border-color: rgba(0, 0, 0, .18);
+  color: var(--suit-ink);
+  box-shadow: var(--shadow-card);
+}
+.bid.suit-d .pip, .bid.suit-h .pip, .bid.suit-s .pip, .bid.suit-c .pip { color: var(--suit-ink); font-size: 24px; }
+.bid.suit-d em, .bid.suit-h em, .bid.suit-s em, .bid.suit-c em { color: #555; opacity: 1; }
+@media (hover: hover) {
+  .bid.suit-d:not(:disabled):hover, .bid.suit-h:not(:disabled):hover,
+  .bid.suit-s:not(:disabled):hover, .bid.suit-c:not(:disabled):hover { background: #ffffff; border-color: var(--gold); }
+}
+.bid[data-sidi]:disabled { opacity: .4; cursor: default; }
+/* Double is not a contract: neutral, but it should still stand out from Pass. */
+.bid.double { background: rgba(255, 255, 255, .12); border: 1px dashed rgba(220, 184, 98, .8); color: #f6e7c2; }
+
+/* In the auction and on the scoreboard, the suit itself sits on a small paper chip. */
+.contract[data-contract="DIAMONDS"] .pip, .contract[data-contract="HEARTS"] .pip,
+.contract[data-contract="SPADES"] .pip, .contract[data-contract="CLUBS"] .pip,
+.auction .call .pip {
+  display: inline-grid; place-items: center;
+  width: 20px; height: 20px; border-radius: 5px;
+  background: var(--paper); color: var(--suit-ink);
+  font-size: 15px; line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+}
+.auction .call .pip { width: 17px; height: 17px; font-size: 13px; margin-right: 3px; vertical-align: -3px; }
+
+/* Obenabe and Undenufe by direction: an arrow where a suit would have its pip. */
+.arrow { font-weight: 800; color: var(--gold); }
+.bid.word .arrow { display: block; font-size: 20px; line-height: 1; margin-bottom: 1px; }
+.contract .arrow { font-size: 16px; line-height: 1; }
+.auction .call .arrow { margin-right: 3px; }
+
+/* -- gestures: a knock for double, a wave for pass ----------------------- */
+/* What the hand does at a real table. Each plays once when it appears and again on hover;
+   in the auction only the call that has just been made plays. Off under reduced motion. */
+.gesture { display: inline-block; line-height: 1; }
+.bid .gesture { display: block; font-size: 20px; margin-bottom: 2px; }
+.auction .gesture { margin-right: 4px; }
+
+.gesture.knock { transform-origin: 50% 90%; animation: knock .8s ease-in-out .25s; }
+.gesture.wave  { transform-origin: 70% 85%; animation: wave .9s ease-in-out .25s; }
+.auction .call:not(.fresh) .gesture { animation: none; }
+@media (hover: hover) {
+  .bid:hover .gesture.knock { animation: knock .8s ease-in-out; }
+  .bid:hover .gesture.wave  { animation: wave .9s ease-in-out; }
+}
+.bid:active .gesture.knock { animation: knock .4s ease-in; }
+
+/* Two raps on the table: up, down hard, up, down. */
+@keyframes knock {
+  0%, 100% { translate: 0 0; rotate: 0deg; }
+  15%      { translate: 0 -5px; rotate: -14deg; }
+  30%      { translate: 0 2px; rotate: 6deg; scale: 1.06 1 }
+  45%      { translate: 0 -4px; rotate: -10deg; }
+  60%      { translate: 0 2px; rotate: 6deg; scale: 1.06 1 }
+  75%      { translate: 0 0; rotate: 0deg; }
+}
+@keyframes wave {
+  0%, 100% { rotate: 0deg; }
+  20% { rotate: 18deg; }
+  40% { rotate: -10deg; }
+  60% { rotate: 14deg; }
+  80% { rotate: -4deg; }
+}
+.auction .call.doubled-call { background: rgba(220, 184, 98, .25); box-shadow: inset 0 0 0 1px rgba(220, 184, 98, .6); }
+.auction .call.pass-call { opacity: .75; }
+
+/* -- a bot doubles: the fist comes down on the table -------------------- */
+.pound {
+  position: absolute; z-index: 8; pointer-events: none;
+  display: grid; place-items: center; width: 120px; height: 120px;
+  /* Fixed tracks: the label is wider than the box, and an auto track would grow to fit it
+     and push the fist off centre and the label off the screen. */
+  grid-template: 120px / 120px;
+}
+.pound-2 { top: 10px; left: 50%; margin-left: -60px; }
+.pound-1 { right: 0; top: 50%; margin-top: -60px; }
+.pound-3 { left: 0;  top: 50%; margin-top: -60px; }
+.pound .fist {
+  grid-area: 1 / 1; font-size: 48px; line-height: 1;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .45));
+  animation: pound 1.5s cubic-bezier(.3, 0, .3, 1) both;
+}
+.pound .ring {
+  grid-area: 1 / 1; width: 70px; height: 70px; border-radius: 50%;
+  border: 3px solid rgba(220, 184, 98, .9);
+  opacity: 0; animation: shock 1.5s ease-out both;
+}
+.pound .word {
+  grid-area: 1 / 1; align-self: end; translate: 0 22px;
+  padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+  background: rgba(220, 184, 98, .92); color: #1b1b1b;
+  font-size: 12px; font-weight: 800; letter-spacing: .02em;
+  animation: rise .3s var(--ease-out) .25s both, fade .4s ease-in 1.8s reverse both;
+}
+/* At the side seats the label hangs inward, so it never runs off the screen. */
+.pound-1 .word { justify-self: end; }
+.pound-3 .word { justify-self: start; }
+/* Raised, then three blows, the last the hardest. */
+@keyframes pound {
+  0%   { translate: 0 -40px; scale: .6; opacity: 0; rotate: -20deg; }
+  15%  { translate: 0 -30px; scale: 1.1; opacity: 1; rotate: -25deg; }
+  25%  { translate: 0 6px;   scale: 1, .85; rotate: 0deg; }
+  35%  { translate: 0 -18px; scale: 1.05; rotate: -18deg; }
+  45%  { translate: 0 6px;   scale: 1, .85; rotate: 0deg; }
+  57%  { translate: 0 -26px; scale: 1.15; rotate: -24deg; }
+  68%  { translate: 0 8px;   scale: 1.1, .8; rotate: 0deg; }
+  85%  { translate: 0 0;     scale: 1; opacity: 1; }
+  100% { translate: 0 0;     scale: 1; opacity: 0; }
+}
+@keyframes shock {
+  0%, 24%  { opacity: 0; scale: .3; }
+  26%      { opacity: .9; scale: .4; }
+  42%      { opacity: 0; scale: 1.2; }
+  44%      { opacity: .9; scale: .4; }
+  60%      { opacity: 0; scale: 1.3; }
+  67%      { opacity: 1; scale: .4; }
+  90%, 100% { opacity: 0; scale: 1.8; }
+}
+/* The table jumps with each blow. */
+.felt.jolt { animation: jolt 1.5s linear; }
+@keyframes jolt {
+  0%, 24%, 30%, 44%, 50%, 67%, 76%, 100% { translate: 0 0; }
+  26%, 46% { translate: 0 2px; }
+  69% { translate: 1px 4px; }
+  72% { translate: -1px -1px; }
+}
+
+/* A chosen contract while the points are still to pick, and the other way round. */
+.bid[data-sidi].on { box-shadow: 0 0 0 2px var(--gold), var(--shadow-lift); translate: 0 -2px; }
+/* Names can be long ("Karin Keller-Sutter"); the side pills stay clear of the trick. */
+.seat-marker.west span, .seat-marker.east span {
+  max-width: min(110px, 28vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.seat-marker.north span { max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

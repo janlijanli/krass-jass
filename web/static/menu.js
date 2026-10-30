@@ -48,7 +48,7 @@ const SETTINGS_KEY = "kj_settings";
 function saveSettings(form) {
   const chosen = {};
   form.querySelectorAll("input[type=radio]:checked").forEach((input) => {
-    // Language, talk, advice and beliefs are live switches with storage of their own.
+    // Language, talk, advice, beliefs and the overlay are live switches with storage of their own.
     if (["mode", "target", "weis"].includes(input.name) || input.name.startsWith("mult_")) {
       chosen[input.name] = input.value;
     }
@@ -92,6 +92,19 @@ try {
 
 export const beliefsOn = () => beliefs;
 
+/* The same beliefs drawn on the table: the likely cards beside each player's hidden fan. Off
+ * by default and separate from the panel — it is the bot's guess, and laid next to the real
+ * card backs it is easy to read as more than that. */
+const OVERLAY_KEY = "kj_beliefs_overlay";
+let overlay = false;
+try {
+  overlay = localStorage.getItem(OVERLAY_KEY) === "on";
+} catch {
+  overlay = false;
+}
+
+export const overlayOn = () => overlay;
+
 /** The language chips. Browser detection is a guess; this is how a wrong guess is fixed. */
 function buildLanguagePicker(onChange) {
   const host = document.getElementById("lang-chips");
@@ -125,6 +138,7 @@ export function initMenu({
   onAdviceChange = null,
   onTalkChange = null,
   onBeliefsChange = null,
+  onOverlayChange = null,
 }) {
   const menu = document.getElementById("menu");
   const opener = document.getElementById("menu-open");
@@ -184,6 +198,15 @@ export function initMenu({
     .querySelectorAll(".menu-mode")
     .forEach((b) => b.addEventListener("click", () => showMode(b.dataset.mode)));
 
+  // A new game deals new names to the bots (table.js keeps them per tab until then).
+  document.querySelector("#mode-settings")?.addEventListener("submit", () => {
+    try {
+      sessionStorage.removeItem("kj_names");
+    } catch {
+      /* nothing stored, nothing to forget */
+    }
+  });
+
   if (onNewGame) {
     // The offline build has no server to post to.
     const form = document.querySelector("#mode-settings");
@@ -241,6 +264,23 @@ export function initMenu({
     });
   }
 
+  const overlayHost = document.getElementById("overlay-toggle");
+  if (overlayHost && onOverlayChange) {
+    overlayHost.hidden = false;
+    overlayHost.querySelectorAll('input[name="overlay"]').forEach((input) => {
+      input.checked = (input.value === "on") === overlay;
+      input.addEventListener("change", () => {
+        overlay = input.value === "on";
+        try {
+          localStorage.setItem(OVERLAY_KEY, overlay ? "on" : "off");
+        } catch {
+          /* not remembering it is no reason to refuse it */
+        }
+        onOverlayChange();
+      });
+    });
+  }
+
   const talkHost = document.getElementById("talk-toggle");
   if (talkHost) {
     talkHost.hidden = false;
@@ -259,6 +299,25 @@ export function initMenu({
       });
     });
   }
+
+  // The game mode is the one setting that cannot wait for "Start new game": a Schieber table
+  // and a Sidi table are different games, so picking the other one asks once and then starts
+  // it. Declining puts the choice back as it was.
+  const settingsForm = document.querySelector("#mode-settings");
+  const modeInputs = settingsForm ? [...settingsForm.querySelectorAll('input[name="mode"]')] : [];
+  let currentMode = modeInputs.find((i) => i.checked)?.value;
+  modeInputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      if (input.value === currentMode) return;
+      const name = input.closest("label")?.textContent.trim() ?? input.value;
+      if (window.confirm(t("menu.switchMode", { mode: name }))) {
+        currentMode = input.value;
+        settingsForm.requestSubmit();
+      } else {
+        modeInputs.forEach((i) => { i.checked = i.value === currentMode; });
+      }
+    });
+  });
 
   buildLanguagePicker(() => {
     relocalise();

@@ -94,6 +94,23 @@
         <p class="menu-note" data-i18n="menu.beliefsNote">Test mode: what a bot on your seat thinks the others hold.</p>
       </fieldset>
 
+      <!-- The same beliefs laid on the table beside each hidden hand. Off by default: it is a
+           guess, and next to the real card backs it is easy to take for more. -->
+      <fieldset id="overlay-toggle" hidden>
+        <legend data-i18n="menu.overlay">Likely cards on the table</legend>
+        <div class="chips">
+          <label class="chip">
+            <input type="radio" name="overlay" value="on">
+            <span data-i18n="menu.on">On</span>
+          </label>
+          <label class="chip">
+            <input type="radio" name="overlay" value="off" checked>
+            <span data-i18n="menu.off">Off</span>
+          </label>
+        </div>
+        <p class="menu-note" data-i18n="menu.overlayNote">Shows beside each player's hidden cards what the bot thinks they hold. A guess, not their cards.</p>
+      </fieldset>
+
       <!-- Atmosphere, not assistance: on by default, and it says nothing about the cards. -->
       <fieldset id="talk-toggle" hidden>
         <legend data-i18n="menu.talk">Jass-Sprüche</legend>
@@ -157,7 +174,6 @@
           data-i18n-aria="ai.toggle" aria-label="AI mode">
     <span class="ai-dot"></span>AI
   </button>
-  <div class="ai-frame" id="ai-frame" aria-hidden="true"></div>
   <div class="ai-banner" id="ai-banner" role="status" hidden></div>
 
   <header class="scoreboard" id="scoreboard" role="button" tabindex="0" aria-label="Show the board">
@@ -216,17 +232,17 @@
       <button data-sidi="SPADES"   class="bid suit-s"><span class="pip">♠</span></button>
       <button data-sidi="HEARTS"   class="bid suit-h"><span class="pip">♥</span></button>
       <button data-sidi="CLUBS"    class="bid suit-c"><span class="pip">♣</span></button>
-      <button data-sidi="OBENABE"  class="bid word"><span data-i18n="contract.OBENABE">Obenabe</span></button>
-      <button data-sidi="UNDENUFE" class="bid word"><span data-i18n="contract.UNDENUFE">Undenufe</span></button>
-      <button data-sidi-call="PASS"   class="bid word ghost" data-i18n="sidi.pass">Pass</button>
-      <button data-sidi-call="DOUBLE" class="bid word double" id="sidi-double" data-i18n="sidi.double">Double</button>
+      <button data-sidi="OBENABE"  class="bid word"><span class="arrow" aria-hidden="true">↓</span><span data-i18n="contract.OBENABE">Obenabe</span></button>
+      <button data-sidi="UNDENUFE" class="bid word"><span class="arrow" aria-hidden="true">↑</span><span data-i18n="contract.UNDENUFE">Undenufe</span></button>
+      <button data-sidi-call="PASS"   class="bid word ghost"><span class="gesture wave" aria-hidden="true">👋</span><span data-i18n="sidi.pass">Pass</span></button>
+      <button data-sidi-call="DOUBLE" class="bid word double" id="sidi-double"><span class="gesture knock" aria-hidden="true">👊</span><span data-i18n="sidi.double">Double</span></button>
     </div>
   </section>
 
   <section class="weis-prompt" id="double-prompt" hidden>
     <p class="prompt" id="double-text"></p>
     <div class="weis-actions">
-      <button class="bid double" id="double-yes" data-i18n="sidi.double">Double</button>
+      <button class="bid double" id="double-yes"><span class="gesture knock" aria-hidden="true">👊</span><span data-i18n="sidi.double">Double</span></button>
       <button class="bid ghost" id="double-no" data-i18n="sidi.noDouble">No</button>
     </div>
   </section>
@@ -238,8 +254,8 @@
       <button data-bid="SPADES"   class="bid suit-s"><span class="pip">♠</span><em>×1</em></button>
       <button data-bid="HEARTS"   class="bid suit-h"><span class="pip">♥</span><em>×2</em></button>
       <button data-bid="CLUBS"    class="bid suit-c"><span class="pip">♣</span><em>×2</em></button>
-      <button data-bid="OBENABE"  class="bid word"><span data-i18n="contract.OBENABE">Obenabe</span><em>×3</em></button>
-      <button data-bid="UNDENUFE" class="bid word"><span data-i18n="contract.UNDENUFE">Undenufe</span><em>×4</em></button>
+      <button data-bid="OBENABE"  class="bid word"><span class="arrow" aria-hidden="true">↓</span><span data-i18n="contract.OBENABE">Obenabe</span><em>×3</em></button>
+      <button data-bid="UNDENUFE" class="bid word"><span class="arrow" aria-hidden="true">↑</span><span data-i18n="contract.UNDENUFE">Undenufe</span><em>×4</em></button>
       <button data-bid="SHOVE"    class="bid shove" id="shove" data-i18n="bid.shove">Schieben</button>
     </div>
   </section>

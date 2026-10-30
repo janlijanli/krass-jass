@@ -11,8 +11,8 @@
  */
 
 import { loadEngine, CARD_INDEX } from "./engine.js";
-import { render, setSender, speak } from "./render.js";
-import { initMenu, adviceOn, talkOn, beliefsOn } from "./menu.js";
+import { render, setSender, speak, setBeliefDisplay, rollNames } from "./render.js";
+import { initMenu, adviceOn, talkOn, beliefsOn, overlayOn } from "./menu.js";
 import { maybeSay, resetTalk } from "./talk.js";
 
 const HUMAN_SEAT = 0;
@@ -72,7 +72,8 @@ function view() {
   v.knock = knockOffer(v);
   // Test mode: what a bot on this seat believes about the other three hands. Computed here
   // rather than sent, because here the engine is in the tab.
-  v.beliefs = beliefsOn() && v.phase === "playing" ? engine.beliefs(handle, HUMAN_SEAT) : null;
+  const wanted = beliefsOn() || overlayOn();
+  v.beliefs = wanted && v.phase === "playing" ? engine.beliefs(handle, HUMAN_SEAT) : null;
   return v;
 }
 
@@ -132,6 +133,7 @@ function draw() {
 
 function newGame() {
   if (handle !== null) engine.free(handle);
+  rollNames();                         // a new game, new faces at the table
   acked = 0;
   knockDeclined = null;
   botsKnockedKey = null;
@@ -264,6 +266,12 @@ function ackTarget() {
   return v.trick_complete ? acked + 1 : acked;
 }
 
+/** The panel and the overlay read one pool; which of them shows is the menu's call. */
+function syncBeliefs() {
+  setBeliefDisplay({ panel: beliefsOn(), overlay: overlayOn() });
+}
+syncBeliefs();
+
 initMenu({
   measurementsUrl: "measurements.json",
   onNewGame: newGame,
@@ -271,7 +279,8 @@ initMenu({
   onLanguageChange: () => draw(),
   onAdviceChange: () => draw(),
   onTalkChange: () => {},
-  onBeliefsChange: () => draw(),
+  onBeliefsChange: () => { syncBeliefs(); draw(); },
+  onOverlayChange: () => { syncBeliefs(); draw(); },
 });
 
 newGame();
