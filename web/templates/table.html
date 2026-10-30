@@ -165,6 +165,11 @@
         <button type="submit" class="bid primary" data-i18n="menu.start">Start new game</button>
       </div>
     </form>
+    {% if build_sha %}
+    <footer class="menu-version">
+      <a href="{{ repo_url }}/commit/{{ build_sha }}" target="_blank" rel="noopener">{{ build_sha[:7] }}</a>
+    </footer>
+    {% endif %}
     </div>
   </div>
 

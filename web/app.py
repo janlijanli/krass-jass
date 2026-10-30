@@ -22,6 +22,7 @@ import asyncio
 import os
 import random
 import secrets
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -43,6 +44,28 @@ from web.botclient import RemoteAgent
 
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
+
+REPO_URL = "https://github.com/janlijanli/krass-jass"
+
+
+def build_sha() -> str | None:
+    """The commit this server runs, for the version line in the menu.
+
+    `BUILD_SHA` is set by the image build (the image carries no `.git`); a checkout falls back
+    to asking git. Neither: no version line, rather than a made-up one.
+    """
+    if sha := os.environ.get("BUILD_SHA", "").strip():
+        return sha
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=HERE, capture_output=True, text=True, timeout=2
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.strip() or None
+
+
+BUILD_SHA = build_sha()
 
 
 class RevalidatingStatic(StaticFiles):
@@ -261,6 +284,8 @@ def create_app() -> FastAPI:
                 "targets": TARGET_SCORES,
                 "multiplier_range": MULTIPLIER_RANGE,
                 "contracts": [(c.name, c.name.lower()) for c in Contract],
+                "build_sha": BUILD_SHA,
+                "repo_url": REPO_URL,
             },
         )
         response.set_cookie(
