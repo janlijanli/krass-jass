@@ -183,10 +183,15 @@ function renderContract(contract, multiplier) {
     (multiplier ? `<span class="mult">×${multiplier}</span>` : "");
 }
 
+// Which deal the fan last showed, so the cards are dealt in once per round, not per redraw.
+let dealtRound = null;
+
 function renderHand(view) {
   const legal = new Set(view.legal);
   const myTurn = view.to_act === view.seat && view.phase === "playing";
   el.hand.replaceChildren();
+  const deal = view.hand.length === 9 && dealtRound !== view.round;
+  if (deal) dealtRound = view.round;
 
   view.hand.forEach((code, i) => {
     const node = cardNode(code);
@@ -195,6 +200,10 @@ function renderHand(view) {
     const spread = Math.min(4, 26 / Math.max(view.hand.length, 1));
     node.style.transform = `rotate(${(i - (view.hand.length - 1) / 2) * spread}deg)`;
     if (myTurn && !legal.has(code)) node.classList.add("illegal");
+    if (deal) {
+      node.classList.add("dealt");
+      node.style.animationDelay = `${i * 45}ms`;
+    }
 
     // Advice mode: a fourth bot on your own seat, so the badge means "this is what it
     // would play from what it can see" — not "this is right". It knows no more than the
@@ -272,13 +281,20 @@ function showTalk(view, remark) {
   }, 4200);
 }
 
+// The cards drawn on the table last time. Every view redraws the trick from scratch, so
+// without this each repaint would replay the slide-in of cards that are already lying there.
+let shownTrick = new Set();
+
 function renderTrick(view) {
   el.trick.replaceChildren();
+  el.trick.classList.remove("collect");
+  const now = new Set(view.trick.map(({ card }) => card));
   // Swiss Jass runs anticlockwise, so rel 1 (next to play) sits to your right. The CSS
   // owns the mapping; here we only say who played what.
   for (const { seat, card } of view.trick) {
     const node = cardNode(card);
     node.dataset.rel = String((seat - view.seat + 4) % 4);
+    if (!shownTrick.has(card)) node.classList.add("enter");
     if (view.trick_complete && seat === view.trick_winner) node.classList.add("winner");
     else if (!view.trick_complete && seat === view.trick_taker) node.classList.add("leading");
     el.trick.appendChild(node);
@@ -286,6 +302,8 @@ function renderTrick(view) {
   // A finished trick stays on the table until it is tapped — otherwise four cards appear
   // and vanish faster than they can be read.
   el.trick.classList.toggle("complete", !!view.trick_complete);
+  if (view.trick_complete) el.trick.dataset.to = String((view.trick_winner - view.seat + 4) % 4);
+  shownTrick = now;
   renderTake(view);
 }
 
@@ -553,6 +571,15 @@ function statusText(view) {
     : t("status.thinking", { who });
 }
 
+function setScore(node, value) {
+  const text = String(value);
+  if (node.textContent === text) return;
+  node.textContent = text;
+  node.classList.remove("bump");
+  void node.offsetWidth;  // restart the animation if it is still running
+  node.classList.add("bump");
+}
+
 function render(view) {
   lastView = view;
   recordRound(view);
@@ -565,8 +592,8 @@ function render(view) {
   renderScorecard(view);
 
   const mine = view.seat % 2;
-  el.scoreUs.textContent = view.scores[mine];
-  el.scoreThem.textContent = view.scores[1 - mine];
+  setScore(el.scoreUs, view.scores[mine]);
+  setScore(el.scoreThem, view.scores[1 - mine]);
   renderContract(view.contract, view.multiplier);
   el.round.textContent = t("round.n", { n: view.round + 1 });
 
@@ -587,7 +614,10 @@ function render(view) {
 // Tap the finished trick to clear it. Anywhere on the felt works, because a 190px target
 // on a phone is not generous.
 document.querySelector(".felt").addEventListener("click", () => {
-  if (el.trick.classList.contains("complete")) send({ type: "ack_trick" });
+  if (!el.trick.classList.contains("complete") || el.trick.classList.contains("collect")) return;
+  el.trick.classList.add("collect");
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  setTimeout(() => send({ type: "ack_trick" }), reduced ? 0 : 260);
 });
 el.scContinue.addEventListener("click", () => {
   if (el.scContinue.dataset.over) {
