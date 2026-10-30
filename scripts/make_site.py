@@ -23,13 +23,14 @@ TARGETS = (1000, 2000, 2500)
 ICONS = {"icon-192.png": 192, "icon-512.png": 512, "apple-touch-icon.png": 180}
 
 # What iOS needs to put the page on the home screen as an app of its own: no Safari chrome,
-# its own icon and name. The status bar gets a solid black strip of its own (`black`), and the
-# app starts below it. `black-translucent` ran the felt underneath it instead, which looked
-# seamless until a phone's inset came out short and the score row slid under the Dynamic
-# Island. A web app cannot hide the status bar on iPhone at all; this is the clean option.
+# its own icon and name. With `black` the app starts below the status bar, so nothing slides
+# under the Dynamic Island (`black-translucent` let the score row do exactly that). Current
+# iOS does not draw that bar black: it fills it with the page's background colour, which is
+# why the CSS sets a solid `--chrome` green on html and body, and theme-color to match.
+# A web app cannot hide the status bar on iPhone at all.
 PWA_HEAD = """<link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<meta name="theme-color" content="#16442f">
+<meta name="theme-color" content="#164033">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">

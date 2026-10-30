@@ -7,6 +7,11 @@
   --felt: #1f5c49;
   --felt-dark: #123a2d;
   --felt-deep: #0b281f;
+  /* The score row's colour, as one solid value: the felt under its dark band. iOS paints the
+     status bar area with the page's background *colour* (a gradient image does not count) and
+     picks light or dark text from it; with none set it painted white. This makes the bar the
+     same green as the row below it. Keep in step with theme-color in scripts/make_site.py. */
+  --chrome: #164033;
   --ink: #14201c;
   --paper: #fdfbf6;
   --line: rgba(0, 0, 0, .14);
@@ -37,6 +42,8 @@
    Make the attribute win, once, for everything. */
 [hidden] { display: none !important; }
 
+html { background-color: var(--chrome); }
+
 body {
   margin: 0;
   min-height: 100dvh;
@@ -46,6 +53,7 @@ body {
     radial-gradient(70% 45% at 50% 42%, rgba(255, 255, 255, .06), transparent 70%),
     radial-gradient(130% 95% at 50% 10%, var(--felt) 0%, var(--felt-dark) 62%, var(--felt-deep) 100%);
   background-attachment: fixed;
+  background-color: var(--chrome);
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
 }
