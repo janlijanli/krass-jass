@@ -210,3 +210,7 @@ initMenu({
 });
 
 newGame();
+
+// Offline play and "Add to Home Screen". Optional: a browser without service workers, or a
+// page opened from file://, simply plays online-only.
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

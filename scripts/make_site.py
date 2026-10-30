@@ -9,14 +9,30 @@ so keeping a second copy in sync by hand would guarantee they drift.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from pathlib import Path
+
+import make_icon
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
 
 CONTRACTS = {"DIAMONDS": 1, "HEARTS": 2, "SPADES": 1, "CLUBS": 2, "OBENABE": 3, "UNDENUFE": 4}
 TARGETS = (1000, 2000, 2500)
+ICONS = {"icon-192.png": 192, "icon-512.png": 512, "apple-touch-icon.png": 180}
+
+# What iOS needs to put the page on the home screen as an app of its own: no Safari chrome,
+# its own icon and name. `black-translucent` lets the felt run under the status bar; the
+# table already pads itself by the safe-area insets for exactly that.
+PWA_HEAD = """<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#16442f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jass">
+"""
 
 
 def build_render_js() -> None:
@@ -80,7 +96,9 @@ def build_index() -> None:
         '<link rel="stylesheet" href="table.css">',
     )
     html = html.replace('<body data-seat="{{ seat }}">', '<body data-seat="0">')
-    html = html.replace("<title>krass-jass</title>", "<title>krass-jass — offline</title>")
+    html = html.replace(
+        "<title>krass-jass</title>", "<title>krass-jass — offline</title>\n" + PWA_HEAD.rstrip()
+    )
     html = html.replace('<form class="menu" method="post" action="/new">', '<form class="menu">')
     html = html.replace(
         '<p class="menu-note">Changing these starts a new game.</p>',
@@ -164,6 +182,37 @@ def build_index() -> None:
         text = text.replace('"krass_jass_core.wasm"', f'"krass_jass_core.wasm?v={version}"')
         path.write_text(text)
 
+    build_service_worker(version)
+
+
+def build_icons() -> None:
+    (SITE / "icons").mkdir(exist_ok=True)
+    for name, size in ICONS.items():
+        (SITE / "icons" / name).write_bytes(make_icon.render(size))
+
+
+def build_service_worker(version: str) -> None:
+    """Precache everything a game needs, at the exact URLs the page will ask for.
+
+    Those are the versioned ones `build_index` just wrote, so the list is built from the same
+    names rather than kept by hand. `report.html` is left out: it opens in a browser tab of
+    its own, and the game does not need it.
+    """
+    versioned = [
+        "table.css", "cards.js", "about.js", "menu.js", "tafel.js", "i18n.js",
+        "about-i18n.js", "walkthrough.js", "talk.js", "render.js", "solo.js", "engine.js",
+        "krass_jass_core.wasm", "measurements.json",
+    ]
+    assets = (
+        ["./", "manifest.webmanifest"]
+        + [f"icons/{name}" for name in ICONS]
+        + [f"{name}?v={version}" for name in versioned]
+    )
+    worker = (ROOT / "site-src/sw.js").read_text()
+    worker = worker.replace("__VERSION__", version)
+    worker = worker.replace("__ASSETS__", json.dumps(assets, indent=2))
+    (SITE / "sw.js").write_text(worker)
+
 
 def copy_assets() -> None:
     """Everything in `site/` is generated. Nothing is edited there.
@@ -181,7 +230,7 @@ def copy_assets() -> None:
         "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js",
     ):
         (SITE / name).write_text((ROOT / "web/static" / name).read_text())
-    for name in ("engine.js", "solo.js", "README.md"):
+    for name in ("engine.js", "solo.js", "README.md", "manifest.webmanifest"):
         (SITE / name).write_text((ROOT / "site-src" / name).read_text())
     (SITE / "measurements.json").write_text((ROOT / "docs/measurements.json").read_text())
 
@@ -189,6 +238,7 @@ def copy_assets() -> None:
 if __name__ == "__main__":
     SITE.mkdir(exist_ok=True)
     copy_assets()
+    build_icons()
     build_render_js()
     build_index()
     print("site/index.html and site/render.js generated from the hosted UI")
