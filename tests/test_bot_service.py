@@ -247,6 +247,9 @@ def test_the_request_carries_no_hidden_cards():
         "hand", "legal_moves", "contract", "declarer_seat", "current_trick",
         "trick_leader", "tricks_played", "scores", "seat", "time_budget_ms",
         "decision_seed", "trace",
+        # Sidi Barrani: the mode, the auction the whole table heard, and the contract's bid
+        # and double. None of them names a card.
+        "mode", "auction", "bid_value", "doubled",
     }, "the bot request shape changed — is the new field public?"
 
 
@@ -260,3 +263,26 @@ def test_the_service_refuses_an_unknown_contract():
             },
         )
     assert response.status_code == 422
+
+
+def test_a_failed_sidi_call_passes_and_a_failed_double_question_does_not_double():
+    """A pass is always a legal call and not doubling is always a legal answer, so a wedged
+    bot can never stall a Sidi auction."""
+    agent = RemoteAgent(url="http://127.0.0.1:9")
+    assert agent.sidi_call(parse_hand("HJ H9 HA HK H8 H7 SA D6 C6"), (), 0) == "PASS"
+    assert agent.failures == 1
+
+
+def test_the_bot_service_answers_sidi_calls():
+    from fastapi.testclient import TestClient
+
+    from bot.service import create_app
+
+    client = TestClient(create_app())
+    hand = "HJ H9 HA HK H8 H7 SA D6 C6".split()
+    call = client.post("/sidi_call", json={"hand": hand, "auction": [], "seat": 1}).json()["call"]
+    assert call == "HEARTS 130"   # Bauer and five more trumps: odd, 30 + 20 x 5
+    answer = client.post(
+        "/sidi_double", json={"hand": hand, "contract": "HEARTS", "bid_value": 120, "seat": 1}
+    ).json()
+    assert answer == {"double": True}

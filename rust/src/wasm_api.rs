@@ -12,6 +12,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use crate::announce::Announcements;
+use crate::auction::Call;
+use crate::sidi_estimate::{make_probability, Question};
+use crate::sidi_read::Bid;
 use crate::awareness::trick_taker;
 use crate::cards::{card_list, card_suit, format_card, NUM_SEATS};
 use crate::config::Rules;
@@ -57,13 +60,20 @@ pub extern "C" fn game_new(
     weis_enabled: u32,
     weis_manual: u32,
     m0: i32, m1: i32, m2: i32, m3: i32, m4: i32, m5: i32,
+    sidi: u32,
 ) -> u32 {
-    let rules = Rules {
-        target_score,
-        weis_enabled: weis_enabled != 0,
-        weis_manual: weis_manual != 0,
-        multipliers: [m0, m1, m2, m3, m4, m5],
-        ..Rules::default()
+    // Sidi Barrani brings its own scoring — every contract x1, no Weis, no Stöck — so the
+    // Schieber's multipliers and Weis switch from the settings do not apply to it.
+    let rules = if sidi != 0 {
+        Rules { target_score, weis_manual: weis_manual != 0, ..Rules::sidi() }
+    } else {
+        Rules {
+            target_score,
+            weis_enabled: weis_enabled != 0,
+            weis_manual: weis_manual != 0,
+            multipliers: [m0, m1, m2, m3, m4, m5],
+            ..Rules::default()
+        }
     };
     let seed = ((seed_hi as u64) << 32) | seed_lo as u64;
     let handle = NEXT_HANDLE.with(|h| {
@@ -119,6 +129,150 @@ pub extern "C" fn game_next_round(handle: u32) -> u32 {
     })
 }
 
+// -- Sidi Barrani --------------------------------------------------------------------------
+//
+// A call crosses the boundary as one integer: -1 pass, -2 double, contract × 1000 + value.
+
+fn call_code(call: Call) -> i32 {
+    match call {
+        Call::Pass => -1,
+        Call::Double => -2,
+        Call::Bid { contract, value } => contract as i32 * 1000 + value,
+    }
+}
+
+fn call_from(code: i32) -> Option<Call> {
+    match code {
+        -1 => Some(Call::Pass),
+        -2 => Some(Call::Double),
+        c if c >= 0 => Some(Call::Bid { contract: (c / 1000) as usize, value: c % 1000 }),
+        _ => None,
+    }
+}
+
+/// The auction's bids, for reading into imagined hands (`sidi_read.rs`).
+fn sidi_bids(game: &Game) -> Vec<Bid> {
+    game.auction.as_ref().map_or(Vec::new(), |a| {
+        a.calls
+            .iter()
+            .filter_map(|&(seat, c)| match c {
+                Call::Bid { contract, value } => Some(Bid { seat, contract, value }),
+                _ => None,
+            })
+            .collect()
+    })
+}
+
+/// In step with `DmctsAgent` in `agent.py` (measurements.md §5v): the auction read at weight 1
+/// (+32 points a hand), the hand played for a share of the cards rather than for the bid (playing
+/// for the bid lost 5.1), and a double when the declarers make their bid in fewer than 35% of 400
+/// imagined deals (`sidi_estimate.rs`; null against the stopper count, kept — and 0.25 rather than
+/// a third, which cost 4.93 and 7.14 points a hand, §5v).
+const SIDI_ALPHA: f32 = 1.0;
+const SIDI_OBJECTIVE: bool = false;
+const SIDI_DOUBLE_BELOW: f64 = 0.25;
+const SIDI_DOUBLE_SAMPLES: usize = 1200;
+
+fn declarers_make(
+    game: &Game, seat: usize, hand: u64, history: &[(usize, usize)],
+    contract: usize, declarer: usize, bid: i32,
+) -> f64 {
+    let bids = sidi_bids(game);
+    let q = Question {
+        seat, hand, history, leader: declarer, contract, declarer, bid,
+        auction: &bids, alpha: SIDI_ALPHA,
+    };
+    // A seed from the game's own, the hand and the moment, so a replay doubles the same way.
+    let mut rng = Rng::new(
+        game.seed ^ (game.round_index as u64) << 40 ^ (seat as u64) << 32
+            ^ (history.len() as u64) << 24 ^ bids.len() as u64,
+    );
+    make_probability(&q, SIDI_DOUBLE_SAMPLES, rng.next_u64()).0
+}
+
+/// Sidi: one call. 0 = ok, 1 = rejected.
+#[no_mangle]
+pub extern "C" fn game_call(handle: u32, seat: u32, code: i32) -> u32 {
+    GAMES.with(|g| {
+        let mut games = g.borrow_mut();
+        let Some(game) = games.get_mut(&handle) else { return 1 };
+        let Some(call) = call_from(code) else { return 1 };
+        u32::from(game.call(seat as usize, call).is_err())
+    })
+}
+
+/// Sidi: the answer to "double?" after the lead. 0 = ok, 1 = rejected.
+#[no_mangle]
+pub extern "C" fn game_double(handle: u32, seat: u32, double: u32) -> u32 {
+    GAMES.with(|g| {
+        let mut games = g.borrow_mut();
+        let Some(game) = games.get_mut(&handle) else { return 1 };
+        u32::from(game.double(seat as usize, double != 0).is_err())
+    })
+}
+
+/// Sidi: a bot's call, encoded as for `game_call`. The language of `sidi_bidding.rs`, doubling
+/// on the estimate rather than the stopper count.
+#[no_mangle]
+pub extern "C" fn bot_call(handle: u32, seat: u32) -> i32 {
+    GAMES.with(|g| {
+        let games = g.borrow();
+        let Some(game) = games.get(&handle) else { return -1 };
+        let Some(auction) = game.auction.as_ref() else { return -1 };
+        let seat = seat as usize;
+        let hand = game.hand_of(seat);
+        let high = auction.high;
+        let double = high
+            .filter(|&(bidder, _, _)| (bidder + NUM_SEATS - seat) % 2 == 1 && !auction.doubled)
+            .map(|(bidder, contract, value)| {
+                declarers_make(game, seat, hand, &[], contract, bidder, value) < SIDI_DOUBLE_BELOW
+            });
+        call_code(crate::sidi_bidding::choose_call(hand, &auction.calls, seat, double))
+    })
+}
+
+/// Sidi: does this bot knock on the standing bid, without waiting for its turn? 1 = double.
+///
+/// A double may come out of turn (`auction.rs`) and the page asks the player that way, so the
+/// bots are asked the same: every opponent of the bidder, the moment the bid is made.
+#[no_mangle]
+pub extern "C" fn bot_knock(handle: u32, seat: u32) -> u32 {
+    GAMES.with(|g| {
+        let games = g.borrow();
+        let Some(game) = games.get(&handle) else { return 0 };
+        let Some(auction) = game.auction.as_ref() else { return 0 };
+        let seat = seat as usize;
+        let Some((bidder, contract, value)) = auction.high else { return 0 };
+        if !auction.may_double(seat) {
+            return 0;
+        }
+        let hand = game.hand_of(seat);
+        u32::from(declarers_make(game, seat, hand, &[], contract, bidder, value) < SIDI_DOUBLE_BELOW)
+    })
+}
+
+/// Sidi: a bot's answer to "double?" after the lead. 1 = double.
+#[no_mangle]
+pub extern "C" fn bot_double(handle: u32, seat: u32) -> u32 {
+    GAMES.with(|g| {
+        let games = g.borrow();
+        let Some(game) = games.get(&handle) else { return 0 };
+        let Some(round) = game.round.as_ref() else { return 0 };
+        let Some(contract) = game.contract else { return 0 };
+        let seat = seat as usize;
+        let history: Vec<(usize, usize)> = round
+            .trick
+            .iter()
+            .enumerate()
+            .map(|(i, &c)| ((round.leader + i) & 3, c))
+            .collect();
+        let p = declarers_make(
+            game, seat, round.hands[seat], &history, contract, game.declarer, game.bid_value,
+        );
+        u32::from(p < SIDI_DOUBLE_BELOW)
+    })
+}
+
 /// A bot's bid. Returns the contract index, or -1 to shove.
 #[no_mangle]
 pub extern "C" fn bot_bid(handle: u32, seat: u32) -> i32 {
@@ -146,6 +300,182 @@ enum Thought {
     Ranked(Vec<Candidate>, usize),
 }
 
+/// Everything the search needs about one seat's position, and the pool's per-seat card counts.
+///
+/// Shared by `think` (which plays it) and `belief_marginals` (which shows what it believes), so a
+/// player looking at the test mode sees the search's own beliefs and not a second opinion.
+fn position_for(game: &Game, seat: usize) -> Option<(Position, Kernel, [usize; NUM_SEATS])> {
+let round = game.round.as_ref()?;
+let contract = round.contract;
+    let mut seen = 0u64;
+    for (_, cards) in &round.tricks_played {
+        for &c in cards {
+            seen |= 1u64 << c;
+        }
+    }
+    for &c in &round.trick {
+        seen |= 1u64 << c;
+    }
+    let unseen = ((1u64 << 36) - 1) & !round.hands[seat] & !seen;
+
+    let mut forbidden = infer_forbidden(
+        &round.tricks_played,
+        &round.trick,
+        round.leader,
+        round.trump,
+        &game.rules,
+    );
+
+    // What the Weis stage published, which the browser bot was throwing away entirely.
+    // `measurements.md` §5l measured the shown half at +0.62 of a round's card points
+    // and it reached only the Python agent; §5m adds the called half. Both are read off
+    // `weis_summary`, which is exactly what every player at the table saw and heard.
+    let mut announcements = Announcements::none();
+    if game.weis_calls_are_in() && game.rules.weis_enabled {
+        let mut played = [0u64; NUM_SEATS];
+        for (leader, cards) in &round.tricks_played {
+            for (i, &c) in cards.iter().enumerate() {
+                played[(leader + i) & 3] |= 1u64 << c;
+            }
+        }
+        for (i, &c) in round.trick.iter().enumerate() {
+            played[(round.leader + i) & 3] |= 1u64 << c;
+        }
+        // Silence is a claim too, and it is the common one — see announce.rs.
+        announcements = Announcements {
+            called: [0; NUM_SEATS],
+            played,
+            rules: game.rules,
+            trump: round.trump,
+            draws: crate::announce::MAX_DRAWS,
+        };
+        for entry in &game.weis_summary {
+            announcements.called[entry.seat] = entry.points;
+            // The winning Weis is turned face up to prove it. Nobody else can hold those
+            // cards, which is the strongest claim there is about a specific hand.
+            for &card in entry.cards.iter().flatten() {
+                if seen & (1u64 << card) != 0 {
+                    continue;
+                }
+                for other in 0..NUM_SEATS {
+                    if other != entry.seat {
+                        forbidden[other] |= 1u64 << card;
+                    }
+                }
+            }
+        }
+        announcements.called[seat] = -1;
+    }
+    let kernel = Kernel::new(
+        contract,
+        game.rules.strict_undertrump,
+        game.rules.puur_exempt,
+        game.rules.last_trick_bonus,
+        0,
+    );
+    // What the discards suggest, alongside what they prove. Off, and the constant is
+    // here rather than the code being deleted because the decision is a measurement —
+    // `docs/measurements.md` §5c — and the next person to try it should re-run the match
+    // rather than rebuild the machinery. Flipping this alone changes how the browser bot
+    // plays, so it stays in step with the Python default in `agent.py`.
+    const READ_SIGNALS: bool = false;
+    // Beliefs from the other seats' plays and the bid. A measured decision like the one
+    // above: +1.31 and +1.32 of a round's share on two seeds at 153,600 iterations
+    // (measurements.md §5o). In step with `belief_alpha` / `bid_alpha` in `agent.py`.
+    const BELIEFS: bool = true;
+    let read = if READ_SIGNALS {
+        infer_affinity(&round.tricks_played, &round.trick, round.leader, round.trump)
+    } else {
+        [[0i8; 4]; NUM_SEATS]
+    };
+    // The Schieber's bid model reads choose-or-shove; a Sidi auction is another language,
+    // read by `sidi_read.rs` into the belief pool below instead.
+    let sidi = game.rules.sidi;
+    let (bid_suits, bid_ranks) = if sidi {
+        ([[0i8; 4]; NUM_SEATS], [0i8; NUM_SEATS])
+    } else {
+        infer_from_bid(game.forehand, game.declarer, contract, seat)
+    };
+    let mut affinity = read;
+    for s in 0..NUM_SEATS {
+        for suit in 0..4 {
+            affinity[s][suit] = (affinity[s][suit] + bid_suits[s][suit]).clamp(-2, 2);
+        }
+    }
+    let position = Position {
+        seat,
+        hand: round.hands[seat],
+        unseen,
+        trick: round.trick.clone(),
+        trick_leader: round.leader,
+        forbidden,
+        affinity,
+        // What the bidding said about the other hands — the loudest information in the
+        // round, and until now the search ignored all of it. See krass_jass/bidding.py.
+        rank_bias: bid_ranks,
+        // Where this round leaves the game, which is what the search is playing for.
+        // Weis is public once called; Stöck is not, and is left out. See objective.rs.
+        // In the Sidi there is no game projection, as in `agent.py`; the bid objective is
+        // behind SIDI_OBJECTIVE, off since it measured a loss.
+        stakes: if sidi && !SIDI_OBJECTIVE {
+            Stakes::default()
+        } else if sidi {
+            Stakes {
+                sidi_bid: game.bid_value,
+                sidi_declarers: game.declarer & 1,
+                sidi_doubled: game.doubled,
+                ..Default::default()
+            }
+        } else {
+            Stakes {
+                scores: [game.scores[0], game.scores[1]],
+                bonus: [game.weis_points_public(0), game.weis_points_public(1)],
+                target: game.rules.target_score,
+                multiplier: game.rules.multiplier(contract),
+                risk_lambda: 0.0,
+                ..Default::default()
+            }
+        },
+        adversarial: true,
+        leaf_weights: Vec::new(),
+        announcements,
+        // Beliefs from behaviour — see belief.rs and measurements.md §5o. Weight each imagined
+        // deal by how likely the other seats' plays and the bid were, holding it. Kept in step
+        // with the Python defaults in `agent.py`.
+        play: {
+            let mut history = Vec::with_capacity(36);
+            for (leader, cards) in &round.tricks_played {
+                for (i, &c) in cards.iter().enumerate() {
+                    history.push(((leader + i) & 3, c));
+                }
+            }
+            for (i, &c) in round.trick.iter().enumerate() {
+                history.push(((round.leader + i) & 3, c));
+            }
+            let mut info = crate::belief::PlayInfo::off();
+            info.declarer = game.declarer;
+            info.history = history;
+            if BELIEFS {
+                info.belief_alpha = 1.0;
+                info.bid_alpha = if sidi { 0.0 } else { 1.0 };
+                info.belief_pool = 4096;
+            }
+            if sidi {
+                info.sidi_auction = sidi_bids(game);
+                info.sidi_alpha = SIDI_ALPHA;
+            }
+            info
+        },
+    };
+
+// Hand sizes are public — everyone at a table watches a fan shrink.
+let mut counts = [0usize; NUM_SEATS];
+for s in 0..NUM_SEATS {
+    counts[s] = if s == seat { 0 } else { round.hands[s].count_ones() as usize };
+}
+Some((position, kernel, counts))
+}
+
 fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u32) -> Thought {
     GAMES.with(|g| {
         let games = g.borrow();
@@ -162,142 +492,13 @@ fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u
         }
 
         let contract = round.contract;
-        let mut seen = 0u64;
-        for (_, cards) in &round.tricks_played {
-            for &c in cards {
-                seen |= 1u64 << c;
-            }
-        }
-        for &c in &round.trick {
-            seen |= 1u64 << c;
-        }
-        let unseen = ((1u64 << 36) - 1) & !round.hands[seat] & !seen;
-
-        let mut forbidden = infer_forbidden(
-            &round.tricks_played,
-            &round.trick,
-            round.leader,
-            round.trump,
-            &game.rules,
-        );
-
-        // What the Weis stage published, which the browser bot was throwing away entirely.
-        // `measurements.md` §5l measured the shown half at +0.62 of a round's card points
-        // and it reached only the Python agent; §5m adds the called half. Both are read off
-        // `weis_summary`, which is exactly what every player at the table saw and heard.
-        let mut announcements = Announcements::none();
-        if game.weis_calls_are_in() && game.rules.weis_enabled {
-            let mut played = [0u64; NUM_SEATS];
-            for (leader, cards) in &round.tricks_played {
-                for (i, &c) in cards.iter().enumerate() {
-                    played[(leader + i) & 3] |= 1u64 << c;
-                }
-            }
-            for (i, &c) in round.trick.iter().enumerate() {
-                played[(round.leader + i) & 3] |= 1u64 << c;
-            }
-            // Silence is a claim too, and it is the common one — see announce.rs.
-            announcements = Announcements {
-                called: [0; NUM_SEATS],
-                played,
-                rules: game.rules,
-                trump: round.trump,
-                draws: crate::announce::MAX_DRAWS,
-            };
-            for entry in &game.weis_summary {
-                announcements.called[entry.seat] = entry.points;
-                // The winning Weis is turned face up to prove it. Nobody else can hold those
-                // cards, which is the strongest claim there is about a specific hand.
-                for &card in entry.cards.iter().flatten() {
-                    if seen & (1u64 << card) != 0 {
-                        continue;
-                    }
-                    for other in 0..NUM_SEATS {
-                        if other != entry.seat {
-                            forbidden[other] |= 1u64 << card;
-                        }
-                    }
-                }
-            }
-            announcements.called[seat] = -1;
-        }
-        let kernel = Kernel::new(
-            contract,
-            game.rules.strict_undertrump,
-            game.rules.puur_exempt,
-            game.rules.last_trick_bonus,
-            0,
-        );
-        // What the discards suggest, alongside what they prove. Off, and the constant is
-        // here rather than the code being deleted because the decision is a measurement —
-        // `docs/measurements.md` §5c — and the next person to try it should re-run the match
-        // rather than rebuild the machinery. Flipping this alone changes how the browser bot
-        // plays, so it stays in step with the Python default in `agent.py`.
-        const READ_SIGNALS: bool = false;
-        // Beliefs from the other seats' plays and the bid. A measured decision like the one
-        // above: +1.31 and +1.32 of a round's share on two seeds at 153,600 iterations
-        // (measurements.md §5o). In step with `belief_alpha` / `bid_alpha` in `agent.py`.
-        const BELIEFS: bool = true;
-        let read = if READ_SIGNALS {
-            infer_affinity(&round.tricks_played, &round.trick, round.leader, round.trump)
-        } else {
-            [[0i8; 4]; NUM_SEATS]
+        let (position, kernel, counts) = match position_for(game, seat) {
+            Some(p) => p,
+            None => return Thought::None,
         };
-        let (bid_suits, bid_ranks) =
-            infer_from_bid(game.forehand, game.declarer, contract, seat);
-        let mut affinity = read;
-        for s in 0..NUM_SEATS {
-            for suit in 0..4 {
-                affinity[s][suit] = (affinity[s][suit] + bid_suits[s][suit]).clamp(-2, 2);
-            }
-        }
-        let position = Position {
-            seat,
-            hand: round.hands[seat],
-            unseen,
-            trick: round.trick.clone(),
-            trick_leader: round.leader,
-            forbidden,
-            affinity,
-            // What the bidding said about the other hands — the loudest information in the
-            // round, and until now the search ignored all of it. See krass_jass/bidding.py.
-            rank_bias: bid_ranks,
-            // Where this round leaves the game, which is what the search is playing for.
-            // Weis is public once called; Stöck is not, and is left out. See objective.rs.
-            stakes: Stakes {
-                scores: [game.scores[0], game.scores[1]],
-                bonus: [game.weis_points_public(0), game.weis_points_public(1)],
-                target: game.rules.target_score,
-                multiplier: game.rules.multiplier(contract),
-                risk_lambda: 0.0,
-            },
-            adversarial: true,
-            leaf_weights: Vec::new(),
-            announcements,
-            // Beliefs from behaviour — see belief.rs and measurements.md §5o. Weight each imagined
-            // deal by how likely the other seats' plays and the bid were, holding it. Kept in step
-            // with the Python defaults in `agent.py`.
-            play: {
-                let mut history = Vec::with_capacity(36);
-                for (leader, cards) in &round.tricks_played {
-                    for (i, &c) in cards.iter().enumerate() {
-                        history.push(((leader + i) & 3, c));
-                    }
-                }
-                for (i, &c) in round.trick.iter().enumerate() {
-                    history.push(((round.leader + i) & 3, c));
-                }
-                let mut info = crate::belief::PlayInfo::off();
-                info.declarer = game.declarer;
-                info.history = history;
-                if BELIEFS {
-                    info.belief_alpha = 1.0;
-                    info.bid_alpha = 1.0;
-                    info.belief_pool = 4096;
-                }
-                info
-            },
-        };
+        let _ = counts;
+        let unseen = position.unseen;
+        let seen = ((1u64 << 36) - 1) & !unseen & !round.hands[seat];
         // The browser plays the same search the measurements were taken with. ISMCTS above
         // the endgame threshold, the exact solve below it — see measurements.md §5h.
         // ISMCTS all the way to the last card. The exact endgame solver used to take over
@@ -389,6 +590,41 @@ pub extern "C" fn bot_rank(handle: u32, seat: u32, determinizations: u32, iterat
 fn cards_json(cards: &[usize]) -> String {
     let parts: Vec<String> = cards.iter().map(|&c| format!("\"{}\"", format_card(c))).collect();
     format!("[{}]", parts.join(","))
+}
+
+/// Test mode: what a bot on `seat` believes about the other three hands, as JSON.
+///
+/// `{"ess": n, "cards": [{"card": "HA", "seats": [p_next, p_partner, p_previous]}]}` — the search's
+/// own belief pool (`belief.rs`), summarised rather than sampled. Built from this seat's hand and
+/// the public history only, so it shows what the bot reasons from without revealing a card.
+#[no_mangle]
+pub extern "C" fn belief_marginals(handle: u32, seat: u32) -> usize {
+    GAMES.with(|g| {
+        let games = g.borrow();
+        let Some(game) = games.get(&handle) else { return publish("null".into()) };
+        let seat = seat as usize;
+        let Some(position) = position_for(game, seat) else { return publish("null".into()) };
+        let (position, kernel, counts) = position;
+        let mut rng = Rng::new(game.seed ^ ((game.round_index as u64) << 32) ^ seat as u64 | 1);
+        let Some(pool) = crate::belief::Pool::build(&position, &kernel, &counts, &mut rng) else {
+            return publish("null".into());
+        };
+        let m = pool.marginals();
+        let mut parts: Vec<String> = Vec::new();
+        let mut rest = position.unseen;
+        while rest != 0 {
+            let card = rest.trailing_zeros() as usize;
+            rest &= rest - 1;
+            parts.push(format!(
+                "{{\"card\":\"{}\",\"seats\":[{:.4},{:.4},{:.4}]}}",
+                format_card(card),
+                m[(seat + 1) & 3][card],
+                m[(seat + 2) & 3][card],
+                m[(seat + 3) & 3][card],
+            ));
+        }
+        publish(format!("{{\"ess\":{:.1},\"cards\":[{}]}}", pool.ess, parts.join(",")))
+    })
 }
 
 /// Everything one seat may see, as JSON. `acked_tricks` is how many completed tricks the
@@ -490,9 +726,39 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
         }
         out.push_str(&format!(",\"declarer\":{}", game.declarer));
         out.push_str(&format!(",\"scores\":[{},{}]", game.scores[0], game.scores[1]));
+        let sidi = game.rules.sidi;
         out.push_str(&format!(
             ",\"can_shove\":{}",
-            game.phase == Phase::Bidding && seat == game.forehand && !game.shoved
+            !sidi && game.phase == Phase::Bidding && seat == game.forehand && !game.shoved
+        ));
+        // Sidi Barrani, in the shape `web/app.py::view` sends: the auction (public — every
+        // call was said aloud), the calls this seat may make, the bid and the double.
+        out.push_str(&format!(",\"mode\":\"{}\"", if sidi { "sidi" } else { "schieber" }));
+        let calls: Vec<String> = game.auction.as_ref().map_or(Vec::new(), |a| {
+            a.calls
+                .iter()
+                .map(|(s, c)| format!("{{\"seat\":{s},\"call\":\"{}\"}}", c.name()))
+                .collect()
+        });
+        out.push_str(&format!(",\"auction\":[{}]", calls.join(",")));
+        let legal_calls: Vec<String> = match &game.auction {
+            Some(a) if game.phase == Phase::Bidding && game.to_act() == Some(seat) => a
+                .legal_calls(seat)
+                .iter()
+                .map(|c| format!("\"{}\"", c.name()))
+                .collect(),
+            _ => Vec::new(),
+        };
+        out.push_str(&format!(",\"legal_calls\":[{}]", legal_calls.join(",")));
+        if game.bid_value > 0 {
+            out.push_str(&format!(",\"bid\":{}", game.bid_value));
+        } else {
+            out.push_str(",\"bid\":null");
+        }
+        out.push_str(&format!(
+            ",\"doubled\":{},\"double_pending\":{}",
+            game.doubled,
+            game.phase == Phase::Doubling && game.to_act() == Some(seat)
         ));
         let won = game.round.as_ref().map(|r| r.tricks_won).unwrap_or([0, 0]);
         out.push_str(&format!(",\"tricks_won\":[{},{}]", won[0], won[1]));
@@ -521,6 +787,27 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
         // Not until the last trick has been acknowledged — it stays on the table like any
         // other, and the scorecard waits for the tap.
         out.push_str(",\"scorecard\":");
+        if sidi {
+            match (game.last_sidi, game.phase) {
+                (Some(d), Phase::RoundOver | Phase::GameOver) if !awaiting => out.push_str(&format!(
+                    "{{\"round\":{},\"contract\":\"{}\",\"trick_points\":[{},{}],\
+                     \"last_trick\":[{},{}],\"match\":[{},{}],\"bid\":{},\"doubled\":{},\
+                     \"made\":{},\"bonus\":[{},{}],\"round_total\":[{},{}],\"scores\":[{},{}]}}",
+                    game.round_index,
+                    game.contract.map(contract_name).unwrap_or(""),
+                    d.trick_points[0], d.trick_points[1],
+                    d.last_trick[0], d.last_trick[1],
+                    d.match_bonus[0], d.match_bonus[1],
+                    d.bid, d.doubled, d.made,
+                    d.bonus[0], d.bonus[1],
+                    d.round_total[0], d.round_total[1],
+                    d.scores[0], d.scores[1],
+                )),
+                _ => out.push_str("null"),
+            }
+            out.push('}');
+            return publish(out);
+        }
         match (game.last_score, game.phase) {
             (Some(d), Phase::RoundOver | Phase::GameOver) if !awaiting => out.push_str(&format!(
                 "{{\"round\":{},\"contract\":\"{}\",\"multiplier\":{},\"trick_points\":[{},{}],\
@@ -544,11 +831,15 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
     })
 }
 
+/// Kreuz, Ecken, Schaufel, Herz, left to right, so black and red alternate. Indexed by suit
+/// (D H S C). Mirror of `HAND_SUIT_ORDER` in `web/app.py`.
+const HAND_SUIT_ORDER: [u8; 4] = [1, 3, 2, 0];
+
 fn sorted_hand(hand: u64) -> Vec<usize> {
     // Grouped by suit, ascending in rank left to right — the internal index runs ace-first,
     // which is right for the engine and backwards for a player looking at their cards.
     let mut cards = card_list(hand);
-    cards.sort_by_key(|&c| (card_suit(c), std::cmp::Reverse(c % 9)));
+    cards.sort_by_key(|&c| (HAND_SUIT_ORDER[card_suit(c)], std::cmp::Reverse(c % 9)));
     cards
 }
 

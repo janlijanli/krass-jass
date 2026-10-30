@@ -35,7 +35,7 @@ from krass_jass.agent import Agent, DmctsAgent
 from krass_jass.awareness import trick_taker
 from krass_jass.cards import card_list, card_rank, card_suit, format_card, parse_card
 from krass_jass.game import Game, Phase
-from krass_jass.rules import DEFAULT_MULTIPLIERS, HOUSE, Contract
+from krass_jass.rules import DEFAULT_MULTIPLIERS, HOUSE, SIDI, Contract
 from krass_jass.state import IllegalMove
 from krass_jass.trick import NUM_SEATS
 from web import session as sessions
@@ -88,9 +88,51 @@ class Table:
     #: tap, and the bots must not race ahead in the meantime — otherwise the board jumps
     #: forward the moment they do.
     acked_tricks: int = 0
+    #: Sidi: the last knock the player let pass, as (round, calls so far), so the question is
+    #: asked once per opposing bid.
+    knock_declined: tuple | None = None
+    #: The bid the bots have already been asked about, same key.
+    bots_knocked: tuple | None = None
+    #: Test mode: publish what a bot on the player's own seat believes about the other hands.
+    #: Off unless the client asks for it, because it costs a belief pool per frame.
+    show_beliefs: bool = False
+    #: The agent that answers that, in this process. The seats may be served by containers, which
+    #: have no business being asked what *this* seat believes.
+    belief_agent: Agent | None = None
+    #: Advice mode: a fourth bot on the player's own seat, ranking their legal cards. Off unless
+    #: asked for; it is a whole extra search per turn.
+    show_advice: bool = False
+    #: Its answer and the position it answered for — a search a move is dear enough to cache.
+    advice: list = field(default_factory=list)
+    advice_key: tuple | None = None
+    #: The agent that runs it. Its own, because it searches at the bots' budget while the belief
+    #: agent only ever draws a pool.
+    advice_agent: Agent | None = None
 
     def is_bot(self, seat: int) -> bool:
         return seat != self.human_seat
+
+    def knock_offer(self) -> dict | None:
+        """Sidi: an opponent has just bid and the player may knock before anyone else speaks.
+
+        A double may come at any time (`auction.py`), and at a table you knock the moment you
+        hear the bid — not after your partner in between has spoken. So the bots wait while the
+        player is asked. Not on the player's own turn: the bidding panel offers the double then.
+        """
+        game = self.game
+        auction = game.auction
+        if not game.cfg.sidi or game.phase is not Phase.BIDDING or auction is None or not auction.calls:
+            return None
+        seat, call = auction.calls[-1]
+        key = (game.round_index, len(auction.calls))
+        if (
+            call.kind != "bid"
+            or auction.to_act == self.human_seat
+            or not auction.may_double(self.human_seat)
+            or self.knock_declined == key
+        ):
+            return None
+        return {"seat": seat, "call": str(call)}
 
     def completed_tricks(self) -> int:
         return len(self.game.round.tricks_played) if self.game.round else 0
@@ -114,8 +156,15 @@ def build_config(settings: dict | None = None):
     and a rules engine driven by unvalidated client input is a rules engine with no rules.
     """
     settings = settings or {}
+    # Sidi Barrani is the default game (owner, 2026-09-19), played to 2000.
+    sidi = settings.get("mode", "sidi") == "sidi"
     target = settings.get("target")
-    target = target if target in TARGET_SCORES else 1000
+    target = target if target in TARGET_SCORES else (2000 if sidi else 1000)
+
+    if sidi:
+        # Sidi Barrani: its own scoring (every contract x1, no Weis, no Stöck) — the panel's
+        # multipliers and Weis switch are Schieber settings and do not apply.
+        return SIDI.variant(target_score=target)
 
     multipliers = dict(DEFAULT_MULTIPLIERS)
     for contract in Contract:
@@ -199,9 +248,15 @@ def create_app() -> FastAPI:
                 "seat": data["seat"],
                 "game_id": data["game_id"],
                 "settings": {
+                    "mode": cfg.mode,
                     "target": cfg.target_score,
-                    "weis": cfg.weis_enabled,
-                    "multipliers": {c.name.lower(): cfg.multiplier(c) for c in Contract},
+                    # A Sidi game has no Weis and no multipliers; the form still offers the
+                    # Schieber's, so it shows the Schieber's defaults rather than the Sidi's x1.
+                    "weis": cfg.weis_enabled or cfg.sidi,
+                    "multipliers": {
+                        c.name.lower(): (DEFAULT_MULTIPLIERS[c] if cfg.sidi else cfg.multiplier(c))
+                        for c in Contract
+                    },
                 },
                 "targets": TARGET_SCORES,
                 "multiplier_range": MULTIPLIER_RANGE,
@@ -220,7 +275,8 @@ def create_app() -> FastAPI:
     @app.post("/new")
     async def new_game(
         request: Request,
-        target: int = Form(1000),
+        target: int = Form(2000),
+        mode: str = Form("sidi"),
         weis: str = Form("on"),
         mult_diamonds: int = Form(1),
         mult_hearts: int = Form(2),
@@ -231,6 +287,7 @@ def create_app() -> FastAPI:
     ):
         table = new_table(
             settings={
+                "mode": "sidi" if mode == "sidi" else "schieber",
                 "target": target,
                 "weis": weis not in ("off", "false", "0", ""),
                 "mult_diamonds": mult_diamonds,
@@ -272,11 +329,17 @@ def create_app() -> FastAPI:
         try:
             await flush()
             await drive(table, seat, socket, flush)
+            if await ensure_advice(table, seat):
+                await flush()
             while True:
                 message = await socket.receive_json()
                 await handle(table, seat, message, socket)
                 await flush()
                 await drive(table, seat, socket, flush)
+                # After the table has been drawn, never before it: the search is most of a
+                # second and the player should see their cards first.
+                if await ensure_advice(table, seat):
+                    await flush()
         except WebSocketDisconnect:
             return
 
@@ -337,13 +400,19 @@ def visible_weis(table: Table, seat: int) -> list[dict]:
     ]
 
 
+#: Kreuz, Ecken, Schaufel, Herz, left to right: black and red alternate, so no two suits of one
+#: colour sit side by side in the fan (the owner's order). Indexed by suit: D H S C.
+HAND_SUIT_ORDER = (1, 3, 2, 0)
+
+
 def sorted_hand(hand: int) -> list[int]:
-    """Grouped by suit, ascending in rank left to right — 6 lowest, ace highest.
+    """Grouped by suit in `HAND_SUIT_ORDER`, ascending in rank left to right — 6 lowest, ace
+    highest. Mirrored by `sorted_hand` in `rust/src/wasm_api.rs`.
 
     The internal rank index runs the other way (0 = ace), which is right for the engine and
     backwards for a player looking at their cards.
     """
-    return sorted(card_list(hand), key=lambda c: (card_suit(c), -card_rank(c)))
+    return sorted(card_list(hand), key=lambda c: (HAND_SUIT_ORDER[card_suit(c)], -card_rank(c)))
 
 
 def view(table: Table, seat: int) -> dict:
@@ -410,7 +479,32 @@ def view(table: Table, seat: int) -> dict:
         "declarer": game.declarer,
         "scores": list(game.scores),
         "round": game.round_index,
-        "can_shove": game.phase is Phase.BIDDING and seat == game.forehand and not game.shoved,
+        "can_shove": (
+            game.phase is Phase.BIDDING
+            and not game.cfg.sidi
+            and seat == game.forehand
+            and not game.shoved
+        ),
+        # Sidi Barrani. The auction is public — every call was said aloud — and the calls this
+        # seat may make now are the engine's, as legal cards are: the client never decides.
+        "mode": game.cfg.mode,
+        "auction": [{"seat": s, "call": c} for s, c in game.public_auction()],
+        "legal_calls": (
+            [str(c) for c in game.auction.legal_calls(seat)]
+            if game.auction is not None and game.phase is Phase.BIDDING and game.to_act == seat
+            else []
+        ),
+        "bid": game.bid_value or None,
+        "doubled": game.doubled,
+        "double_pending": game.phase is Phase.DOUBLING and game.to_act == seat,
+        "knock": table.knock_offer(),
+        # Test mode (off by default): the probabilities a bot on this seat would be reasoning
+        # from. Derived from this seat's own hand and the public history — it reveals nothing
+        # hidden, it only shows what the bot's own belief pool says.
+        "beliefs": beliefs_view(table, seat),
+        # Advice mode (off by default): what a fourth bot on this seat would play, best first.
+        # Computed off the event loop by `ensure_advice`; this only publishes the answer.
+        "advice": table.advice if table.advice_key == advice_key(table, seat) else [],
         # The trump Jack decides most tricks it appears in; the engine names it so the client
         # does not have to work out what trump means.
         "puur": format_card(game.contract.trump_suit * 9 + 3)
@@ -436,6 +530,56 @@ def view(table: Table, seat: int) -> dict:
     }
 
 
+def beliefs_view(table: Table, seat: int) -> dict | None:
+    game = table.game
+    if not table.show_beliefs or game.phase not in (Phase.PLAYING, Phase.WEIS) or game.round is None:
+        return None
+    if table.belief_agent is None:
+        table.belief_agent = DmctsAgent(cfg=game.cfg, label="beliefs")
+    view = table.belief_agent.beliefs(game.observation(seat))
+    return {
+        "ess": view["ess"],
+        "cards": [
+            {"card": format_card(entry["card"]), "seats": entry["seats"]} for entry in view["cards"]
+        ],
+    }
+
+
+def advice_key(table: Table, seat: int) -> tuple | None:
+    """The position advice would be for, or None when there is nothing to advise on."""
+    game = table.game
+    if not table.show_advice or game.phase is not Phase.PLAYING or game.round is None:
+        return None
+    if game.round.to_play != seat or table.awaiting_ack():
+        return None
+    if game.round.legal_moves(seat).bit_count() < 2:
+        return None                      # one legal card is not advice
+    return (game.round_index, len(game.round.tricks_played), len(game.round.trick), game.hand_of(seat))
+
+
+async def ensure_advice(table: Table, seat: int) -> bool:
+    """Run the fourth bot for this seat, off the event loop. True when the answer is new.
+
+    The same search the three opponents use, run on the player's own hand, so it sees exactly what
+    they see and guesses as they do — and it costs the same, which is why it is cached per position
+    and only runs while the switch is on.
+    """
+    key = advice_key(table, seat)
+    if key is None or key == table.advice_key:
+        return False
+    if table.advice_agent is None:
+        table.advice_agent = DmctsAgent(
+            determinizations=BOT_DETERMINIZATIONS, iterations=BOT_ITERATIONS,
+            cfg=table.game.cfg, label="advice",
+        )
+    observation = table.game.observation(seat)
+    loop = asyncio.get_running_loop()
+    ranked = await loop.run_in_executor(None, table.advice_agent.trace, observation)
+    table.advice = [format_card(card) for card, *_ in ranked]
+    table.advice_key = key
+    return True
+
+
 async def handle(table: Table, seat: int, message: dict, socket: WebSocket) -> None:
     """Apply one client intent. Everything is re-validated; nothing is trusted."""
     game = table.game
@@ -445,8 +589,21 @@ async def handle(table: Table, seat: int, message: dict, socket: WebSocket) -> N
             game.bid(seat, message.get("action", ""))
         elif kind == "play":
             game.play(seat, parse_card(str(message.get("card", ""))))
+        elif kind == "double":
+            if game.phase is Phase.DOUBLING:
+                game.double(seat, bool(message.get("double")))
+            elif table.knock_offer() is not None:
+                if message.get("double"):
+                    game.bid(seat, "DOUBLE")        # out of turn: allowed for a double
+                else:
+                    table.knock_declined = (game.round_index, len(game.auction.calls))
         elif kind == "weis":
             game.choose_weis(seat, bool(message.get("announce")))
+        elif kind == "beliefs":
+            table.show_beliefs = bool(message.get("on"))
+        elif kind == "advice":
+            table.show_advice = bool(message.get("on"))
+            table.advice, table.advice_key = [], None
         elif kind == "ack_trick":
             table.acked_tricks = table.completed_tricks()
         elif kind == "next_round":
@@ -460,13 +617,47 @@ async def handle(table: Table, seat: int, message: dict, socket: WebSocket) -> N
         await socket.send_json({"type": "rejected", "message": str(exc)})
 
 
+async def bots_knock(table: Table) -> None:
+    """Sidi: every bot opposing the standing bid gets to knock, the moment it is made.
+
+    A double may come out of turn (`krass_jass/auction.py`), so waiting for a bot's turn would
+    make the bots play by a different rule than the player. Asked once per bid, in play order
+    from the bidder, and the first one to knock ends the auction.
+    """
+    game = table.game
+    auction = game.auction
+    if not game.cfg.sidi or game.phase is not Phase.BIDDING or auction is None or auction.high is None:
+        return
+    key = (game.round_index, len(auction.calls))
+    if table.bots_knocked == key or auction.doubled:
+        return
+    table.bots_knocked = key
+    public = game.public_auction()
+    loop = asyncio.get_running_loop()
+    for step in (1, 3):
+        actor = (auction.high[0] + step) % NUM_SEATS
+        if not table.is_bot(actor) or not auction.may_double(actor):
+            continue
+        knock = await loop.run_in_executor(
+            None, table.bots[actor].sidi_knock, game.hand_of(actor), public, actor
+        )
+        if knock:
+            await asyncio.sleep(random.uniform(0.3, 0.6))
+            game.bid(actor, "DOUBLE")
+            return
+
+
 async def drive(table: Table, seat: int, socket: WebSocket, flush) -> None:
     """Let the bots act until it is the human's turn again."""
     game = table.game
     async with table.lock:
-        while game.phase in (Phase.BIDDING, Phase.WEIS, Phase.PLAYING):
+        while game.phase in (Phase.BIDDING, Phase.DOUBLING, Phase.WEIS, Phase.PLAYING):
             if table.awaiting_ack():
                 return  # the player is still looking at the last trick
+            if table.knock_offer() is not None:
+                return  # the player is being asked whether to knock
+            await bots_knock(table)
+            await flush()
             actor = game.to_act
             if actor is None or actor == seat:
                 return
@@ -485,6 +676,24 @@ async def think(table: Table, actor: int) -> None:
         # has no basis for one.
         await asyncio.sleep(random.uniform(0.2, 0.45))
         game.choose_weis(actor, True)
+        return
+
+    if game.phase is Phase.BIDDING and game.cfg.sidi:
+        hand, auction = game.hand_of(actor), game.public_auction()
+        started = loop.time()
+        call = await loop.run_in_executor(None, bot.sidi_call, hand, auction, actor)
+        await pace(2, loop.time() - started)
+        try:
+            game.bid(actor, call)
+        except IllegalMove:
+            game.bid(actor, "PASS")   # a bot's call is re-validated like its cards
+        return
+
+    if game.phase is Phase.DOUBLING:
+        observation = game.observation(actor)
+        answer = await loop.run_in_executor(None, bot.sidi_double, observation)
+        await pace(2)
+        game.double(actor, bool(answer))
         return
 
     if game.phase is Phase.BIDDING:

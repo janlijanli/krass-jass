@@ -357,13 +357,24 @@
     "rounds": {"a": "fitted weights", "b": "shipped weights", "cfg": "HOUSE", "iterations": 38400, "deals": 2000, "share": 51.73, "std": 9.61, "p": 8.9e-16}
   },
 
+  "play_model_conventions": {
+    "deals": 1000,
+    "runs": [
+      { "seed": 93, "share": 50.39, "std": 5.43, "p": 0.0238 },
+      { "seed": 94, "share": 50.50, "std": 5.38, "p": 0.00315 }
+    ],
+    "decisions": 310184,
+    "note": "The play model refitted to self-play in which every seat plays the Swiss conventions, against the model fitted without them. Replicated; it ships. measurements.md §5w.",
+    "when": "2026-09-20"
+  },
+
   "play_model": {
-    "measured_on": "2026-09-15",
-    "note": "measurements.md §5o. rust/src/playmodel.rs: 36 features, 32 hidden units, trained on the shipped search's own play at 38,400 iterations.",
-    "decisions": 161850,
-    "validation_nll": 0.885,
+    "measured_on": "2026-09-20",
+    "note": "measurements.md §5w. rust/src/playmodel.rs: 36 features, 32 hidden units, trained on the shipped search's own play at 38,400 iterations — with the Swiss conventions on, so the model reads a table that plays them.",
+    "decisions": 310184,
+    "validation_nll": 0.837,
     "uniform_nll": 1.289,
-    "top1": 61.4,
+    "top1": 65.2,
     "previous_linear_top1": 48.0
   },
 
@@ -539,5 +550,77 @@
       "shipped_change": false
     },
     "lesson": "Oracle-equivalent p predicted the first belief step (+1.31, twice) and has predicted nothing since: +0.031 and +0.034 more both measured null in play."
+  },
+  "tree_policy_shipped": {
+    "measured_on": "2026-09-16",
+    "note": "measurements.md §5p. The other three seats move by the play model inside the tree, equal iterations at the shipped 153,600 on both sides; the A side costs ~11x a move. Ships on in agent.py (server and bot containers); off in the browser build.",
+    "rows": [
+      {"seed": "first", "share": 50.62, "std": 6.16, "deals": 1000, "p": 1.4e-03},
+      {"seed": "fresh", "share": 51.10, "std": 6.52, "deals": 1000, "p": 8.5e-08}
+    ],
+    "pooled": {"share": 50.86, "se": 0.14, "deals": 2000, "p": 1e-09},
+    "shipped": true
+  },
+  "policy_network": {
+    "measured_on": "2026-09-16",
+    "note": "measurements.md §5s. A network trained on the search's visit distributions (311,756 decisions of today's bot), played with no search at all. Both gates missed (70% agreement, within 1% of the search); kept as a fast difficulty level, not a replacement.",
+    "decisions": 311756,
+    "heads": [
+      {"head": "flat, 36 logits", "val_ce": 1.236, "top1": 51.0, "vs_random": 59.94, "vs_greedy": 62.16, "vs_search": {"share": 42.42, "std": 7.36, "deals": 1000, "p": 0.0}},
+      {"head": "conditioned", "val_ce": 1.179, "top1": 60.3, "vs_random": 65.48, "vs_greedy": 67.66, "vs_search": {"share": 45.97, "std": 7.04, "deals": 1000, "p": 0.0}}
+    ],
+    "uniform_ce": 1.296,
+    "ms_per_move": 0.18,
+    "shipped": false
+  },
+  "value_network": {
+    "measured_on": "2026-09-18",
+    "note": "measurements.md §5t. A value network (295 -> 128 -> 64 -> 1) in place of the random playout, trained on 432,000 positions labelled with what actually happened. Kill criterion fired: null in a small search. krass_jass/data/value_net.json ships untrained.",
+    "rmse": [
+      {"estimator": "constant 0.5", "rmse": 0.346},
+      {"estimator": "1 random playout", "rmse": 0.210},
+      {"estimator": "value network", "rmse": 0.188},
+      {"estimator": "4 random playouts", "rmse": 0.159},
+      {"estimator": "16 random playouts", "rmse": 0.143},
+      {"estimator": "64 random playouts", "rmse": 0.139},
+      {"estimator": "256 random playouts", "rmse": 0.137}
+    ],
+    "matches": [
+      {"iterations": 2400, "share": 49.85, "std": 7.58, "deals": 2000, "p": 0.39},
+      {"iterations": 153600, "share": 50.40, "std": 6.96, "deals": 1000, "p": 0.068, "seconds_per_move": 2.64, "baseline_seconds_per_move": 1.68}
+    ],
+    "shipped": false
+  },
+  "sidi": {
+    "measured_on": "2026-09-19 – 2026-09-21",
+    "note": "measurements.md §5v, docs/sidi-plan.md. Sidi Barrani, the second game mode: the Schieber protocol for a Sidi hand (arena/sidi_ab.py) — every hand twice with the teams swapped on one seed, a paired test — in points written a hand (cards plus the stake), A's team minus B's. 1,000 double hands each at 38,400 iterations. 'sd' is the per-hand standard deviation of the difference.",
+    "unit": "points written a hand",
+    "iterations": 38400,
+    "hands": 1000,
+    "rows": [
+      {"key": "read_auction", "when": "2026-09-19", "a": "reading the auction", "b": "not reading it", "flag": "sidi_alpha 1 vs 0", "diff": 32.02, "sd": 109.4, "share": 55.10, "p": 0.0, "decision": "on"},
+      {"key": "objective", "when": "2026-09-19", "a": "playing for the bid", "b": "playing for the cards", "flag": "sidi_objective", "diff": -5.14, "sd": 73.9, "share": 49.15, "p": 0.028, "decision": "off"},
+      {"key": "double_model", "when": "2026-09-19", "a": "doubling on an estimate", "b": "a stopper count", "flag": "sidi_double_model", "diff": -0.18, "sd": 80.3, "share": 49.97, "p": 0.94, "decision": "on (null)"},
+      {"key": "knock_anytime", "when": "2026-09-20", "a": "knocking out of turn", "b": "only on turn", "flag": "sidi_knock_anytime", "diff": -7.61, "sd": 59.0, "share": 48.74, "p": 4.5e-05, "decision": "off"},
+      {"key": "knock_holds_bid", "when": "2026-09-20", "a": "out of turn, only with nothing left to bid", "b": "only on turn", "flag": "sidi_knock_holds_bid", "diff": -11.08, "sd": 67.1, "share": 48.14, "p": 1.8e-07, "decision": "off"},
+      {"key": "double_below_025", "when": "2026-09-21", "a": "doubling below 0.25", "b": "below 0.35", "flag": "sidi_double_below", "diff": 4.93, "sd": 54.0, "share": 50.84, "p": 0.0039, "decision": "ships"},
+      {"key": "double_below_025_rep", "when": "2026-09-21", "a": "doubling below 0.25, seed 80", "b": "below 0.35", "flag": "sidi_double_below", "diff": 7.14, "sd": 58.2, "share": 51.19, "p": 1.0e-04, "decision": "ships"},
+      {"key": "double_below_015", "when": "2026-09-21", "a": "doubling below 0.15", "b": "below 0.25", "flag": "sidi_double_below", "diff": 1.73, "sd": 44.1, "share": 50.30, "p": 0.21, "decision": "null"},
+      {"key": "never_double", "when": "2026-09-21", "a": "never doubling", "b": "below 0.25", "flag": "sidi_double_below", "diff": 0.33, "sd": 69.5, "share": 50.06, "p": 0.88, "decision": "null"}
+    ],
+    "doubling_profile": {
+      "auctions": 600,
+      "doubled_estimate": 36,
+      "doubled_stopper_count": 3,
+      "p_make_doubled": 0.46,
+      "p_make_undoubled": 0.61,
+      "median_bid_doubled": 110,
+      "median_bid_undoubled": 90,
+      "note": "Measured with the 0.35 threshold that §5v later replaced by 0.25."
+    },
+    "bidder_profile": {"auctions": 3000, "thrown_in": 0, "doubled_stopper_count": 3, "median_bid": 100},
+    "estimate_samples": 1200,
+    "double_below": 0.25,
+    "target_score": 2000
   }
 }

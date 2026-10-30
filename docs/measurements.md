@@ -1658,6 +1658,81 @@ Not yet done: the bot *plays* the conventions but does not *read* them — the p
 the tree policy use was trained on play without them. Retraining it on self-play with conventions is
 the next step.
 
+## 5w. The play model, retrained on convention self-play — the first learned gain since §5p
+
+*2026-09-19/20.* §5u shipped the Swiss conventions, and noted that the bot *played* them but could
+not *read* them: the play model the beliefs (§5o) and the tree policy (§5p) see the table through
+was fitted to self-play in which nobody played them. So the corpus was taken again with them on.
+
+**Data.** 12,000 rounds of the shipped bot playing itself under `HOUSE` at 38,400 iterations, every
+seat with conventions at the shipped price — 310,184 decisions (`arena/policy_data.py`), 3.5 h.
+Trained exactly as the shipped model was, 32 hidden units, only the data different:
+
+| | shipped model (§5.2) | retrained |
+|---|---|---|
+| validation cross-entropy | 0.885 | **0.837** (uniform 1.288) |
+| top-1 agreement with the search | 61.4% | **65.2%** |
+
+**In play**, against the bot with the shipped model, everything else equal, 1,000 double deals at
+153,600 with the tree policy on:
+
+| seed | share | p |
+|---|---|---|
+| 93 | 50.39% ± 5.43 | 0.024 |
+| 94 | **50.50% ± 5.38** | **0.003** |
+
+Replicated, so it ships. About +0.45 of a round's share — small beside §5o's +1.3, and the first
+gain in this project that comes from a behaviour the owner chose rather than one the search found:
+the model now expects a partner to cash aces before kings and to draw trumps, and reads them that
+way inside the tree and in the belief weights. Offline model quality predicted the direction here,
+which §5q–§5r warned it would not; one agreement is not a licence to trust it again.
+
+---
+
+## 5v. Sidi Barrani: the first screens
+
+*2026-09-19.* The second game mode (`docs/rules-config.md`, `docs/sidi-plan.md`) measured the Schieber
+way — every hand twice with the teams swapped on one seed, a paired test — in **points written a
+hand** (cards plus the stake), `arena/sidi_ab.py`, 1,000 double hands at 38,400 iterations each. Both
+arms bid with the same rule bidder.
+
+| A vs B | points a hand | written share | p |
+|---|---|---|---|
+| reading the auction (`sidi_alpha` 1 vs 0) | **+32.02 ± 109.4** | 55.10% | ≈ 0 |
+| playing for the bid vs for the cards (`sidi_objective`) | −5.14 ± 73.9 | 49.15% | 0.028 |
+| doubling on an estimate vs a stopper count (`sidi_double_model`) | −0.18 ± 80.3 | 49.97% | 0.94 |
+| knocking out of turn vs only on turn (`sidi_knock_anytime`) | **−7.61 ± 59.0** | 48.74% | 4.5e-05 |
+| the same, but only with nothing left to bid (`sidi_knock_holds_bid`) | **−11.08 ± 67.1** | 48.14% | 1.8e-07 |
+| doubling below 0.25 instead of 0.35 (`sidi_double_below`) | **+4.93 ± 54.0** | 50.84% | 0.0039 |
+| the same, replicated on seed 80 | **+7.14 ± 58.2** | 51.19% | 1.0e-04 |
+| doubling below 0.15 instead of 0.25 | +1.73 ± 44.1 | 50.30% | 0.21 |
+| never doubling at all, against 0.25 | +0.33 ± 69.5 | 50.06% | 0.88 |
+
+Knocking out of turn — a double the moment an opponent bids, which the rules allow and the player
+may do — **loses**, and it is the clearest loss measured here. A double ends the auction, so a seat
+that knocks early throws away its own contract and whatever its partner still had to say; asking
+both opponents after every bid doubled about half of all hands against a third. It is off for the
+bots (the player keeps the button, because the rule is the rule at a table). Restricting it to
+seats with nothing left to bid did not rescue it — that lost 11.08, worse than the unrestricted
+version — so the cost is not the forfeited contract alone: **these bots simply double too often**,
+and every extra double doubles a stake their estimate is only roughly right about. What to try
+next is the threshold, not the timing.
+
+**And the threshold was it.** Doubling only below 0.25 beats 0.35 by 4.93 and 7.14 points a hand on
+two seeds — replicated, and it ships. Below that the curve is flat: 0.15 is indistinguishable from
+0.25 (+1.73, p = 0.21) and so is **never doubling at all** (+0.33, p = 0.88). So the honest reading
+of the whole doubling line is that these bots' doubles are worth nothing and the only thing that
+mattered was to stop making the bad ones; 0.25 keeps a double a bot can justify, at no measured
+cost, and the value has to come from a better estimate — or from bidding numbers the opponents
+cannot punish, which is where the Sidi bots actually lose (`docs/sidi-plan.md`, step 4).
+
+Reading the auction is on, and is the largest effect in this document — against bidders who speak
+the language literally, and with doubling blind to the auction in the B arm as well, so it bounds
+what a human partner's bids are worth rather than measuring it. Playing for the bid is off: the
+stake's cliff, scaled into the search's [0, 1] reward, starves it of the card-point signal it was
+tuned on. The estimate-based double stays (the owner's design, null against the rule). Details and
+a replication on a fresh seed, queued, in `docs/sidi-plan.md`.
+
 ---
 
 ## 6. Open

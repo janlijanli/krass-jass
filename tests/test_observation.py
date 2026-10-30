@@ -32,6 +32,11 @@ EXPECTED_FIELDS = {
     "time_budget_ms",
     "decision_seed",
     "round_index",
+    # Sidi Barrani: the auction was said aloud, so every call is public; the standing bid and
+    # the double are what the table agreed to play. None of them names a card.
+    "auction",
+    "bid_value",
+    "doubled",
 }
 
 
@@ -99,6 +104,26 @@ def test_weis_points_are_public_and_stoeck_is_not():
     # Weis is resolved before the first card in automatic mode, so the totals it carries are
     # exactly the ones the table heard announced.
     assert tuple(obs.weis_points) == tuple(game._weis)
+
+
+def test_the_sidi_auction_is_public_and_names_no_card():
+    """Every call in an observation is one the whole table heard, in the order it was made,
+    and a call is a contract and a number — never a card."""
+    from krass_jass.cards import parse_card
+    from krass_jass.game import Game
+    from krass_jass.rules import SIDI
+
+    game = Game(cfg=SIDI, seed=12)
+    for call in ("HEARTS 50", "PASS", "OBENABE 60", "DOUBLE"):
+        game.bid(game.to_act, call)
+    heard = tuple((e.payload["seat"], e.payload["action"]) for e in game.log.all() if e.type.value == "bid")
+    for seat in range(4):
+        obs = game.observation(seat)
+        assert obs.auction == heard
+        for _, call in obs.auction:
+            for word in call.split():
+                with pytest.raises(ValueError):
+                    parse_card(word)
 
 
 @pytest.mark.parametrize("contract", list(Contract))

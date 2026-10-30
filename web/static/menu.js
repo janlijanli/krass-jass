@@ -39,7 +39,7 @@ try {
 
 export const talkOn = () => talk;
 
-/* The game settings — play to, Weis, the multipliers — remembered by the offline build, where
+/* The game settings — game mode, play to, Weis, the multipliers — remembered by the offline build, where
  * there is no server to hold them and an app relaunch would otherwise reset every chip.
  * Saved when a game is started with them, not on every tap: until then they are a draft,
  * and the form says changes take effect on a new game. */
@@ -48,8 +48,8 @@ const SETTINGS_KEY = "kj_settings";
 function saveSettings(form) {
   const chosen = {};
   form.querySelectorAll("input[type=radio]:checked").forEach((input) => {
-    // Language, talk and advice are live switches with storage of their own.
-    if (input.name === "target" || input.name === "weis" || input.name.startsWith("mult_")) {
+    // Language, talk, advice and beliefs are live switches with storage of their own.
+    if (["mode", "target", "weis"].includes(input.name) || input.name.startsWith("mult_")) {
       chosen[input.name] = input.value;
     }
   });
@@ -76,6 +76,21 @@ function restoreSettings(form) {
     if (input) input.checked = true;
   }
 }
+
+/* Test mode: show what a bot on your own seat believes about the other three hands.
+ *
+ * Off by default and remembered per browser. It is not assistance in the sense advice mode is —
+ * it publishes the search's own belief pool so a player can follow the reasoning — but it is a
+ * live switch, so it lives beside the others rather than in the new-game form. */
+const BELIEFS_KEY = "kj_beliefs";
+let beliefs = false;
+try {
+  beliefs = localStorage.getItem(BELIEFS_KEY) === "on";
+} catch {
+  beliefs = false;
+}
+
+export const beliefsOn = () => beliefs;
 
 /** The language chips. Browser detection is a guess; this is how a wrong guess is fixed. */
 function buildLanguagePicker(onChange) {
@@ -109,6 +124,7 @@ export function initMenu({
   onLanguageChange = null,
   onAdviceChange = null,
   onTalkChange = null,
+  onBeliefsChange = null,
 }) {
   const menu = document.getElementById("menu");
   const opener = document.getElementById("menu-open");
@@ -208,6 +224,23 @@ export function initMenu({
     });
   }
 
+  const beliefHost = document.getElementById("beliefs-toggle");
+  if (beliefHost) {
+    beliefHost.hidden = false;
+    beliefHost.querySelectorAll('input[name="beliefs"]').forEach((input) => {
+      input.checked = (input.value === "on") === beliefs;
+      input.addEventListener("change", () => {
+        beliefs = input.value === "on";
+        try {
+          localStorage.setItem(BELIEFS_KEY, beliefs ? "on" : "off");
+        } catch {
+          /* not remembering it is no reason to refuse it */
+        }
+        onBeliefsChange?.();
+      });
+    });
+  }
+
   const talkHost = document.getElementById("talk-toggle");
   if (talkHost) {
     talkHost.hidden = false;
@@ -231,6 +264,31 @@ export function initMenu({
     relocalise();
     onLanguageChange?.();
   });
+
+  // The Sidi rules are one tap away from the table: the bidding panel and the settings note
+  // ask for them with this event rather than knowing how the menu is built.
+  document.addEventListener("kj:open-rules", async () => {
+    open();
+    await showMode("about");
+    document.querySelector('.about-tab[data-panel="rules"]')?.click();
+  });
+
+  // The game decides which settings exist. Sidi Barrani counts every contract once and has
+  // no Weis, so those two sections go while it is chosen, and its usual target is 2000.
+  const form = document.getElementById("mode-settings");
+  const TARGET_FOR = { sidi: "2000", schieber: "1000" };
+  const syncMode = (changed) => {
+    const mode = form?.querySelector('input[name="mode"]:checked')?.value || "sidi";
+    form?.querySelectorAll("[data-schieber-only]").forEach((n) => { n.hidden = mode === "sidi"; });
+    if (changed) {
+      const target = form.querySelector(`input[name="target"][value="${TARGET_FOR[mode]}"]`);
+      if (target) target.checked = true;
+    }
+  };
+  form?.querySelectorAll('input[name="mode"]').forEach((input) =>
+    input.addEventListener("change", () => syncMode(true))
+  );
+  syncMode(false);
 
   return { open, close, showMode, relocalise };
 }

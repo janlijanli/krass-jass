@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from . import bidding, convention, native, reading
+from . import bidding, convention, native, reading, sidi_bidding
 from .cards import card_list
 from .observation import Observation
 from .rules import HOUSE, SHOVE, Contract, RulesConfig
@@ -29,6 +29,38 @@ from .voids import infer_forbidden
 @lru_cache(maxsize=8)
 def _read_text(path: str) -> str:
     return Path(path).read_text()
+
+
+def _sidi_standing(auction: tuple, seat: int):
+    """`(contract, value)` of a bid this seat may knock on, or None.
+
+    None when nobody has bid, when it is this seat's own side bidding, or when the bid has
+    already been doubled — the same test `Auction.may_double` makes.
+    """
+    from .auction import Call
+
+    high = None
+    for other, text in auction:
+        call = Call.parse(text)
+        if call.kind == "bid":
+            high = (other, call.contract, call.value)
+        elif call.kind == "double":
+            return None            # already doubled; there is nothing left to knock on
+    if high is None or (high[0] - seat) % 2 == 0:
+        return None
+    return high[1], high[2]
+
+
+def _sidi_bids(auction: tuple) -> list[tuple[int, int, int]]:
+    """The auction's bids as `(seat, contract, value)`. Passes and doubles claim nothing."""
+    from .auction import Call
+
+    out = []
+    for seat, text in auction:
+        call = Call.parse(text)
+        if call.kind == "bid":
+            out.append((seat, int(call.contract), call.value))
+    return out
 
 
 class Agent:
@@ -54,6 +86,26 @@ class Agent:
         if self.trump_policy == "random":
             return Contract(random.Random(hand ^ 0x5DEECE66D).randrange(6))
         return select_trump(hand, is_forehand, self.cfg)
+
+    def sidi_call(self, hand: int, auction: tuple, seat: int) -> str:
+        """Sidi Barrani: one call in the auction, in its wire form. The auction is public."""
+        return sidi_bidding.choose_call(hand, auction, seat, self.cfg)
+
+    def sidi_double(self, obs: Observation) -> bool:
+        """Sidi Barrani: the question after the lead — double the declarers' bid?"""
+        return sidi_bidding.double_after_lead(obs.hand, obs.contract, obs.bid_value)
+
+    def sidi_knock(self, hand: int, auction: tuple, seat: int) -> bool:
+        """Sidi Barrani: double the standing bid without waiting for this seat's turn.
+
+        At a table you knock the moment you hear the bid. The caller asks every opponent of the
+        bidder after each bid; `False` simply means "not this one".
+        """
+        standing = _sidi_standing(auction, seat)
+        if standing is None:
+            return False
+        contract, value = standing
+        return sidi_bidding.may_double(hand, contract, value)
 
 
 class RandomAgent(Agent):
@@ -121,6 +173,44 @@ class DmctsAgent(Agent):
     #: convention's card rises from 65.9% to 73.2% of the decisions a convention speaks to;
     #: a price of 0.02 reached 79.7% but cost 0.5 (49.49%, p = 0.018).
     convention_slack: tuple = (1.0, 0.01)
+    #: Sidi Barrani: weight on what the auction says about the other hands (`rust/src/sidi_read.rs`
+    #: — parity names the Bauer or the Nell, size the trumps, believed most for a first bid and a
+    #: big jump). **On: +32.0 points written a hand**, p ≈ 0, 1,000 double hands at 38,400
+    #: (`docs/measurements.md` §5v) — the largest effect measured in this project, and measured bot
+    #: against bot, where every seat speaks the language literally.
+    sidi_alpha: float = 1.0
+    #: Sidi Barrani: play the hand for the bid — the cards and the stake at the bid's threshold
+    #: (`rust/src/objective.rs`) — rather than for a share of the cards. **Off: it lost 5.1 points
+    #: written a hand**, p = 0.028 (§5v). The share of the cards it replaced is what the search's
+    #: exploration and every other setting were tuned on; the stake's cliff, scaled into [0, 1],
+    #: leaves the card points too little of the signal.
+    sidi_objective: bool = False
+    #: Sidi Barrani: double on an estimate rather than a stopper count — deal the unseen cards,
+    #: weight each deal by the auction, play it out with the play model, and double when the
+    #: declarers make their bid in fewer than `sidi_double_below` of the deals
+    #: (`rust/src/sidi_estimate.rs`). Doubling pays for the defenders exactly when that chance is
+    #: under a half; the margin is for the estimate's error and for what a double in the auction
+    #: gives up (it ends the bidding, the team's own contract with it). **On, and null** against the
+    #: stopper count: −0.18 points a hand, p = 0.94 (§5v), while doubling in 36% of auctions
+    #: instead of 3%. Kept as the principled rule the owner asked for; its threshold is untuned.
+    sidi_double_model: bool = True
+    #: Knock out of turn: answer "double?" the moment an opponent bids, as the player may
+    #: (`krass_jass/auction.py`). **Off: it lost 7.61 points written a hand**, p = 4.5e-05
+    #: (`docs/measurements.md` §5v). A double ends the auction, so knocking early throws away the
+    #: seat's own contract and everything its partner still had to say — and asking both opponents
+    #: after every bid doubled about half of all hands against a third. With `sidi_knock_holds_bid`
+    #: the seat keeps quiet while it still has a bid of its own; that variant is being measured.
+    sidi_knock_anytime: bool = False
+    #: Only knock out of turn with nothing left to bid — the part of the rule that costs nothing.
+    sidi_knock_holds_bid: bool = True
+    #: **0.25**: doubling below a third of a chance lost 4.93 and 7.14 points a hand against this
+    #: (§5v, two seeds). Below 0.25 nothing more is on offer — 0.15 and never doubling at all are
+    #: both indistinguishable from it — so this is where a double stops costing, not where it
+    #: starts paying.
+    sidi_double_below: float = 0.25
+    #: Deals per estimate. At 400 the estimate's own spread is ±0.03, which flips decisions near
+    #: the threshold; 1,200 halves it for ~140 ms a question.
+    sidi_double_samples: int = 1200
     #: Read the other seats' discards as signals and tilt the determinization towards the
     #: worlds they suggest. **Off**, and the flag exists because that is a measured decision
     #: rather than an opinion: it is worth nothing at this budget even against a partner who
@@ -231,6 +321,57 @@ class DmctsAgent(Agent):
             return select_trump(hand, is_forehand, self.cfg, load_weights(self.trump_weights))
         return super().select_trump(hand, is_forehand)
 
+    def _declarers_make(self, seat, hand, history, contract, declarer, bid, auction, seed) -> float:
+        p, _ = native.sidi_make_probability(
+            seat, hand, history, declarer, contract, declarer, bid, _sidi_bids(auction),
+            samples=self.sidi_double_samples, alpha=self.sidi_alpha, seed=seed,
+        )
+        return p
+
+    def sidi_call(self, hand: int, auction: tuple, seat: int) -> str:
+        from .auction import Call
+
+        double = None
+        high = next(
+            ((s, Call.parse(c)) for s, c in reversed(auction) if Call.parse(c).kind == "bid"), None
+        )
+        if self.sidi_double_model and high is not None and (high[0] - seat) % 2 == 1:
+            bidder, call = high
+            # Deterministic for the position, as every decision here must be.
+            seed = hash((hand, len(auction), seat)) & 0xFFFF_FFFF
+            p = self._declarers_make(seat, hand, [], call.contract, bidder, call.value, auction, seed)
+            double = p < self.sidi_double_below
+        return sidi_bidding.choose_call(hand, auction, seat, self.cfg, double=double)
+
+    def sidi_knock(self, hand: int, auction: tuple, seat: int) -> bool:
+        standing = _sidi_standing(auction, seat)
+        if standing is None or not self.sidi_knock_anytime:
+            return False
+        if self.sidi_knock_holds_bid:
+            # A double ends the auction. A seat that could still outbid the standing call has a
+            # cheaper answer than spending the auction on a knock.
+            own = sidi_bidding.opening(hand)
+            if own is not None and min(own[1], 150) > standing[1]:
+                return False
+        if not self.sidi_double_model:
+            return super().sidi_knock(hand, auction, seat)
+        contract, value = standing
+        bidder = next(s for s, text in reversed(auction) if text == f"{contract.name} {value}")
+        seed = hash((hand, len(auction), seat, "knock")) & 0xFFFF_FFFF
+        return self._declarers_make(seat, hand, [], contract, bidder, value, auction, seed) < (
+            self.sidi_double_below
+        )
+
+    def sidi_double(self, obs: Observation) -> bool:
+        if not self.sidi_double_model:
+            return super().sidi_double(obs)
+        history = [((obs.trick_leader + i) % 4, c) for i, c in enumerate(obs.trick)]
+        p = self._declarers_make(
+            obs.seat, obs.hand, history, obs.contract, obs.declarer_seat, obs.bid_value,
+            obs.auction, obs.decision_seed,
+        )
+        return p < self.sidi_double_below
+
     @property
     def name(self) -> str:
         return self.label or f"dmcts({self.determinizations}x{self.iterations})"
@@ -314,7 +455,9 @@ class DmctsAgent(Agent):
         this round's share, the objective every figure before `docs/measurements.md` §5d was
         measured with.
         """
-        target = self.cfg.target_score or 0
+        # The Sidi's game score is a different sum (a stake on top of the cards); until the search
+        # has an objective for it (docs/sidi-plan.md, step 3) it maximises the round's share.
+        target = 0 if self.cfg.sidi else self.cfg.target_score or 0
         return {
             "scores": tuple(obs.scores),
             "weis": tuple(obs.weis_points),
@@ -328,6 +471,16 @@ class DmctsAgent(Agent):
             "order_moves": self.order_moves,
             "prior_weight": self.prior_weight,
             "policy_weights": list(self.policy_weights) if self.policy_weights else None,
+            # Sidi: the hand is played for the bid, not for a share of the cards.
+            **(
+                {
+                    "sidi_bid": obs.bid_value,
+                    "sidi_declarers": obs.declarer_seat & 1,
+                    "sidi_doubled": obs.doubled,
+                }
+                if self.cfg.sidi and obs.bid_value and self.sidi_objective
+                else {}
+            ),
         }
 
     def _play(self, obs: Observation) -> dict:
@@ -345,7 +498,8 @@ class DmctsAgent(Agent):
             "history": history,
             "belief_alpha": self.belief_alpha,
             "belief_pool": self.belief_pool if weighting else 0,
-            "bid_alpha": self.bid_alpha,
+            # The bid model is the Schieber's choose-or-shove; a Sidi auction is another language.
+            "bid_alpha": 0.0 if self.cfg.sidi else self.bid_alpha,
             "bid_temperature": self.bid_temperature,
             "rollout_temperature": self.rollout_temperature,
             "tree_policy": self.tree_policy,
@@ -355,6 +509,26 @@ class DmctsAgent(Agent):
             "play_model_json": _read_text(self.play_model) if self.play_model else None,
             "value_net": self.value_net,
             "value_model_json": _read_text(self.value_model) if self.value_model else None,
+            **(
+                {"sidi_auction": _sidi_bids(obs.auction), "sidi_alpha": self.sidi_alpha}
+                if self.cfg.sidi
+                else {}
+            ),
+        }
+
+    def beliefs(self, obs: Observation) -> dict:
+        """What this agent believes about the other three hands, as probabilities per card.
+
+        The app's test mode shows it, so a player can see what the bot is reasoning from. It is
+        the search's own pool (`krass_jass/native.py`), not a second opinion.
+        """
+        cards, ess = native.belief_marginals(obs, self)
+        return {
+            "cards": [
+                {"card": card, "seats": [round(a, 4), round(b, 4), round(c, 4)]}
+                for card, a, b, c in cards
+            ],
+            "ess": round(ess, 1),
         }
 
     def _priors(self, obs: Observation) -> dict:
@@ -370,7 +544,7 @@ class DmctsAgent(Agent):
                 list(obs.tricks_played), list(obs.trick), obs.trick_leader, obs.contract,
                 self.cfg,
             )
-        if self.read_bidding:
+        if self.read_bidding and not self.cfg.sidi:
             bid_suits, ranks = bidding.infer_from_bid(
                 obs.forehand, obs.declarer_seat, obs.contract, obs.seat, self.cfg
             )

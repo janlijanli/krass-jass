@@ -15,6 +15,8 @@ bot services. The substantial goal is training an algorithm that plays the game 
 - **`docs/plan-review.md`** — review of the plan, and why M5 is gated on engine throughput.
 - **`docs/measurements.md`** — every measurement, dated, in the order it was taken, with the ones
   that turned out wrong left in and marked.
+- **[Engine report](https://janlijanli.github.io/krass-jass/report.html)** — the same, as a page with
+  charts: what happens when, a timeline, and every experiment on one axis (`web/static/report.*`).
 - **`docs/engine-report.md`** — the statistical summary: protocol, the search, beliefs, trump
   selection, and every number that decides how the bots play.
 
@@ -144,3 +146,11 @@ Implementations of other trick-taking games get these wrong. They are not bugs:
    illegal — unless your hand is nothing but trumps.
 3. **The Puur is exempt from a trump lead.** If your only trump is the trump Jack, you need
    not play it.
+
+---
+
+## Licence
+
+[MIT](LICENSE). The card faces, the bidding and play conventions the bots speak, and the model
+weights in `krass_jass/data/` are our own work and fall under the same licence; no printed card
+art is reproduced here.

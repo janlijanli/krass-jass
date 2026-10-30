@@ -8,10 +8,13 @@
 import { cardFace, SUIT_GLYPHS, SUIT_IS_RED } from "./cards.js";
 import { applyStatic, contractName, getLang, t } from "./i18n.js";
 import { drawTafel } from "./tafel.js";
+import { maybeSay, resetTalk } from "./talk.js";
 
 const MEASUREMENTS_URL = "/static/measurements.json";
 
 const mySeat = Number(document.body.dataset.seat);
+//: Only the bots talk. Putting words in the player's mouth is a different feature.
+const BOT_SEATS = [0, 1, 2, 3].filter((s) => s !== mySeat);
 const el = {
   hand: document.getElementById("hand"),
   trick: document.getElementById("trick"),
@@ -34,6 +37,16 @@ const el = {
   trickTake: document.getElementById("trick-take"),
   tafel: document.getElementById("tafel"),
   tafelSlate: document.getElementById("tafel-slate"),
+  beliefs: document.getElementById("beliefs"),
+  beliefsBody: document.getElementById("beliefs-body"),
+  beliefsOpen: document.getElementById("beliefs-open"),
+  auction: document.getElementById("auction"),
+  sidiBidding: document.getElementById("sidi-bidding"),
+  sidiPrompt: document.getElementById("sidi-prompt"),
+  sidiValues: document.getElementById("sidi-values"),
+  sidiDouble: document.getElementById("sidi-double"),
+  doublePrompt: document.getElementById("double-prompt"),
+  doubleText: document.getElementById("double-text"),
 };
 
 let lifted = null;
@@ -161,9 +174,122 @@ document.getElementById("scoreboard").addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTafel(); }
 });
 document.getElementById("tafel-x").addEventListener("click", closeTafel);
+el.beliefsOpen.addEventListener("click", () => { el.beliefs.hidden = false; renderBeliefs(lastView); });
+document.getElementById("beliefs-x").addEventListener("click", () => { el.beliefs.hidden = true; });
+el.beliefs.addEventListener("click", (e) => { if (e.target === el.beliefs) el.beliefs.hidden = true; });
 el.tafel.addEventListener("click", (e) => { if (e.target === el.tafel) closeTafel(); });
 
 const CONTRACT_PIPS = { DIAMONDS: "♦", HEARTS: "♥", SPADES: "♠", CLUBS: "♣" };
+
+/* ---------- test mode: what the bot believes -----------------------------
+ *
+ * The search's own belief pool, published rather than sampled (`rust/src/belief.rs`): for every
+ * card it cannot see, how likely it is at each of the other three seats. Read off this seat's
+ * hand and the public history, so it shows the reasoning without showing a card.
+ */
+function renderBeliefs(view) {
+  const on = !!view.beliefs;
+  el.beliefsOpen.hidden = !on;
+  if (!on) { el.beliefs.hidden = true; return; }
+  if (el.beliefs.hidden) return;              // built when opened, and on every frame after
+
+  const table = document.createElement("table");
+  const name = (rel) => seatName(view, (view.seat + rel) % 4);
+  table.innerHTML =
+    `<thead><tr><th>${t("beliefs.card")}</th>` +
+    `<th>${name(1)}</th><th>${name(2)}</th><th>${name(3)}</th></tr></thead>`;
+  const body = document.createElement("tbody");
+  for (const { card, seats } of view.beliefs.cards) {
+    const row = document.createElement("tr");
+    const best = Math.max(...seats);
+    row.innerHTML =
+      `<td class="${SUIT_IS_RED[card[0]] ? "red" : ""}">${SUIT_GLYPHS[card[0]]} ${card.slice(1)}</td>` +
+      seats
+        .map((p) => {
+          const cls = p < best ? "" : p > 0.85 ? "best sure" : "best";
+          return `<td class="${cls}">${Math.round(p * 100)}%</td>`;
+        })
+        .join("");
+    body.append(row);
+  }
+  table.append(body);
+  el.beliefsBody.replaceChildren(table);
+  el.beliefsBody.append(html("p", "note", t("beliefs.note", { n: Math.round(view.beliefs.ess) })));
+}
+
+/* ---------- Sidi Barrani ---------- */
+
+/** "♥ 100", "Obenabe 60", "Pass", "Double" — a call as a player would say it. */
+function callLabel(call) {
+  if (call === "PASS") return t("sidi.pass");
+  if (call === "DOUBLE") return t("sidi.double");
+  const [contract, value] = call.split(" ");
+  return `${CONTRACT_PIPS[contract] ?? contractName(contract)} ${value}`;
+}
+
+/** The value the player has picked on the ladder. Kept between repaints, reset when it is
+ *  no longer a legal bid. */
+let sidiValue = null;
+
+function legalValues(view) {
+  const values = new Set();
+  for (const call of view.legal_calls || []) {
+    const [, value] = call.split(" ");
+    if (value) values.add(Number(value));
+  }
+  return [...values].sort((a, b) => a - b);
+}
+
+function renderAuction(view) {
+  const show = view.mode === "sidi" && (view.phase === "bidding" || view.phase === "doubling");
+  el.auction.hidden = !show || !view.auction.length;
+  if (!show) return;
+  el.auction.replaceChildren();
+  // Only the calls of this deal: after a throw-in the engine starts a fresh auction.
+  let highIndex = -1;
+  view.auction.forEach((entry, i) => { if (!["PASS", "DOUBLE"].includes(entry.call)) highIndex = i; });
+  view.auction.forEach((entry, i) => {
+    const node = html("span", "call" + (i === highIndex ? " high" : ""));
+    node.append(html("span", "who", seatName(view, entry.seat)), callLabel(entry.call));
+    el.auction.append(node);
+  });
+}
+
+function renderSidi(view) {
+  const bidding = view.mode === "sidi" && view.phase === "bidding" && view.to_act === view.seat;
+  el.sidiBidding.hidden = !bidding;
+  if (bidding) {
+    const values = legalValues(view);
+    if (!values.includes(sidiValue)) sidiValue = values[0] ?? null;
+    el.sidiValues.replaceChildren();
+    for (const value of values) {
+      const button = html("button", value === sidiValue ? "on" : "", String(value));
+      button.type = "button";
+      button.addEventListener("click", () => { sidiValue = value; renderSidi(lastView); });
+      el.sidiValues.append(button);
+    }
+    el.sidiPrompt.textContent = values.length
+      ? t("sidi.prompt", { n: sidiValue })
+      : t("sidi.promptNoBid");
+    document.querySelectorAll("[data-sidi]").forEach((b) => { b.disabled = sidiValue === null; });
+    el.sidiDouble.hidden = !(view.legal_calls || []).includes("DOUBLE");
+  }
+
+  // Two moments to knock: after the lead (the engine's own phase), and the instant an opponent
+  // bids in the auction, before anyone else speaks (`knock`).
+  el.doublePrompt.hidden = !view.double_pending && !view.knock;
+  if (view.double_pending) {
+    el.doubleText.textContent = t("sidi.doubleAsk", {
+      who: seatName(view, view.declarer),
+      bid: callLabel(`${view.contract} ${view.bid}`),
+    });
+  } else if (view.knock) {
+    el.doubleText.textContent = t("sidi.knockAsk", {
+      who: seatName(view, view.knock.seat),
+      bid: callLabel(view.knock.call),
+    });
+  }
+}
 
 function renderContract(contract, multiplier) {
   // Always visible while a contract is live — you cannot judge a card without knowing
@@ -177,10 +303,14 @@ function renderContract(contract, multiplier) {
   const pip = CONTRACT_PIPS[contract];
   const name = contractName(contract);
   const red = contract === "HEARTS" || contract === "DIAMONDS";
+  const sidi = lastView.mode === "sidi" && lastView.bid;
   el.contract.innerHTML =
     (pip ? `<span class="pip${red ? " red" : ""}">${pip}</span>` : "") +
     `<span>${name}</span>` +
-    (multiplier ? `<span class="mult">×${multiplier}</span>` : "");
+    (sidi
+      ? `<span class="sidi-bid">${lastView.bid}</span>` +
+        (lastView.doubled ? `<span class="doubled">${t("sidi.doubled")}</span>` : "")
+      : multiplier ? `<span class="mult">×${multiplier}</span>` : "");
 }
 
 // Which deal the fan last showed, so the cards are dealt in once per round, not per redraw.
@@ -406,6 +536,7 @@ function renderScorecard(view) {
 
   const mine = view.seat % 2;
   const pick = (pair) => [pair[mine], pair[1 - mine]];
+  if (card.bid !== undefined) { renderSidiScorecard(view, card, pick); return; }
   const rows = [
     [t("score.tricks"), pick(card.trick_points)],
     [t("score.lastTrick"), pick(card.last_trick)],
@@ -454,6 +585,42 @@ function renderScorecard(view) {
   el.scContract.textContent = contractName(card.contract);
   // The flag, not the label: reading the button's own text to decide what it does made the
   // behaviour depend on the language it happened to be written in.
+  const over = view.phase === "game_over";
+  el.scContinue.dataset.over = over ? "1" : "";
+  el.scContinue.textContent = over ? t("score.newGame") : t("score.nextRound");
+  el.scorecard.hidden = false;
+}
+
+/** Sidi: the cards, then the stake on its own line, marked made or failed. */
+function renderSidiScorecard(view, card, pick) {
+  el.scRows.replaceChildren();
+  const add = (label, us, them, cls) => {
+    const tr = document.createElement("tr");
+    if (cls) tr.className = cls;
+    tr.innerHTML = `<td>${label}</td><td>${us}</td><td>${them}</td>`;
+    el.scRows.appendChild(tr);
+  };
+  for (const [label, pair] of [
+    [t("score.tricks"), card.trick_points],
+    [t("score.lastTrick"), card.last_trick],
+    [t("score.match"), card.match],
+  ]) {
+    const [us, them] = pick(pair);
+    add(label, us || "—", them || "—", !us && !them ? "zero" : "");
+  }
+  const stake = t(card.made ? "sidi.made" : "sidi.failed", {
+    bid: card.bid, x: card.doubled ? " ×2" : "",
+  });
+  const [bu, bt] = pick(card.bonus);
+  add(stake, bu || "—", bt || "—", "subtotal");
+  const [ru, rt] = pick(card.round_total);
+  const [tu, tt] = pick(card.scores);
+  add(t("score.thisRound"), ru, rt, "subtotal");
+  add(t("score.total"), tu, tt, "total");
+
+  el.scTitle.textContent =
+    view.phase === "game_over" ? t("score.final") : t("round.n", { n: card.round + 1 });
+  el.scContract.textContent = `${contractName(card.contract)} ${card.bid}`;
   const over = view.phase === "game_over";
   el.scContinue.dataset.over = over ? "1" : "";
   el.scContinue.textContent = over ? t("score.newGame") : t("score.nextRound");
@@ -556,6 +723,15 @@ function statusText(view) {
   }
   if (view.phase === "game_over") return "Game over";
   if (view.phase === "round_over") return "Round over — tap to continue";
+  if (view.mode === "sidi" && view.phase === "doubling") {
+    return view.double_pending ? t("sidi.doubleYours") : t("sidi.doubleWait");
+  }
+  if (view.mode === "sidi" && view.knock) return t("sidi.doubleYours");
+  if (view.mode === "sidi" && view.phase === "bidding") {
+    return view.to_act === view.seat
+      ? t("sidi.yourCall")
+      : t("sidi.calling", { who: seatName(view, view.to_act) });
+  }
   if (view.to_act === view.seat) {
     if (view.phase === "bidding") {
       return view.declarer === view.seat && view.can_shove
@@ -597,8 +773,11 @@ function render(view) {
   renderContract(view.contract, view.multiplier);
   el.round.textContent = t("round.n", { n: view.round + 1 });
 
-  const bidding = view.phase === "bidding" && view.to_act === view.seat;
+  const bidding = view.mode !== "sidi" && view.phase === "bidding" && view.to_act === view.seat;
   el.bidding.hidden = !bidding;
+  renderAuction(view);
+  renderSidi(view);
+  renderBeliefs(view);
 
   const askingWeis = view.phase === "weis" && view.to_act === view.seat && view.weis_offer;
   el.weisPrompt.hidden = !askingWeis;
@@ -621,7 +800,9 @@ document.querySelector(".felt").addEventListener("click", () => {
 });
 el.scContinue.addEventListener("click", () => {
   if (el.scContinue.dataset.over) {
-    document.querySelector(".menu").submit();
+    // By id, and `requestSubmit` rather than `submit`: `.menu` also matches the menu's outer
+    // shell, which cannot be submitted, and `submit()` skips the offline build's handler.
+    document.getElementById("mode-settings").requestSubmit();
     return;
   }
   el.scorecard.hidden = true;
@@ -629,6 +810,23 @@ el.scContinue.addEventListener("click", () => {
 });
 document.querySelectorAll(".bid[data-bid]").forEach((button) =>
   button.addEventListener("click", () => send({ type: "bid", action: button.dataset.bid }))
+);
+document.querySelectorAll("[data-sidi]").forEach((button) =>
+  button.addEventListener("click", () => {
+    if (sidiValue !== null) send({ type: "bid", action: `${button.dataset.sidi} ${sidiValue}` });
+  })
+);
+document.querySelectorAll("[data-sidi-call]").forEach((button) =>
+  button.addEventListener("click", () => send({ type: "bid", action: button.dataset.sidiCall }))
+);
+document.querySelectorAll("[data-open-rules]").forEach((button) =>
+  button.addEventListener("click", () => document.dispatchEvent(new Event("kj:open-rules")))
+);
+document.getElementById("double-yes").addEventListener("click", () =>
+  send({ type: "double", double: true })
+);
+document.getElementById("double-no").addEventListener("click", () =>
+  send({ type: "double", double: false })
 );
 document.getElementById("weis-yes").addEventListener("click", () =>
   send({ type: "weis", announce: true })
@@ -642,10 +840,16 @@ document.getElementById("weis-no").addEventListener("click", () =>
 // on the serverless page stayed in its English placeholder text.
 applyStatic();
 
-import { initMenu } from "./menu.js";
+import { initMenu, adviceOn, beliefsOn, talkOn } from "./menu.js";
 
 initMenu({
   measurementsUrl: MEASUREMENTS_URL,
+  // The hosted build runs the fourth bot on the server — the same search, on your own hand.
+  onAdviceChange: () => send({ type: "advice", on: adviceOn() }),
+  onBeliefsChange: () => {
+    send({ type: "beliefs", on: beliefsOn() });
+    if (!beliefsOn()) el.beliefs.hidden = true;
+  },
   // Switching language has to redraw everything already on screen, not just the chrome.
   onLanguageChange: () => {
     if (lastView) render(lastView);
@@ -665,13 +869,22 @@ function connect() {
       const rel = (event.seat - mySeat + 4) % 4;
       el.status.textContent =
         rel === 0 ? t("status.youTake") : rel === 2 ? t("status.partnerTakes") : t("status.theyTake");
+      // A remark belongs to the pause after a trick, when nobody is waiting on you. From the
+      // event, not from a redraw, so it is said once rather than on every repaint.
+      if (talkOn()) speak(maybeSay(event.trick, BOT_SEATS));
     }
+    if (event.type === "round_started") resetTalk();   // a new deal starts the talk fresh
   };
   socket.onclose = () => {
     el.status.textContent = t("status.disconnected");
     setTimeout(connect, 1200);
   };
-  socket.onopen = () => { el.status.textContent = t("status.connected"); };
+  socket.onopen = () => {
+    el.status.textContent = t("status.connected");
+    // Both are per-browser settings, and both are computed where the game is.
+    send({ type: "beliefs", on: beliefsOn() });
+    send({ type: "advice", on: adviceOn() });
+  };
 }
 
 connect();

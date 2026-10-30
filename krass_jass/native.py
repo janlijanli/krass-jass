@@ -83,6 +83,11 @@ def dmcts(
     play_model_json: str | None = None,
     value_net: bool = False,
     value_model_json: str | None = None,
+    sidi_bid: int = 0,
+    sidi_declarers: int = 0,
+    sidi_doubled: bool = False,
+    sidi_auction: list[tuple[int, int, int]] | None = None,
+    sidi_alpha: float = 0.0,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -107,6 +112,14 @@ def dmcts(
         extra["value_net"] = True
         if value_model_json:
             extra["value_model_json"] = value_model_json
+    if sidi_bid or sidi_auction:
+        # Sidi Barrani: the hand's swing at the bid's threshold instead of a share of the cards
+        # (`rust/src/objective.rs`), and the auction read into the imagined hands
+        # (`rust/src/sidi_read.rs`).
+        extra.update(
+            sidi_bid=sidi_bid, sidi_declarers=sidi_declarers, sidi_doubled=sidi_doubled,
+            sidi_auction=sidi_auction or [], sidi_alpha=sidi_alpha,
+        )
     return _core.dmcts(
         seat=seat,
         hand=hand,
@@ -161,4 +174,51 @@ def dmcts(
         tree_policy=tree_policy,
         policy_temperature=policy_temperature,
         **extra,
+    )
+
+
+def sidi_make_probability(
+    seat: int,
+    hand: int,
+    history: list[tuple[int, int]],
+    leader: int,
+    contract: Contract,
+    declarer: int,
+    bid: int,
+    auction: list[tuple[int, int, int]],
+    samples: int = 400,
+    alpha: float = 1.0,
+    seed: int = 0,
+) -> tuple[float, float]:
+    """Sidi: `(P(the declarers reach the bid), their expected points)` from `seat`'s view.
+
+    Deals the unseen cards, weights each deal by the auction (`rust/src/sidi_read.rs`), plays it
+    out with the play model. See `rust/src/sidi_estimate.rs`.
+    """
+    require()
+    return _core.rs_sidi_make_probability(
+        seat, hand, list(history), leader, int(contract), declarer, bid, list(auction),
+        samples=samples, alpha=alpha, seed=seed,
+    )
+
+
+def belief_marginals(obs, agent, pool: int = 4096, seed: int = 1) -> tuple[list, float]:
+    """P(each unseen card sits at each other seat), as `agent` believes it from `obs`.
+
+    The pool the search plays from, summarised instead of sampled (`rust/src/belief.rs`): the same
+    worlds under the same constraints, weighted by the table's play, calls and bids. It reads
+    nothing hidden — which is what makes it safe to show a player (the app's test mode).
+
+    Returns `[(card, p_next, p_partner, p_previous)]` in play order from the seat, and the pool's
+    effective sample size.
+    """
+    require()
+    forbidden, weis = agent._beliefs(obs)
+    play = agent._play(obs)
+    return _core.rs_belief_marginals(
+        obs.seat, obs.hand, obs.unseen, list(obs.trick), obs.trick_leader, int(obs.contract),
+        forbidden, obs.declarer_seat, play["history"], pool, seed,
+        play["belief_alpha"], play["bid_alpha"], play["policy_temperature"],
+        play["bid_temperature"], weis.get("weis_called"), weis.get("weis_played"),
+        play.get("sidi_auction"), play.get("sidi_alpha", 0.0),
     )

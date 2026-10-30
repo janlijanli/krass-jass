@@ -40,7 +40,10 @@ def build_render_js() -> None:
     src = (ROOT / "web/static/table.js").read_text()
     # Cut at the transport, not at the menu: the menu and the "How it works" panels are a
     # shared module now, so both builds get them.
-    render = src[: src.index('import { initMenu } from "./menu.js";')]
+    # Cut at the menu import, whatever it names: the controller below it is the hosted build's,
+    # and `solo.js` provides its own. Fails loudly if the marker ever moves.
+    cut = src.index('import { initMenu')
+    render = src[:cut]
     render = render.replace(
         """function send(message) {
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -77,6 +80,7 @@ def asset_version() -> str:
             "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
             "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js",
             "render.js", "solo.js", "engine.js", "krass_jass_core.wasm",
+            "report.html", "report.css", "report.js",
         )
     ):
         path = SITE / name
@@ -96,10 +100,14 @@ def build_index() -> None:
         '<link rel="stylesheet" href="table.css">',
     )
     html = html.replace('<body data-seat="{{ seat }}">', '<body data-seat="0">')
+    html = html.replace('href="/static/report.html"', 'href="report.html"')
     html = html.replace(
         "<title>krass-jass</title>", "<title>krass-jass — offline</title>\n" + PWA_HEAD.rstrip()
     )
-    html = html.replace('<form class="menu" method="post" action="/new">', '<form class="menu">')
+    html = html.replace(
+        '<form class="menu menu-mode-panel" id="mode-settings" method="post" action="/new">',
+        '<form class="menu menu-mode-panel" id="mode-settings">',
+    )
     html = html.replace(
         '<p class="menu-note">Changing these starts a new game.</p>',
         '<p class="menu-note">Changing these starts a new game. '
@@ -135,7 +143,7 @@ def build_index() -> None:
     targets = "\n".join(
         '          <label class="chip">\n'
         f'            <input type="radio" name="target" value="{v}"'
-        f'{" checked" if v == 1000 else ""}>\n'
+        f'{" checked" if v == 2000 else ""}>\n'
         f"            <span>{v}</span>\n"
         "          </label>"
         for v in TARGETS
@@ -143,6 +151,10 @@ def build_index() -> None:
     html = re.sub(
         r"[ \t]*\{% for value in targets %\}.*?\{% endfor %\}\n", targets + "\n", html, flags=re.S
     )
+    # The game picker: the offline build plays both, and opens on Sidi Barrani to 2000 — the
+    # default game, as on the server.
+    html = html.replace('{% if settings.mode != "sidi" %}checked{% endif %}', "")
+    html = html.replace('{% if settings.mode == "sidi" %}checked{% endif %}', "checked")
     html = html.replace("{% if settings.weis %}checked{% endif %}", "checked")
     html = html.replace("{% if not settings.weis %}checked{% endif %}", "")
 
@@ -170,7 +182,15 @@ def build_index() -> None:
 
     # The modules import each other by bare name, so version those too — otherwise solo.js
     # is fresh and everything it pulls in is not.
-    for name in ("solo.js", "render.js", "menu.js", "engine.js", "about.js", "walkthrough.js"):
+    # The engine report is a page of its own; its assets get the same version.
+    report = (SITE / "report.html").read_text()
+    report = report.replace('href="report.css"', f'href="report.css?v={version}"')
+    report = report.replace('src="report.js"', f'src="report.js?v={version}"')
+    (SITE / "report.html").write_text(report)
+
+    for name in (
+        "solo.js", "render.js", "menu.js", "engine.js", "about.js", "walkthrough.js", "report.js",
+    ):
         path = SITE / name
         text = path.read_text()
         for dep in (
@@ -228,6 +248,7 @@ def copy_assets() -> None:
     for name in (
         "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
         "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js",
+        "report.html", "report.css", "report.js",
     ):
         (SITE / name).write_text((ROOT / "web/static" / name).read_text())
     for name in ("engine.js", "solo.js", "README.md", "manifest.webmanifest"):

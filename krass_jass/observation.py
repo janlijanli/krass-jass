@@ -78,6 +78,12 @@ class Observation:
     time_budget_ms: int = 6000
     decision_seed: int = 0
     round_index: int = 0
+    #: Sidi Barrani only (empty / 0 / False in the Schieber). The auction is public: every call
+    #: was said aloud, `(seat, "HEARTS 100" | "PASS" | "DOUBLE")` in order.
+    auction: tuple = ()
+    #: The standing bid the declarers must reach, and whether it was doubled.
+    bid_value: int = 0
+    doubled: bool = False
 
     @property
     def team(self) -> int:
@@ -145,6 +151,9 @@ def build_observation(
     time_budget_ms: int = 6000,
     decision_seed: int = 0,
     round_index: int = 0,
+    auction: tuple = (),
+    bid_value: int = 0,
+    doubled: bool = False,
 ) -> Observation:
     """The only way an agent learns anything. Add fields here and nowhere else.
 
@@ -168,4 +177,7 @@ def build_observation(
         time_budget_ms=time_budget_ms,
         decision_seed=decision_seed,
         round_index=round_index,
+        auction=auction,
+        bid_value=bid_value,
+        doubled=doubled,
     )

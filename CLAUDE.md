@@ -26,6 +26,14 @@ the time — check that against human play before trusting it further.
 
 M2 is done (FastAPI + WebSocket, bots in containers, the card fan, and a serverless wasm build).
 
+**Sidi Barrani is a second game mode** (`RulesConfig.mode = "sidi"`, preset `SIDI`), the Schieber
+stays the default and unchanged. Rules as the owner decided them in `docs/rules-config.md`; the
+bidding language, how the bots bid, play for the bid and read the auction, and the order of work
+in `docs/sidi-plan.md`. The auction lives in `krass_jass/auction.py` and `rust/src/auction.rs`
+under the same two-implementation rule as everything else, and so is the bidder
+(`krass_jass/sidi_bidding.py`, `rust/src/sidi_bidding.rs`): the offline build on GitHub Pages plays
+the Sidi with the same bots as the server, doubling on the same estimate.
+
 **The search is Rust** (`rust/`, exposed via `krass_jass.native`). Measured: 1.48M DMCTS
 iterations/sec single-core, 6.19M on all cores — 42x the Python search. The tuned 800k
 budget is 0.13s per move. Python remains the engine of record; only the search moved.
@@ -140,6 +148,9 @@ Do not design around an assumed answer to anything else here. Ask.
   the card a Swiss player expects in 73% of convention decisions (59% for the search alone); 0.02 cost
   half a point. They are *played*, not yet *read*: the play model the beliefs and the tree policy see
   the table through was fitted without them.
+- **The play model reads the conventions now** (§5w). Refitted to 12,000 rounds of self-play in which
+  every seat plays them, it agrees with the search on 65.2% of decisions (61.4% before) and is worth
+  **+0.45** of a round's share, replicated. Re-take it whenever how the bots play changes.
 - **Networks, on this hardware, are closed** (`docs/neural-plan.md`). A policy network replacing the
   search is 4 points weaker (§5s); a value network at its leaves is null at a small budget and a
   costly, non-significant lean at the shipped one (§5t). Both gains of this stretch came from

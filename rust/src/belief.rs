@@ -77,6 +77,10 @@ pub struct PlayInfo {
     pub value_net: bool,
     /// A value network other than the compiled-in one. Measurement only, like `model`.
     pub value_model: Option<std::sync::Arc<crate::valuenet::ValueNet>>,
+    /// Sidi Barrani: the auction's bids, in order — `sidi_read.rs`. Empty in the Schieber.
+    pub sidi_auction: Vec<crate::sidi_read::Bid>,
+    /// Weight on the auction's likelihood. 0 is off.
+    pub sidi_alpha: f32,
 }
 
 impl PlayInfo {
@@ -97,6 +101,8 @@ impl PlayInfo {
             model: None,
             value_net: false,
             value_model: None,
+            sidi_auction: Vec::new(),
+            sidi_alpha: 0.0,
         }
     }
 
@@ -112,7 +118,10 @@ impl PlayInfo {
 
     pub fn weighting(&self) -> bool {
         self.belief_pool > 0
-            && (self.belief_alpha > 0.0 || self.bid_alpha > 0.0 || self.belief_gamma > 0.0)
+            && (self.belief_alpha > 0.0
+                || self.bid_alpha > 0.0
+                || self.belief_gamma > 0.0
+                || (self.sidi_alpha > 0.0 && !self.sidi_auction.is_empty()))
     }
 
     fn forehand(&self, trick_leader: usize) -> usize {
@@ -227,6 +236,8 @@ pub fn bid_log_likelihood(
 pub struct Pool {
     worlds: Vec<[u64; NUM_SEATS]>,
     cumulative: Vec<f64>,
+    /// Each world's share of the weight, in the order they were drawn.
+    weights: Vec<f64>,
     /// Effective sample size, `(Σw)² / Σw²`. Equal to the pool size when the weights are flat.
     pub ess: f64,
 }
@@ -273,6 +284,16 @@ impl Pool {
                 lw += info.bid_alpha
                     * bid_log_likelihood(&dealt, info, pos.seat, pos.trick_leader, k.contract);
             }
+            if info.sidi_alpha > 0.0 && !info.sidi_auction.is_empty() {
+                // A bid is a statement about the nine cards dealt, so the world is put back
+                // together before it is read.
+                let mut nine = dealt;
+                for &(s, c) in &info.history {
+                    nine[s] |= 1u64 << c;
+                }
+                lw += info.sidi_alpha
+                    * crate::sidi_read::auction_log_likelihood(&nine, &info.sidi_auction, pos.seat);
+            }
             if let Some(lq) = &net_lq {
                 let mut acc = 0.0f32;
                 for r in 1..NUM_SEATS {
@@ -305,7 +326,27 @@ impl Pool {
                 acc
             })
             .collect();
-        Some(Pool { worlds, cumulative, ess: sum * sum / sq })
+        Some(Pool { worlds, cumulative, weights: w.iter().map(|x| x / sum).collect(), ess: sum * sum / sq })
+    }
+
+    /// P(card is held by each seat), weighted as the search samples the pool.
+    ///
+    /// This is what the search believes, read off the same pool it plays from — nothing is
+    /// recomputed and nothing hidden is consulted: the worlds were drawn from `unseen` under the
+    /// constraints and weighted by the table's own play, calls and bids.
+    pub fn marginals(&self) -> [[f32; crate::cards::NUM_CARDS]; NUM_SEATS] {
+        let mut out = [[0.0f32; crate::cards::NUM_CARDS]; NUM_SEATS];
+        for (world, &w) in self.worlds.iter().zip(&self.weights) {
+            for (seat, &hand) in world.iter().enumerate() {
+                let mut m = hand;
+                while m != 0 {
+                    let card = m.trailing_zeros() as usize;
+                    m &= m - 1;
+                    out[seat][card] += w as f32;
+                }
+            }
+        }
+        out
     }
 
     pub fn draw(&self, rng: &mut Rng) -> [u64; NUM_SEATS] {

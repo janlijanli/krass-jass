@@ -19,7 +19,18 @@ pub enum Payload {
     RoundStarted { round: u32, dealer: usize, forehand: usize },
     HandDealt { seat: usize, cards: Vec<usize> },
     Bid { seat: usize, action: String },
-    ContractSet { contract: usize, declarer: usize, multiplier: i32, leader: usize },
+    /// Sidi: all four passed, the next seat deals.
+    ThrownIn { round: u32, dealer: usize },
+    /// Sidi: an opponent's answer after the lead.
+    DoubleAnswered { seat: usize, double: bool },
+    /// `sidi` carries the bid and the double; `None` in the Schieber, which keeps its shape.
+    ContractSet {
+        contract: usize,
+        declarer: usize,
+        multiplier: i32,
+        leader: usize,
+        sidi: Option<(i32, bool)>,
+    },
     WeisAnnounced { seat: usize, points: i32, melds: usize },
     WeisDeclared { seat: usize, kind: String, points: i32, cards: Vec<usize> },
     WeisResolved { seat: usize, team: usize, points: [i32; 2] },
@@ -27,6 +38,8 @@ pub enum Payload {
     CardPlayed { seat: usize, card: usize },
     TrickWon { seat: usize, trick: usize, cards: Vec<usize> },
     RoundScored { round: u32, detail: RoundDetail },
+    SidiRoundScored { round: u32, detail: SidiDetail },
+    SidiGameOver { winner: i32, scores: [i32; 2] },
     GameOver {
         winner: i32,
         scores: [i32; 2],
@@ -44,6 +57,19 @@ pub struct RoundDetail {
     pub weis: [i32; 2],
     pub stoeck: [i32; 2],
     pub multiplier: i32,
+    pub round_total: [i32; 2],
+    pub scores: [i32; 2],
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct SidiDetail {
+    pub trick_points: [i32; 2],
+    pub last_trick: [i32; 2],
+    pub match_bonus: [i32; 2],
+    pub bid: i32,
+    pub doubled: bool,
+    pub made: bool,
+    pub bonus: [i32; 2],
     pub round_total: [i32; 2],
     pub scores: [i32; 2],
 }
@@ -81,6 +107,8 @@ impl Event {
             Payload::RoundStarted { .. } => "round_started",
             Payload::HandDealt { .. } => "hand_dealt",
             Payload::Bid { .. } => "bid",
+            Payload::ThrownIn { .. } => "thrown_in",
+            Payload::DoubleAnswered { .. } => "double_answered",
             Payload::ContractSet { .. } => "contract_set",
             Payload::WeisAnnounced { .. } => "weis_announced",
             Payload::WeisDeclared { .. } => "weis_declared",
@@ -88,8 +116,8 @@ impl Event {
             Payload::Stoeck { .. } => "stoeck",
             Payload::CardPlayed { .. } => "card_played",
             Payload::TrickWon { .. } => "trick_won",
-            Payload::RoundScored { .. } => "round_scored",
-            Payload::GameOver { .. } => "game_over",
+            Payload::RoundScored { .. } | Payload::SidiRoundScored { .. } => "round_scored",
+            Payload::GameOver { .. } | Payload::SidiGameOver { .. } => "game_over",
         }
     }
 
@@ -108,10 +136,20 @@ impl Event {
                 format!("\"seat\":{seat},\"cards\":{}", cards_json(cards))
             }
             Payload::Bid { seat, action } => format!("\"seat\":{seat},\"action\":\"{action}\""),
-            Payload::ContractSet { contract, declarer, multiplier, leader } => format!(
-                "\"contract\":\"{}\",\"declarer\":{declarer},\"multiplier\":{multiplier},\"leader\":{leader}",
-                crate::tables::contract_name(*contract)
-            ),
+            Payload::ThrownIn { round, dealer } => format!("\"round\":{round},\"dealer\":{dealer}"),
+            Payload::DoubleAnswered { seat, double } => {
+                format!("\"seat\":{seat},\"double\":{double}")
+            }
+            Payload::ContractSet { contract, declarer, multiplier, leader, sidi } => {
+                let mut out = format!(
+                    "\"contract\":\"{}\",\"declarer\":{declarer},\"multiplier\":{multiplier},\"leader\":{leader}",
+                    crate::tables::contract_name(*contract)
+                );
+                if let Some((bid, doubled)) = sidi {
+                    out.push_str(&format!(",\"bid\":{bid},\"doubled\":{doubled}"));
+                }
+                out
+            }
             Payload::WeisAnnounced { seat, points, melds } => {
                 format!("\"seat\":{seat},\"points\":{points},\"melds\":{melds}")
             }
@@ -141,6 +179,22 @@ impl Event {
                 detail.multiplier,
                 pair("round_total", detail.round_total),
                 pair("scores", detail.scores),
+            ),
+            Payload::SidiRoundScored { round, detail } => format!(
+                "\"round\":{round},{},{},{},\"bid\":{},\"doubled\":{},\"made\":{},{},{},{}",
+                pair("trick_points", detail.trick_points),
+                pair("last_trick", detail.last_trick),
+                pair("match", detail.match_bonus),
+                detail.bid,
+                detail.doubled,
+                detail.made,
+                pair("bonus", detail.bonus),
+                pair("round_total", detail.round_total),
+                pair("scores", detail.scores),
+            ),
+            Payload::SidiGameOver { winner, scores } => format!(
+                "\"winner\":{winner},{},\"decided_by\":\"score\"",
+                pair("scores", *scores)
             ),
             Payload::GameOver { winner, scores, decided_by, claim_order } => {
                 let names: Vec<String> = claim_order

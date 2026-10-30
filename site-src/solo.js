@@ -12,7 +12,7 @@
 
 import { loadEngine, CARD_INDEX } from "./engine.js";
 import { render, setSender, speak } from "./render.js";
-import { initMenu, adviceOn, talkOn } from "./menu.js";
+import { initMenu, adviceOn, talkOn, beliefsOn } from "./menu.js";
 import { maybeSay, resetTalk } from "./talk.js";
 
 const HUMAN_SEAT = 0;
@@ -35,9 +35,10 @@ const THINK_MAX = 1500;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const settings = () => {
-  const form = document.querySelector(".menu");
+  const form = document.getElementById("mode-settings");
   const value = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value;
   return {
+    mode: value("mode") === "schieber" ? "schieber" : "sidi",
     target: Number(value("target") || 1000),
     weis: value("weis") !== "off",
     multipliers: ["diamonds", "hearts", "spades", "clubs", "obenabe", "undenufe"].map(
@@ -51,8 +52,28 @@ let handle = null;
 let acked = 0;
 let busy = false;
 
+// Sidi: the last knock the player let pass, as "round|calls", so each opposing bid asks once.
+let knockDeclined = null;
+
+/** Sidi: an opponent has just bid and the player may knock before anyone else speaks — the
+ *  same rule as `Table.knock_offer` in web/app.py, since a double may come at any time. */
+function knockOffer(v) {
+  if (v.mode !== "sidi" || v.phase !== "bidding" || !v.auction?.length) return null;
+  const last = v.auction[v.auction.length - 1];
+  const key = `${v.round}|${v.auction.length}`;
+  const opponent = (last.seat - HUMAN_SEAT + 4) % 2 === 1;
+  if (["PASS", "DOUBLE"].includes(last.call) || !opponent || v.to_act === HUMAN_SEAT) return null;
+  if (v.auction.some((c) => c.call === "DOUBLE") || knockDeclined === key) return null;
+  return { seat: last.seat, call: last.call, key };
+}
+
 function view() {
-  return engine.view(handle, HUMAN_SEAT, acked);
+  const v = engine.view(handle, HUMAN_SEAT, acked);
+  v.knock = knockOffer(v);
+  // Test mode: what a bot on this seat believes about the other three hands. Computed here
+  // rather than sent, because here the engine is in the tab.
+  v.beliefs = beliefsOn() && v.phase === "playing" ? engine.beliefs(handle, HUMAN_SEAT) : null;
+  return v;
 }
 
 /* Advice mode.
@@ -112,9 +133,35 @@ function draw() {
 function newGame() {
   if (handle !== null) engine.free(handle);
   acked = 0;
+  knockDeclined = null;
+  botsKnockedKey = null;
   handle = engine.newGame({ seed: Math.floor(Math.random() * 2 ** 48), ...settings() });
   draw();
   drive();
+}
+
+// Sidi: the bid the bots have already been asked about, so each bid asks once.
+let botsKnockedKey = null;
+
+/** Every bot opposing the standing bid knocks or not, the moment the bid is made — the rule
+ *  the player plays by, so the bots play by it too. Returns true if one of them doubled. */
+async function botsKnock(v) {
+  if (v.mode !== "sidi" || v.phase !== "bidding" || !v.auction?.length) return false;
+  const bids = v.auction.filter((c) => !["PASS", "DOUBLE"].includes(c.call));
+  const key = `${v.round}|${v.auction.length}`;
+  if (!bids.length || v.auction.some((c) => c.call === "DOUBLE") || botsKnockedKey === key) return false;
+  botsKnockedKey = key;
+  const bidder = bids[bids.length - 1].seat;
+  for (const step of [1, 3]) {
+    const seat = (bidder + step) % 4;
+    if (seat === HUMAN_SEAT || (seat - bidder + 4) % 2 !== 1) continue;
+    if (engine.botKnock(handle, seat)) {
+      await sleep(300 + Math.random() * 300);
+      engine.call(handle, seat, "DOUBLE");
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Let the bots act until it is the human's turn again. */
@@ -131,10 +178,19 @@ async function drive() {
         break;                                // waiting on a tap
       }
       if (v.to_act === null || v.to_act === HUMAN_SEAT) break;
+      if (v.knock) break;                     // the player is being asked whether to knock
+      if (await botsKnock(v)) { draw(); continue; }
       const seat = v.to_act;
       const trick = Math.max(0, v.round);
 
-      if (v.phase === "bidding") {
+      if (v.phase === "bidding" && v.mode === "sidi") {
+        await sleep(500 + Math.random() * 600);
+        // A bot's call is validated like its cards; a pass is always legal.
+        if (!engine.call(handle, seat, engine.botCall(handle, seat))) engine.call(handle, seat, "PASS");
+      } else if (v.phase === "doubling") {
+        await sleep(400 + Math.random() * 400);
+        engine.double(handle, seat, engine.botDouble(handle, seat));
+      } else if (v.phase === "bidding") {
         await sleep(400 + Math.random() * 500);
         engine.bid(handle, seat, engine.botBid(handle, seat));
       } else if (v.phase === "weis") {
@@ -169,8 +225,16 @@ setSender((message) => {
   if (handle === null) return;
   switch (message.type) {
     case "bid":
-      engine.bid(handle, HUMAN_SEAT, message.action === "SHOVE" ? -1 : CONTRACTS[message.action]);
+      if (view().mode === "sidi") engine.call(handle, HUMAN_SEAT, message.action);
+      else engine.bid(handle, HUMAN_SEAT, message.action === "SHOVE" ? -1 : CONTRACTS[message.action]);
       break;
+    case "double": {
+      const v = view();
+      if (v.phase === "doubling") engine.double(handle, HUMAN_SEAT, !!message.double);
+      else if (v.knock && message.double) engine.call(handle, HUMAN_SEAT, "DOUBLE");
+      else if (v.knock) knockDeclined = v.knock.key;
+      break;
+    }
     case "weis":
       engine.chooseWeis(handle, HUMAN_SEAT, !!message.announce);
       break;
@@ -207,6 +271,7 @@ initMenu({
   onLanguageChange: () => draw(),
   onAdviceChange: () => draw(),
   onTalkChange: () => {},
+  onBeliefsChange: () => draw(),
 });
 
 newGame();

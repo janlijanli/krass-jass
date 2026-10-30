@@ -94,6 +94,33 @@ def risk_adjust(share: float, lam: float) -> float:
     return (f - lo) / (1.0 - lo)
 
 
+HAND_POINTS = 157.0
+MATCH_BONUS = 100.0
+
+
+def sidi_reward(ours: float, theirs: float, team: int, bid: int, declarers: int, doubled: bool) -> float:
+    """Sidi Barrani: value in [0, 1] of a hand ending `ours`/`theirs` in card points.
+
+    Both teams write their cards; the bid goes to the declarers if their points reach it and to
+    the defenders if not, twice over when doubled. The value is the difference of what the two
+    teams write, scaled into [0, 1] by the largest difference the bid allows — so the threshold
+    is a cliff the search can see, which a share of the cards is not.
+
+    The search does not track tricks through a playout, so Match is read off the points: all 157
+    to one side and nothing to the other. Mirrored by `sidi_reward` in `rust/src/objective.rs`.
+    """
+    if theirs <= 0 and ours >= HAND_POINTS:
+        ours += MATCH_BONUS
+    elif ours <= 0 and theirs >= HAND_POINTS:
+        theirs += MATCH_BONUS
+    stake = bid * (2 if doubled else 1)
+    declaring = team == declarers
+    made = (ours if declaring else theirs) >= bid
+    swing = ours - theirs + (stake if made == declaring else -stake)
+    most = HAND_POINTS + MATCH_BONUS + stake
+    return min(1.0, max(0.0, 0.5 + swing / (2 * most)))
+
+
 def reward(
     ours: int,
     theirs: int,

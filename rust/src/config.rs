@@ -25,7 +25,18 @@ pub struct Rules {
     pub target_score: i32,
     /// Claim order as indices: 0 = stoeck, 1 = weis, 2 = stich.
     pub claim_order: [u8; 3],
+    /// Sidi Barrani instead of the Schieber: the auction, the stake, the game end.
+    /// `docs/rules-config.md`, "Sidi Barrani".
+    pub sidi: bool,
+    /// The bid ladder, lowest first. 157 is every card point, 257 is Match.
+    pub sidi_bids: [i32; SIDI_BIDS],
+    /// The opponents may still double after the lead, until the second card is down.
+    pub sidi_double_after_lead: bool,
+    /// A double during the auction ends it.
+    pub sidi_double_ends_auction: bool,
 }
+
+pub const SIDI_BIDS: usize = 14;
 
 pub const CLAIM_STOECK: u8 = 0;
 pub const CLAIM_WEIS: u8 = 1;
@@ -49,11 +60,28 @@ impl Default for Rules {
             stoeck_enabled: true,
             target_score: 3000,
             claim_order: [CLAIM_STOECK, CLAIM_WEIS, CLAIM_STICH],
+            sidi: false,
+            sidi_bids: [40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 157, 257],
+            sidi_double_after_lead: true,
+            sidi_double_ends_auction: true,
         }
     }
 }
 
 impl Rules {
+    /// Sidi Barrani as the owner plays it: every contract x1, no Weis, no Stöck, to 2000.
+    /// Twin of `SIDI` in `krass_jass/rules.py`.
+    pub fn sidi() -> Self {
+        Rules {
+            sidi: true,
+            multipliers: [1; NUM_CONTRACTS],
+            weis_enabled: false,
+            stoeck_enabled: false,
+            target_score: 2000,
+            ..Rules::default()
+        }
+    }
+
     pub fn multiplier(&self, contract: usize) -> i32 {
         self.multipliers[contract]
     }
