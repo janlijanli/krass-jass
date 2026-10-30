@@ -52,7 +52,12 @@
    Make the attribute win, once, for everything. */
 [hidden] { display: none !important; }
 
-html { background-color: var(--chrome); }
+/* The page itself never scrolls: on a phone a stray swipe dragged the whole table, rubber
+   band and all. Pinning the body is the form iOS honours (overflow: hidden alone it does
+   not). The table scrolls instead, and only if its rows truly do not fit, so no button is
+   ever out of reach. Menus and panels are fixed overlays with their own overflow and scroll
+   as before. */
+html { background-color: var(--chrome); height: 100%; overflow: hidden; overscroll-behavior: none; }
 
 body {
   margin: 0;
@@ -66,12 +71,16 @@ body {
   background-color: var(--chrome);
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+  position: fixed; inset: 0; overflow: hidden;
 }
 
 .table {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
   min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden auto;
+  overscroll-behavior: none;
   max-width: 720px;
   margin: 0 auto;
   padding: calc(env(safe-area-inset-top) + var(--top-gap)) 0 env(safe-area-inset-bottom);
@@ -138,6 +147,8 @@ body {
   transition: opacity .25s, background .25s, border-color .25s, box-shadow .25s;
 }
 .seat-marker { z-index: 2; }        /* the pill is a nameplate over its own fan */
+/* On a short screen the side plates can sit over the bid ladder; taps go through to it. */
+.seat-marker { pointer-events: none; }
 .seat-marker.north { top: 6px; left: 50%; transform: translateX(-50%); }
 .seat-marker.west  { left: 6px; top: 50%; transform: translateY(-50%); }
 .seat-marker.east  { right: 6px; top: 50%; transform: translateY(-50%); }
