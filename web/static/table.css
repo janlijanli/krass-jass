@@ -544,9 +544,8 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
   color: rgba(255,255,255,.75);
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
-/* The board a Jass app draws is red on black; the chalk white is kept behind a variable so
-   it is a one-line change back. */
-.tafel { --chalk: #e2483f; }
+/* White chalk on a black slate. The colour lives in this one variable. */
+.tafel { --chalk: #f3f1ea; }
 .tafel-slate {
   background: #0a0a0a;
   padding: 10px 6px 12px;

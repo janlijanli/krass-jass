@@ -39,6 +39,44 @@ try {
 
 export const talkOn = () => talk;
 
+/* The game settings — play to, Weis, the multipliers — remembered by the offline build, where
+ * there is no server to hold them and an app relaunch would otherwise reset every chip.
+ * Saved when a game is started with them, not on every tap: until then they are a draft,
+ * and the form says changes take effect on a new game. */
+const SETTINGS_KEY = "kj_settings";
+
+function saveSettings(form) {
+  const chosen = {};
+  form.querySelectorAll("input[type=radio]:checked").forEach((input) => {
+    // Language, talk and advice are live switches with storage of their own.
+    if (input.name === "target" || input.name === "weis" || input.name.startsWith("mult_")) {
+      chosen[input.name] = input.value;
+    }
+  });
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(chosen));
+  } catch {
+    /* the game still starts with them; it just will not remember */
+  }
+}
+
+function restoreSettings(form) {
+  let chosen = {};
+  try {
+    chosen = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {};
+  } catch {
+    return;
+  }
+  for (const [name, value] of Object.entries(chosen)) {
+    // Only a value the form still offers: a stale key from an older build is ignored rather
+    // than leaving a group with nothing checked.
+    const input = [...form.querySelectorAll(`input[type=radio]`)].find(
+      (i) => i.name === name && i.value === String(value)
+    );
+    if (input) input.checked = true;
+  }
+}
+
 /** The language chips. Browser detection is a guess; this is how a wrong guess is fixed. */
 function buildLanguagePicker(onChange) {
   const host = document.getElementById("lang-chips");
@@ -132,8 +170,11 @@ export function initMenu({
 
   if (onNewGame) {
     // The offline build has no server to post to.
-    document.querySelector("#mode-settings").addEventListener("submit", (event) => {
+    const form = document.querySelector("#mode-settings");
+    restoreSettings(form);
+    form.addEventListener("submit", (event) => {
       event.preventDefault();
+      saveSettings(form);
       close();
       onNewGame();
     });

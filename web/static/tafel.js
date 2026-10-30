@@ -7,11 +7,11 @@
  *
  *   ┌───────────────────────────┐
  *   │  ╷ ╷ ╷                    │   ← their half, rotated 180°
- *   │  X X                      │
+ *   │  / /                      │
  *   │  │ │ │                 0  │      (their hundreds, and the remainder)
  *   ├─── 790 ──── 2500 ─── 1119 ┤   ← totals either side, target in the middle
  *   │  │ │ │ │ │                │   ← your hundreds
- *   │  ─────────╱──── X X       │      (a full line of five is struck through)
+ *   │  ─────────╱──── / /       │      (a full line of five is struck through)
  *   │  ╷ ╷                   9  │   ← your twenties, and the remainder
  *   └───────────────────────────┘
  *
@@ -45,14 +45,14 @@ const svg = (tag, attrs = {}) => {
  * value, not stroke count:
  *
  *   100  a full-height upright
- *    50  a cross
+ *    50  a single slash — one stroke per fifty, as on a real board; a cross reads as two
  *    20  a short tick on the baseline
  *
  * Changing the notation is changing this table, not the drawing code.
  */
 export const MARKS = [
   { value: 100, glyph: "tall" },
-  { value: 50, glyph: "cross" },
+  { value: 50, glyph: "slash" },
   { value: 20, glyph: "tick" },
 ];
 
@@ -149,13 +149,12 @@ const MARK_W = 16;
 const MARK_H = 24;
 const ROW_H = 36;
 
-/** One mark: full-height upright for 100, a cross for 50, a short tick for 20. */
+/** One mark: full-height upright for 100, a slash for 50, a short tick for 20. */
 function drawMark(g, glyph, x, y, seed) {
   const top = y;
   const bottom = y + MARK_H;
-  if (glyph === "cross") {
-    g.append(line(x - 6, top, x + 6, bottom, seed));
-    g.append(line(x + 6, top, x - 6, bottom, seed + 40));
+  if (glyph === "slash") {
+    g.append(line(x - 6, bottom, x + 6, top, seed));
   } else if (glyph === "tick") {
     g.append(line(x, bottom - MARK_H * 0.45, x, bottom, seed));
   } else {
