@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import subprocess
 from pathlib import Path
 
 import make_icon
@@ -21,6 +23,7 @@ SITE = ROOT / "site"
 CONTRACTS = {"DIAMONDS": 1, "HEARTS": 2, "SPADES": 1, "CLUBS": 2, "OBENABE": 3, "UNDENUFE": 4}
 TARGETS = (1000, 2000, 2500)
 ICONS = {"icon-192.png": 192, "icon-512.png": 512, "apple-touch-icon.png": 180}
+REPO_URL = "https://github.com/janlijanli/krass-jass"
 
 # What iOS needs to put the page on the home screen as an app of its own: no Safari chrome,
 # its own icon and name. With `black` the app starts below the status bar, so nothing slides
@@ -92,6 +95,29 @@ def asset_version() -> str:
     return digest.hexdigest()[:8]
 
 
+def build_sha() -> str | None:
+    """The commit being built: GitHub Actions says so, a checkout asks git."""
+    if sha := os.environ.get("GITHUB_SHA", "").strip():
+        return sha
+    out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True)
+    return out.stdout.strip() or None
+
+
+def version_footer(html: str) -> str:
+    """Resolve the menu's version line: the short hash, linked to its commit."""
+    block = re.search(r"[ \t]*\{% if build_sha %\}\n(.*?)[ \t]*\{% endif %\}\n", html, re.S)
+    sha = build_sha()
+    body = ""
+    if sha:
+        repo = REPO_URL
+        if os.environ.get("GITHUB_REPOSITORY"):
+            server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+            repo = f"{server}/{os.environ['GITHUB_REPOSITORY']}"
+        body = block.group(1).replace("{{ repo_url }}", repo)
+        body = body.replace("{{ build_sha[:7] }}", sha[:7]).replace("{{ build_sha }}", sha)
+    return html[: block.start()] + body + html[block.end() :]
+
+
 def build_index() -> None:
     html = (ROOT / "web/templates/table.html").read_text()
     html = html.replace(
@@ -103,6 +129,7 @@ def build_index() -> None:
         '<link rel="stylesheet" href="table.css">',
     )
     html = html.replace('<body data-seat="{{ seat }}">', '<body data-seat="0">')
+    html = version_footer(html)
     html = html.replace('href="/static/report.html"', 'href="report.html"')
     html = html.replace(
         "<title>krass-jass</title>", "<title>krass-jass — offline</title>\n" + PWA_HEAD.rstrip()

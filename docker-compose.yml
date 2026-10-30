@@ -13,6 +13,8 @@ services:
     build:
       context: .
       target: runtime
+      args:
+        BUILD_SHA: "${BUILD_SHA:-}"
     command: ["python", "-m", "uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       KRASS_JASS_BOTS: "http://bot-1:8000,http://bot-2:8000,http://bot-3:8000"

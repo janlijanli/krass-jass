@@ -578,6 +578,14 @@ body {
 /* ---------- menu modes: settings / how it works ---------- */
 
 .menu-shell { padding: 0; display: flex; flex-direction: column; max-height: min(86dvh, 720px); animation: sheet .34s var(--ease-out); }
+/* Which build this is, linked to its commit: "is the fix live yet?" answered on the phone. */
+.menu-version {
+  flex-shrink: 0; padding: 6px 12px 8px; text-align: right;
+  border-top: 1px solid rgba(255,255,255,.08);
+  font: 11px/1.2 ui-monospace, "SF Mono", Menlo, monospace;
+}
+.menu-version a { color: inherit; opacity: .45; text-decoration: none; }
+.menu-version a:hover { opacity: .8; text-decoration: underline; }
 .menu-modes {
   display: flex; align-items: center; gap: 4px;
   padding: 10px 12px 8px; border-bottom: 1px solid rgba(255,255,255,.08);

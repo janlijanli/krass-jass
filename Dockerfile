@@ -45,6 +45,10 @@ RUN pip install --no-cache-dir /wheels/*.whl \
     && rm -rf /wheels \
     && python -c "import krass_jass_core, krass_jass, bot.service, web.app"
 
+# The commit, for the version line in the menu: `BUILD_SHA=$(git rev-parse HEAD) docker compose build`.
+ARG BUILD_SHA=""
+ENV BUILD_SHA=$BUILD_SHA
+
 USER jass
 EXPOSE 8000
 
