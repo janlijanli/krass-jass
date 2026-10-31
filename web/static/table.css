@@ -44,6 +44,10 @@
 }
 
 * { box-sizing: border-box; }
+/* No double-tap zoom: a quick second tap on a card zoomed the table instead of playing it.
+   Pinch-zoom stays. On every element rather than on html, because the table is a scroll
+   container and touch-action does not reach past one. */
+* { touch-action: manipulation; }
 
 /* The `hidden` attribute is only `display: none` in the UA stylesheet, at the same
    specificity as any class rule — so a later `.thing { display: grid }` silently beats it
@@ -384,6 +388,13 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   gap: 10px; padding: 8px 14px 12px;
   font-size: 12px; color: rgba(253, 251, 246, .78);
+  /* Two lines of status, always: a message that wrapped grew the bar and nudged the whole
+     table up, and back down on the next one-line message. Longer ones are cut at two. */
+  min-height: calc(2 * 1.4em + 20px);
+}
+#status {
+  min-width: 0;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
 .newgame {
   appearance: none; border: 1px solid rgba(255,255,255,.18);
