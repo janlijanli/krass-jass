@@ -34,6 +34,11 @@ under the same two-implementation rule as everything else, and so is the bidder
 (`krass_jass/sidi_bidding.py`, `rust/src/sidi_bidding.rs`): the offline build on GitHub Pages plays
 the Sidi with the same bots as the server, doubling on the same estimate.
 
+**Coiffeur is a third game mode** (`RulesConfig.mode = "coiffeur"`, preset `COIFFEUR`), started
+2026-10-30 on branch `coiffeur`. Eight rows a team, row multipliers dealt at random from the game seed
+by default, points written in tens (owner, 2026-10-31); engine in both implementations, an **untrained** rule-based row choice. Rules and open
+points in `docs/rules-config.md`, the bots and the training runs it needs in `docs/coiffeur-plan.md`.
+
 **The search is Rust** (`rust/`, exposed via `krass_jass.native`). Measured: 1.48M DMCTS
 iterations/sec single-core, 6.19M on all cores — 42x the Python search. The tuned 800k
 budget is 0.13s per move. Python remains the engine of record; only the search moved.

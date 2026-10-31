@@ -1,0 +1,15 @@
+{
+  "_comment": "Coiffeur row choice (krass_jass/coiffeur_select.py). UNTRAINED: every value here is a first estimate, not a fit. The hand is scored with the Schieber's trump weights (trump_weights.json, edge = score - baseline); a row is worth multiplier x (edge - reserve), where reserve is what the row is expected to fetch if it is kept for a later hand. arena/coiffeur_fit.py is the training run that replaces these numbers.",
+  "reserve": {
+    "_comment": "Per contract, in Contract order (D, H, S, C, Obenabe, Undenufe): the mean edge of a random hand, 20,000 hands from the shared deal, 2026-10-30. Keeping a row for later is worth an average hand.",
+    "value": [-6.0, -6.0, -6.0, -6.0, -3.22, -1.81]
+  },
+  "joker_reserve": {
+    "_comment": "A Joker takes any contract, so keeping one is worth the mean of a random hand's BEST edge (1.58 over the same 20,000 hands).",
+    "value": 1.58
+  },
+  "shove_threshold": {
+    "_comment": "Shove when the best choice is worth less than this. In Coiffeur a shove hands the choice to an OPPONENT, who gets to fill a row with a hand you have not seen. 0 = shove only when nothing beats keeping the row for an average hand.",
+    "value": 0.0
+  }
+}

@@ -328,3 +328,58 @@ A dead level score at or above the target (2021 : 2021) has no rule of its own: 
 **Dealer.** After a played hand the **declarer deals**, so the seat to their right — the next in
 play order — makes the first call (owner, 2026-09-20). After a hand thrown in, the deal simply
 passes on. The very first dealer is settled by the Ecken 10, as in the Schieber.
+
+---
+
+## Coiffeur — the third game mode
+
+`mode = "coiffeur"`, preset **`COIFFEUR`**. The trick-taking is the Schieber's, unchanged; the
+choosing, scoring and game end are the sheet's. Sources: pagat.com (Coiffeur-Schieber), Swisslos,
+jassverzeichnis.ch, lodige.com, and the Coiffeur-Partnerschieber regulation of Jassclub Wasserturm.
+They agree on the core and disagree on the details; every detail is a flag or listed as open below.
+Defaults taken 2026-10-30 when the mode was started and **confirmed by the owner 2026-10-31**, with
+one change: points are written in tens.
+
+**The sheet.** Each team has a column of **eight rows**: diamonds, hearts, spades, clubs, Obenabe,
+Undenufe, Joker 1, Joker 2. Each team plays every row exactly once, so a game is **16 rounds**. A
+Joker row takes any of the six contracts. A contract whose own row is filled can only go into a
+Joker.
+
+**Multipliers.** Each row has one, the same for both teams.
+`coiffeur_random_multipliers` — **default `True`** (owner, 2026-10-30): the rows get a permutation of
+1..8 drawn from the game seed (`krass_jass/coiffeur.py`, the deal's SplitMix64 → Fisher-Yates → Lemire
+on its own stream, so both implementations deal the same sheet). With `False`, `coiffeur_multipliers`
+— **default `4, 2, 3, 1, 5, 6, 7, 8`** in row order, jassverzeichnis.ch's sheet: Eichel ×1, Rosen ×2,
+Schilten ×3, Schellen ×4, Obenabe ×5, Undenufe ×6, Jokers ×7 and ×8. **Disagreement:** pagat's
+four-player table puts acorns/spades ×1, flowers/clubs ×2, shields/diamonds ×3, bells/hearts ×4 —
+the sources do not even agree which suit is cheapest, which is one reason random is a good default.
+
+**Choosing.** Forehand (the seat after the dealer) chooses a row or shoves. A shove goes to the
+**next seat in play order — an opponent**, not the partner. After four shoves the choice is back
+with forehand, who must choose ("im Loch", "im Fass"). Once one team has filled its column only the
+other team chooses: the first seat of that team from forehand chooses or shoves **to its partner**,
+who may shove back once; then it must choose. The dealer passes on as in the Schieber.
+
+**Play.** Whoever chooses **leads** the first trick. No Weis, no Stöck (every source agrees).
+
+**Scoring.** Only the choosing team writes: its card points (157 a round, 257 with Match:
+`match_bonus` stays 100) into the row, times the row's multiplier.
+`coiffeur_tens` — **default `True`** (owner, 2026-10-31): the points are written in tens, rounded
+half up (84 → 8, 85 → 9, Match 257 → 26), and the tens are multiplied. **Rounding is ours:** the
+sources write Match as 25 or 16 and Wasserturm rounds up from 4; the owner asked for tens, not for a
+rounding rule. With `False` the points are written in full.
+`coiffeur_score_opponents` — **default `False`**. When `True` the defenders are credited with their
+card points times the same multiplier (Jassclub Wasserturm's rule); their row stays open.
+
+**Game end.** When both columns are full. The higher total wins; a level total is a draw
+(`winner = -1`, `decided_by = "sheet"`). `target_score` is `None`.
+
+**Open, not implemented** (each needs a decision before it is built):
+
+- **Slalom and Guschti** (the ten-row Coiffeur). Slalom alternates Obenabe and Undenufe trick by
+  trick, Guschti plays five tricks one way and four the other; the chooser picks which comes first.
+  Both change the trick-taking per trick, so they touch the legal-move tables, trick resolution and
+  the search kernel — a separate step.
+- **Counter-match** (the choosing team takes no trick). pagat scores it with sticks and potatoes in
+  the three-player game and gives no four-player rule; the sheet simply writes 0.
+- **A wrong choice** ("Fehlwahl") — the engine refuses a closed row, so it cannot arise.

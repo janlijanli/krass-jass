@@ -16,6 +16,8 @@ from enum import Enum
 
 from .auction import Auction, bonus as sidi_bonus
 from .cards import parse_card, card_list, format_card
+from .coiffeur import ROW_NAMES, Choice, Choosing, Sheet, row_value
+from .coiffeur import multipliers as coiffeur_multipliers
 from .deal import deal as deal_hands
 from .events import EventLog, EventType
 from .observation import build_observation, derive_decision_seed
@@ -62,13 +64,21 @@ class Game:
     bid_value: int = 0
     doubled: bool = False
     _double_queue: list = field(default_factory=list)
+    #: Coiffeur: the sheet, its row multipliers, this round's choosing and the row chosen.
+    sheet: Sheet | None = None
+    row_multipliers: tuple = ()
+    choosing: Choosing | None = None
+    row: int = -1
     _dealt: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
 
     def __post_init__(self) -> None:
-        self.log.emit(
-            EventType.GAME_STARTED,
-            {"game_id": self.game_id, "target_score": self.cfg.target_score},
-        )
+        started = {"game_id": self.game_id, "target_score": self.cfg.target_score}
+        if self.cfg.coiffeur:
+            # The sheet is public from the first card: everyone sees what each row is worth.
+            self.sheet = Sheet()
+            self.row_multipliers = coiffeur_multipliers(self.seed, self.cfg)
+            started["multipliers"] = list(self.row_multipliers)
+        self.log.emit(EventType.GAME_STARTED, started)
         self.start_round()
 
     # -- round lifecycle ----------------------------------------------------
@@ -99,6 +109,11 @@ class Game:
         self.declarer = self.forehand
         self.shoved = False
         self.auction = Auction(opener=self.forehand, cfg=self.cfg) if self.cfg.sidi else None
+        self.choosing = None
+        self.row = -1
+        if self.cfg.coiffeur:
+            self.choosing = Choosing(forehand=self.forehand, sheet=self.sheet)
+            self.declarer = self.choosing.chooser
         self.bid_value = 0
         self.doubled = False
         self._double_queue = []
@@ -241,6 +256,9 @@ class Game:
         if self.cfg.sidi:
             self._call(seat, action)
             return
+        if self.cfg.coiffeur:
+            self._choose(seat, action)
+            return
         action = self.parse_action(action)
         if self.phase is not Phase.BIDDING:
             raise IllegalMove("not bidding")
@@ -261,6 +279,28 @@ class Game:
         self.contract = contract
         self.log.emit(EventType.BID, {"seat": seat, "action": contract.name})
         self._begin_play()
+
+    def _choose(self, seat: int, action) -> None:
+        """Coiffeur: choose a contract and a row, or shove. See `krass_jass/coiffeur.py`."""
+        if self.phase is not Phase.BIDDING or self.choosing is None:
+            raise IllegalMove("not choosing")
+        if isinstance(action, Contract):
+            action = action.name
+        try:
+            result = self.choosing.act(seat, action)
+        except ValueError as exc:
+            raise IllegalMove(str(exc)) from None
+        if result == SHOVE:
+            self.declarer = self.choosing.chooser
+            self.log.emit(EventType.BID, {"seat": seat, "action": SHOVE})
+            return
+        self.contract, self.row = result.contract, result.row
+        self.log.emit(EventType.BID, {"seat": seat, "action": str(result)})
+        self._begin_play()
+
+    def legal_choices(self) -> list:
+        """Coiffeur: what the seat on turn may do, as `Choice`s and `SHOVE`."""
+        return self.choosing.legal() if self.choosing is not None and self.phase is Phase.BIDDING else []
 
     def _call(self, seat: int, action) -> None:
         """Sidi: one call in the auction. See `krass_jass/auction.py`."""
@@ -297,8 +337,9 @@ class Game:
 
     def _begin_play(self) -> None:
         assert self.contract is not None
-        # In the Sidi the highest bidder leads; in the Schieber, forehand.
-        leader = self.declarer if self.cfg.sidi else self.forehand
+        # In the Sidi the highest bidder leads, in the Coiffeur whoever chose; in the Schieber,
+        # forehand.
+        leader = self.declarer if self.cfg.sidi or self.cfg.coiffeur else self.forehand
         self.round = RoundState(
             contract=self.contract,
             hands=list(self._dealt),
@@ -313,6 +354,8 @@ class Game:
         }
         if self.cfg.sidi:
             payload.update(bid=self.bid_value, doubled=self.doubled)
+        if self.cfg.coiffeur:
+            payload.update(multiplier=self.row_multipliers[self.row], row=ROW_NAMES[self.row])
         self.log.emit(EventType.CONTRACT_SET, payload)
         # Stöck is settled now whatever happens to the Weis: a King/Queen of trumps can go
         # down on the first trick, before the last player has answered.
@@ -617,10 +660,58 @@ class Game:
         else:
             self.phase = Phase.ROUND_OVER
 
+    def _score_coiffeur(self) -> None:
+        """The choosing team's card points into its row, in tens, times the row's multiplier.
+
+        The defenders write nothing unless `coiffeur_score_opponents`. The game ends with the
+        sheet: once both columns are full, the higher total wins, and a level total is a draw.
+        """
+        assert self.round is not None and self.sheet is not None
+        score = self.round.score(weis=(0, 0), stoeck=(0, 0))
+        points = list(score.total)
+        declarers = team_of(self.declarer)
+        multiplier = self.row_multipliers[self.row]
+        values = [row_value(p, self.cfg) for p in points]
+        self.sheet.written[declarers][self.row] = values[declarers]
+        written = [0, 0]
+        written[declarers] = values[declarers] * multiplier
+        if self.cfg.coiffeur_score_opponents:
+            written[1 - declarers] = values[1 - declarers] * multiplier
+        for team in range(NUM_TEAMS):
+            self.scores[team] += written[team]
+
+        detail = {
+            "round": self.round_index,
+            "trick_points": list(score.trick_points),
+            "last_trick": list(score.last_trick),
+            "match": list(score.match),
+            "team": declarers,
+            "row": ROW_NAMES[self.row],
+            "multiplier": multiplier,
+            "round_total": points,
+            "written": written,
+            "scores": list(self.scores),
+        }
+        self.last_score = {"contract": self.contract.name, **detail}
+        self.log.emit(EventType.ROUND_SCORED, detail)
+
+        if self.sheet.complete:
+            self.phase = Phase.GAME_OVER
+            winner = -1 if self.scores[0] == self.scores[1] else int(self.scores[1] > self.scores[0])
+            self.log.emit(
+                EventType.GAME_OVER,
+                {"winner": winner, "scores": list(self.scores), "decided_by": "sheet"},
+            )
+        else:
+            self.phase = Phase.ROUND_OVER
+
     def _score_round(self) -> None:
         assert self.round is not None
         if self.cfg.sidi:
             self._score_sidi()
+            return
+        if self.cfg.coiffeur:
+            self._score_coiffeur()
             return
         score = self.round.score(weis=self._weis, stoeck=self._stoeck)
         totals = score.total

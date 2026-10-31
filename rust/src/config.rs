@@ -34,6 +34,17 @@ pub struct Rules {
     pub sidi_double_after_lead: bool,
     /// A double during the auction ends it.
     pub sidi_double_ends_auction: bool,
+    /// Coiffeur instead of the Schieber: the sheet, its rows and multipliers, the game end.
+    /// `docs/rules-config.md`, "Coiffeur"; `coiffeur.rs`.
+    pub coiffeur: bool,
+    /// Deal the row multipliers out at random from the game seed (default) or use the table.
+    pub coiffeur_random_multipliers: bool,
+    /// Row order: diamonds, hearts, spades, clubs, Obenabe, Undenufe, Joker 1, Joker 2.
+    pub coiffeur_multipliers: [i32; 8],
+    /// Also credit the defenders with their card points, times the row's multiplier.
+    pub coiffeur_score_opponents: bool,
+    /// Write card points in tens, rounded half up, and multiply those.
+    pub coiffeur_tens: bool,
 }
 
 pub const SIDI_BIDS: usize = 14;
@@ -64,6 +75,11 @@ impl Default for Rules {
             sidi_bids: [40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 157, 257],
             sidi_double_after_lead: true,
             sidi_double_ends_auction: true,
+            coiffeur: false,
+            coiffeur_random_multipliers: true,
+            coiffeur_multipliers: [4, 2, 3, 1, 5, 6, 7, 8],
+            coiffeur_score_opponents: false,
+            coiffeur_tens: true,
         }
     }
 }
@@ -78,6 +94,19 @@ impl Rules {
             weis_enabled: false,
             stoeck_enabled: false,
             target_score: 2000,
+            ..Rules::default()
+        }
+    }
+
+    /// Coiffeur: each team plays every row once, no Weis, no Stöck, no target. The contract
+    /// multipliers are ones because the row carries the multiplier. Twin of `COIFFEUR`.
+    pub fn coiffeur() -> Self {
+        Rules {
+            coiffeur: true,
+            multipliers: [1; NUM_CONTRACTS],
+            weis_enabled: false,
+            stoeck_enabled: false,
+            target_score: 0,
             ..Rules::default()
         }
     }

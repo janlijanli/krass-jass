@@ -94,7 +94,7 @@ class RulesConfig:
     claim_order: tuple[str, ...] = ("stoeck", "weis", "stich")
 
     # -- game mode (docs/rules-config.md, "Sidi Barrani")
-    #: "schieber" or "sidi". Sidi replaces the bidding, the scoring and the game end; the
+    #: "schieber", "sidi" or "coiffeur". Sidi replaces the bidding, the scoring and the game end; the
     #: trick-taking is the Schieber's.
     mode: str = "schieber"
     #: The bid ladder, lowest first. 157 is every card point, 257 is Match.
@@ -104,9 +104,29 @@ class RulesConfig:
     #: A double during the auction ends it.
     sidi_double_ends_auction: bool = True
 
+    # -- Coiffeur (docs/rules-config.md, "Coiffeur"). The trick-taking is the Schieber's; the
+    # choosing, the scoring and the game end are the sheet's (`krass_jass/coiffeur.py`).
+    #: Deal the row multipliers out at random — a permutation of 1..8 drawn from the game seed —
+    #: instead of the fixed table below. On by default (owner, 2026-10-30).
+    coiffeur_random_multipliers: bool = True
+    #: The fixed table, in row order: diamonds, hearts, spades, clubs, Obenabe, Undenufe, Joker 1,
+    #: Joker 2. jassverzeichnis.ch's sheet: Eichel x1, Rosen x2, Schilten x3, Schellen x4, Obenabe
+    #: x5, Undenufe x6, the Jokers x7 and x8.
+    coiffeur_multipliers: tuple[int, ...] = (4, 2, 3, 1, 5, 6, 7, 8)
+    #: Also credit the defenders with their card points, times the row's multiplier. Off:
+    #: Swisslos, jassverzeichnis.ch and pagat write only the choosing team.
+    coiffeur_score_opponents: bool = False
+    #: Write card points in tens, rounded half up (85 -> 9, a match's 257 -> 26), and multiply
+    #: those. On (owner, 2026-10-31); off writes the points in full.
+    coiffeur_tens: bool = True
+
     @property
     def sidi(self) -> bool:
         return self.mode == "sidi"
+
+    @property
+    def coiffeur(self) -> bool:
+        return self.mode == "coiffeur"
 
     def variant(self, **changes) -> "RulesConfig":
         return replace(self, **changes)
@@ -139,3 +159,14 @@ SIDI = HOUSE.variant(
 
 #: One Sidi hand at a time, for measurement. Weis and Stöck are already off.
 SIDI_EVAL = SIDI.variant(target_score=None)
+
+#: Coiffeur: each team plays every row of the sheet once. No Weis, no Stöck (every source
+#: agrees). The contract multipliers are all ones because the *row* carries the multiplier, and
+#: the game ends when the sheet is full, so there is no target.
+COIFFEUR = HOUSE.variant(
+    mode="coiffeur",
+    multipliers={c: 1 for c in Contract},
+    weis_enabled=False,
+    stoeck_enabled=False,
+    target_score=None,
+)

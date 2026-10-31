@@ -997,7 +997,7 @@ pub struct PyGame {
 #[pymethods]
 impl PyGame {
     #[new]
-    #[pyo3(signature = (seed, target_score=1000, weis_enabled=true, weis_manual=false, stoeck_enabled=true, multipliers=None, sidi=false))]
+    #[pyo3(signature = (seed, target_score=1000, weis_enabled=true, weis_manual=false, stoeck_enabled=true, multipliers=None, sidi=false, coiffeur=false, coiffeur_multipliers=None, coiffeur_score_opponents=false, coiffeur_tens=true))]
     fn new(
         seed: u64,
         target_score: i32,
@@ -1006,7 +1006,21 @@ impl PyGame {
         stoeck_enabled: bool,
         multipliers: Option<Vec<i32>>,
         sidi: bool,
+        coiffeur: bool,
+        coiffeur_multipliers: Option<Vec<i32>>,
+        coiffeur_score_opponents: bool,
+        coiffeur_tens: bool,
     ) -> Self {
+        if coiffeur {
+            let mut rules = Rules { coiffeur_score_opponents, coiffeur_tens, ..Rules::coiffeur() };
+            if let Some(m) = coiffeur_multipliers {
+                rules.coiffeur_random_multipliers = false;
+                for (i, v) in m.iter().take(8).enumerate() {
+                    rules.coiffeur_multipliers[i] = *v;
+                }
+            }
+            return PyGame { inner: crate::game::Game::new(rules, seed) };
+        }
         let base = if sidi { Rules::sidi() } else { Rules::default() };
         let mut rules = Rules {
             target_score,
@@ -1069,6 +1083,40 @@ impl PyGame {
         let parsed = crate::auction::Call::parse(call)
             .ok_or_else(|| PyValueError::new_err(format!("unknown call {call:?}")))?;
         self.inner.call(seat, parsed).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    /// Coiffeur: a choice in its wire form (`HEARTS`, `HEARTS/JOKER1`) or `SHOVE`.
+    fn choose(&mut self, seat: usize, action: &str) -> PyResult<()> {
+        use pyo3::exceptions::PyValueError;
+        let choice = if action.trim().eq_ignore_ascii_case("SHOVE") {
+            None
+        } else {
+            Some(
+                crate::coiffeur::Choice::parse(action)
+                    .ok_or_else(|| PyValueError::new_err(format!("unknown choice {action:?}")))?,
+            )
+        };
+        self.inner.choose(seat, choice).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    /// Coiffeur: the choices open to the seat on turn, in wire form, `SHOVE` last if allowed.
+    fn legal_choices(&self) -> Vec<String> {
+        let (choices, may_shove) = self.inner.legal_choices();
+        let mut out: Vec<String> = choices.iter().map(|c| c.name()).collect();
+        if may_shove {
+            out.push("SHOVE".into());
+        }
+        out
+    }
+
+    #[getter]
+    fn row_multipliers(&self) -> Vec<i32> {
+        self.inner.row_multipliers.to_vec()
+    }
+
+    #[getter]
+    fn sheet(&self) -> Vec<Vec<Option<i32>>> {
+        self.inner.sheet.written.iter().map(|t| t.to_vec()).collect()
     }
 
     /// Sidi: the calls the seat may make now, in their wire form.

@@ -21,6 +21,7 @@ pub mod belief;
 pub mod beliefnet;
 pub mod bidding;
 pub mod cards;
+pub mod coiffeur;
 pub mod config;
 pub mod convention;
 pub mod deal;

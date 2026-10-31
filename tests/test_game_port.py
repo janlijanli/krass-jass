@@ -305,3 +305,89 @@ def test_sidi_games_produce_identical_event_streams(seed):
     assert py.scores == list(rs.scores)
     kinds = {e["type"] for e in a}
     assert {"thrown_in", "double_answered", "round_scored", "game_over"} <= kinds
+
+
+# --- Coiffeur ---------------------------------------------------------------
+
+
+def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True):
+    """Both engines through the same Coiffeur game: random choices, shoves and cards."""
+    from krass_jass.rules import COIFFEUR
+
+    cfg = COIFFEUR.variant(coiffeur_score_opponents=opponents, coiffeur_tens=tens)
+    if fixed is not None:
+        cfg = cfg.variant(coiffeur_random_multipliers=False, coiffeur_multipliers=tuple(fixed))
+    py = Game(cfg=cfg, seed=seed)
+    rs = core.RsGame(
+        seed,
+        coiffeur=True,
+        coiffeur_multipliers=fixed,
+        coiffeur_score_opponents=opponents,
+        coiffeur_tens=tens,
+    )
+    assert list(py.row_multipliers) == rs.row_multipliers
+    rng = random.Random(seed)
+
+    for _ in range(40000):
+        assert py.phase.value == rs.phase, f"phase diverged: {py.phase.value} vs {rs.phase}"
+        if py.phase is Phase.GAME_OVER:
+            break
+        if py.phase is Phase.ROUND_OVER:
+            py.next_round()
+            rs.next_round()
+            continue
+        seat = py.to_act
+        assert seat == rs.to_act, f"turn diverged at seat {seat} vs {rs.to_act}"
+        if py.phase is Phase.BIDDING:
+            legal = [str(c) for c in py.legal_choices()]
+            assert legal == rs.legal_choices(), "legal choices diverged"
+            # Shove often, so the forced choice "im Loch" and the partner-only shove are reached.
+            action = "SHOVE" if "SHOVE" in legal and rng.random() < 0.5 else rng.choice(legal)
+            py.bid(seat, action)
+            rs.choose(seat, action)
+        else:
+            legal = py.round.legal_moves(seat)
+            assert legal == rs.legal_moves(seat), "legal moves diverged"
+            cards = card_list(legal)
+            card = cards[rng.randrange(len(cards))]
+            py.play(seat, card)
+            rs.play(seat, card)
+        assert py.sheet.written == rs.sheet
+    else:
+        raise AssertionError("game did not finish")
+    return py, rs
+
+
+@pytest.mark.parametrize(
+    "seed,fixed,opponents,tens",
+    [
+        (1, None, False, True),
+        (7, None, True, True),
+        (42, None, False, False),
+        (1234, (4, 2, 3, 1, 5, 6, 7, 8), False, True),
+    ],
+)
+def test_coiffeur_games_produce_identical_event_streams(seed, fixed, opponents, tens):
+    if not hasattr(core.RsGame, "choose"):
+        pytest.skip("Rust core predates Coiffeur")
+    py, rs = drive_both_coiffeur(seed, fixed, opponents, tens)
+    a, b = py_events(py), rs_events(rs)
+    assert len(a) == len(b), f"{len(a)} python events vs {len(b)} rust"
+    for i, (x, y) in enumerate(zip(a, b)):
+        assert x == y, f"event {i} differs:\n  python {x}\n  rust   {y}"
+    assert py.scores == list(rs.scores)
+    assert py.sheet.complete and py.round_index == 15
+    assert {"round_scored", "game_over"} <= {e["type"] for e in a}
+
+
+def test_coiffeur_multipliers_agree_and_are_a_permutation():
+    from krass_jass.coiffeur import multipliers
+    from krass_jass.rules import COIFFEUR
+
+    seen = set()
+    for seed in range(200):
+        m = multipliers(seed, COIFFEUR)
+        assert sorted(m) == list(range(1, 9))
+        assert list(m) == core.RsGame(seed, coiffeur=True).row_multipliers
+        seen.add(m)
+    assert len(seen) > 150, "the multipliers are not being shuffled"

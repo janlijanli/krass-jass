@@ -15,7 +15,8 @@ use crate::cards::format_card;
 
 #[derive(Clone, Debug)]
 pub enum Payload {
-    GameStarted { target_score: i32 },
+    /// `multipliers` is the Coiffeur's sheet; its game has no target, written `null`.
+    GameStarted { target_score: i32, multipliers: Option<[i32; 8]> },
     RoundStarted { round: u32, dealer: usize, forehand: usize },
     HandDealt { seat: usize, cards: Vec<usize> },
     Bid { seat: usize, action: String },
@@ -30,6 +31,8 @@ pub enum Payload {
         multiplier: i32,
         leader: usize,
         sidi: Option<(i32, bool)>,
+        /// Coiffeur: the row the contract is written into. `multiplier` is then the row's.
+        row: Option<usize>,
     },
     WeisAnnounced { seat: usize, points: i32, melds: usize },
     WeisDeclared { seat: usize, kind: String, points: i32, cards: Vec<usize> },
@@ -40,6 +43,9 @@ pub enum Payload {
     RoundScored { round: u32, detail: RoundDetail },
     SidiRoundScored { round: u32, detail: SidiDetail },
     SidiGameOver { winner: i32, scores: [i32; 2] },
+    CoiffeurRoundScored { round: u32, detail: CoiffeurDetail },
+    /// The sheet is full. `winner` is -1 for a level total.
+    CoiffeurGameOver { winner: i32, scores: [i32; 2] },
     GameOver {
         winner: i32,
         scores: [i32; 2],
@@ -71,6 +77,22 @@ pub struct SidiDetail {
     pub made: bool,
     pub bonus: [i32; 2],
     pub round_total: [i32; 2],
+    pub scores: [i32; 2],
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct CoiffeurDetail {
+    pub trick_points: [i32; 2],
+    pub last_trick: [i32; 2],
+    pub match_bonus: [i32; 2],
+    /// The choosing team.
+    pub team: usize,
+    pub row: usize,
+    pub multiplier: i32,
+    /// Card points, before the multiplier.
+    pub round_total: [i32; 2],
+    /// What went onto each team's total.
+    pub written: [i32; 2],
     pub scores: [i32; 2],
 }
 
@@ -116,8 +138,12 @@ impl Event {
             Payload::Stoeck { .. } => "stoeck",
             Payload::CardPlayed { .. } => "card_played",
             Payload::TrickWon { .. } => "trick_won",
-            Payload::RoundScored { .. } | Payload::SidiRoundScored { .. } => "round_scored",
-            Payload::GameOver { .. } | Payload::SidiGameOver { .. } => "game_over",
+            Payload::RoundScored { .. }
+            | Payload::SidiRoundScored { .. }
+            | Payload::CoiffeurRoundScored { .. } => "round_scored",
+            Payload::GameOver { .. }
+            | Payload::SidiGameOver { .. }
+            | Payload::CoiffeurGameOver { .. } => "game_over",
         }
     }
 
@@ -128,7 +154,13 @@ impl Event {
     pub fn to_json(&self) -> String {
         let head = format!("{{\"seq\":{},\"type\":\"{}\"", self.seq, self.type_name());
         let body = match &self.payload {
-            Payload::GameStarted { target_score } => format!("\"target_score\":{target_score}"),
+            Payload::GameStarted { target_score, multipliers: None } => {
+                format!("\"target_score\":{target_score}")
+            }
+            Payload::GameStarted { multipliers: Some(m), .. } => {
+                let parts: Vec<String> = m.iter().map(|v| v.to_string()).collect();
+                format!("\"target_score\":null,\"multipliers\":[{}]", parts.join(","))
+            }
             Payload::RoundStarted { round, dealer, forehand } => {
                 format!("\"round\":{round},\"dealer\":{dealer},\"forehand\":{forehand}")
             }
@@ -140,13 +172,16 @@ impl Event {
             Payload::DoubleAnswered { seat, double } => {
                 format!("\"seat\":{seat},\"double\":{double}")
             }
-            Payload::ContractSet { contract, declarer, multiplier, leader, sidi } => {
+            Payload::ContractSet { contract, declarer, multiplier, leader, sidi, row } => {
                 let mut out = format!(
                     "\"contract\":\"{}\",\"declarer\":{declarer},\"multiplier\":{multiplier},\"leader\":{leader}",
                     crate::tables::contract_name(*contract)
                 );
                 if let Some((bid, doubled)) = sidi {
                     out.push_str(&format!(",\"bid\":{bid},\"doubled\":{doubled}"));
+                }
+                if let Some(row) = row {
+                    out.push_str(&format!(",\"row\":\"{}\"", crate::coiffeur::ROW_NAMES[*row]));
                 }
                 out
             }
@@ -191,6 +226,22 @@ impl Event {
                 pair("bonus", detail.bonus),
                 pair("round_total", detail.round_total),
                 pair("scores", detail.scores),
+            ),
+            Payload::CoiffeurRoundScored { round, detail } => format!(
+                "\"round\":{round},{},{},{},\"team\":{},\"row\":\"{}\",\"multiplier\":{},{},{},{}",
+                pair("trick_points", detail.trick_points),
+                pair("last_trick", detail.last_trick),
+                pair("match", detail.match_bonus),
+                detail.team,
+                crate::coiffeur::ROW_NAMES[detail.row],
+                detail.multiplier,
+                pair("round_total", detail.round_total),
+                pair("written", detail.written),
+                pair("scores", detail.scores),
+            ),
+            Payload::CoiffeurGameOver { winner, scores } => format!(
+                "\"winner\":{winner},{},\"decided_by\":\"sheet\"",
+                pair("scores", *scores)
             ),
             Payload::SidiGameOver { winner, scores } => format!(
                 "\"winner\":{winner},{},\"decided_by\":\"score\"",

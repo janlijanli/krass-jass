@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from . import bidding, convention, native, reading, sidi_bidding
+from . import bidding, coiffeur_select, convention, native, reading, sidi_bidding
 from .cards import card_list
 from .observation import Observation
 from .rules import HOUSE, SHOVE, Contract, RulesConfig
@@ -86,6 +86,17 @@ class Agent:
         if self.trump_policy == "random":
             return Contract(random.Random(hand ^ 0x5DEECE66D).randrange(6))
         return select_trump(hand, is_forehand, self.cfg)
+
+    def coiffeur_choice(self, hand: int, legal: list, multipliers: tuple) -> str:
+        """Coiffeur: a row to fill, or shove, in wire form. `legal` and the sheet are public.
+
+        Untrained rule-based choice (`krass_jass/coiffeur_select.py`); "random" picks any open
+        choice, never a shove, as the Schieber's random bidder never shoves.
+        """
+        if self.trump_policy == "random":
+            options = [c for c in legal if c != SHOVE]
+            return str(random.Random(hand ^ 0x5DEECE66D).choice(options))
+        return str(coiffeur_select.choose(hand, legal, multipliers, self.cfg))
 
     def sidi_call(self, hand: int, auction: tuple, seat: int) -> str:
         """Sidi Barrani: one call in the auction, in its wire form. The auction is public."""
@@ -498,8 +509,9 @@ class DmctsAgent(Agent):
             "history": history,
             "belief_alpha": self.belief_alpha,
             "belief_pool": self.belief_pool if weighting else 0,
-            # The bid model is the Schieber's choose-or-shove; a Sidi auction is another language.
-            "bid_alpha": 0.0 if self.cfg.sidi else self.bid_alpha,
+            # The bid model is the Schieber's choose-or-shove. A Sidi auction is another language,
+            # and a Coiffeur choice depends on the sheet as much as on the hand.
+            "bid_alpha": self.bid_alpha if self.cfg.mode == "schieber" else 0.0,
             "bid_temperature": self.bid_temperature,
             "rollout_temperature": self.rollout_temperature,
             "tree_policy": self.tree_policy,
@@ -544,7 +556,7 @@ class DmctsAgent(Agent):
                 list(obs.tricks_played), list(obs.trick), obs.trick_leader, obs.contract,
                 self.cfg,
             )
-        if self.read_bidding and not self.cfg.sidi:
+        if self.read_bidding and self.cfg.mode == "schieber":
             bid_suits, ranks = bidding.infer_from_bid(
                 obs.forehand, obs.declarer_seat, obs.contract, obs.seat, self.cfg
             )
