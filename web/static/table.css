@@ -76,6 +76,10 @@ body {
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
   position: fixed; inset: 0; overflow: hidden;
+  /* A game, not a document: a long press on a card or a name selected text and raised the
+     copy bubble (and iOS's preview on images). Nothing here takes typed input. */
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .table {
