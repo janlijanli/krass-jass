@@ -12,12 +12,13 @@
     ]
   },
   "joker_reserve": {
-    "_comment": "A Joker takes any contract, so keeping one is worth the mean of a random hand's BEST edge (1.58 over the same 20,000 hands).",
+    "_comment": "Untrained fallback for the Chance (was the Joker): keeping it is worth the mean of a random hand's BEST contract edge (1.58 over the same 20,000 hands). The fitted points_reserve.CHANCE counts every game.",
     "value": 1.58
   },
   "extra_reserve": {
-    "_comment": "The extra rows (krass_jass/schedule.py), in order SLALOM, GUSCHTI, TRIO, MISERE; 20,000 hands from the shared deal, 2026-10-31. A Slalom or Guschti is valued at the mean edge of the contracts its nine tricks are played in; a 3x3 at its first block's edge, the only one known when it is chosen; a Misère at minus the edge, since a hand that is bad at Obenabe is good at Misère Obenabe. Keeping the row is worth a random hand's best game in it. Untrained like the rest.",
+    "_comment": "The extra rows (krass_jass/schedule.py), in order TUTTI, SLALOM, GUSCHTI, TRIO, MISERE; 20,000 hands from the shared deal, 2026-10-31. A Slalom or Guschti is valued at the mean edge of the contracts its nine tricks are played in; a 3x3 at its first block's edge, the only one known when it is chosen; a Tutti at its best trump suit's edge (TUTTI added 2026-11-01, -0.36); a Misère at minus the edge, since a hand that is bad at Obenabe is good at Misère Obenabe. Keeping the row is worth a random hand's best game in it. Untrained like the rest.",
     "value": [
+      -0.36,
       -2.26,
       -2.26,
       1.58,
@@ -27,5 +28,103 @@
   "shove_threshold": {
     "_comment": "Shove when the best choice is worth less than this. In Coiffeur a shove hands the choice to an OPPONENT, who gets to fill a row with a hand you have not seen. 0 = shove only when nothing beats keeping the row for an average hand.",
     "value": 0.0
+  },
+  "value_map": {
+    "_comment": "Per game, expected points written = a + b x edge, where edge is the selector's (see value_choices). Fitted on half of coiffeur_games.npz (3000 deals), 2026-11-01, arena/fit_coiffeur.py.",
+    "value": {
+      "DIAMONDS": [
+        104.471,
+        4.3796
+      ],
+      "HEARTS": [
+        105.833,
+        4.3279
+      ],
+      "SPADES": [
+        104.542,
+        4.4547
+      ],
+      "CLUBS": [
+        105.372,
+        4.3471
+      ],
+      "OBENABE": [
+        99.687,
+        5.5871
+      ],
+      "UNDENUFE": [
+        92.855,
+        6.8951
+      ],
+      "SLALOM_OBENABE": [
+        128.631,
+        13.2719
+      ],
+      "SLALOM_UNDENUFE": [
+        130.405,
+        14.5829
+      ],
+      "GUSCHTI_OBENABE": [
+        128.195,
+        13.4528
+      ],
+      "GUSCHTI_UNDENUFE": [
+        123.96,
+        12.5234
+      ],
+      "TRIO_DIAMONDS": [
+        100.845,
+        3.4606
+      ],
+      "TRIO_HEARTS": [
+        99.615,
+        3.2263
+      ],
+      "TRIO_SPADES": [
+        98.812,
+        3.0984
+      ],
+      "TRIO_CLUBS": [
+        99.846,
+        3.2863
+      ],
+      "TRIO_OBENABE": [
+        115.381,
+        6.8352
+      ],
+      "TRIO_UNDENUFE": [
+        111.561,
+        8.3823
+      ],
+      "MISERE_OBENABE": [
+        66.334,
+        3.4168
+      ],
+      "MISERE_UNDENUFE": [
+        68.655,
+        4.0997
+      ],
+      "TUTTI": [
+        105.055,
+        4.3773
+      ]
+    }
+  },
+  "points_reserve": {
+    "_comment": "Per row, in points: what a random hand is expected to write in it at its best, under value_map. CHANCE is any game.",
+    "value": {
+      "DIAMONDS": 78.18,
+      "HEARTS": 79.87,
+      "SPADES": 77.84,
+      "CLUBS": 79.33,
+      "OBENABE": 81.71,
+      "UNDENUFE": 80.36,
+      "CHANCE": 119.06,
+      "TUTTI": 103.46,
+      "SLALOM": 97.86,
+      "GUSCHTI": 96.71,
+      "TRIO": 115.38,
+      "MISERE": 84.85
+    }
   }
 }

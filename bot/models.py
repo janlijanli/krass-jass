@@ -80,11 +80,11 @@ class CoiffeurChoiceRequest(BaseModel):
     """Coiffeur: a row to fill, or a shove. The sheet is public; `legal` is the engine's."""
 
     hand: list[str]
-    #: Wire form: "HEARTS", "OBENABE/JOKER1", "SHOVE".
+    #: Wire form: "HEARTS", "OBENABE/CHANCE", "TUTTI", "SHOVE".
     legal: list[str]
     #: The row multipliers, one per sheet slot (`krass_jass.coiffeur.ROW_NAMES`), 0 for a row
     #: the game does not play.
-    multipliers: list[int] = Field(min_length=11, max_length=11)
+    multipliers: list[int] = Field(min_length=12, max_length=12)
     seat: int = Field(ge=0, le=3)
 
 

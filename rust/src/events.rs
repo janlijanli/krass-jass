@@ -193,7 +193,7 @@ impl Event {
                         .tricks()
                         .iter()
                         .map(|&c| {
-                            if c == crate::schedule::UNNAMED {
+                            if c == crate::schedule::UNNAMED || c == crate::schedule::LED {
                                 "null".to_string()
                             } else {
                                 format!("\"{}\"", crate::tables::contract_name(c))

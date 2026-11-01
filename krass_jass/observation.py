@@ -22,9 +22,12 @@ import hashlib
 import hmac
 from dataclasses import dataclass, field
 
-from .cards import card_list
+from .cards import card_list, card_suit
 from .rules import Contract
 from .scoring import team_of
+
+#: In `Observation.schedule`: a 3×3 block not yet named is -1; a Tutti trick not yet led is this.
+TUTTI_UNLED = -2
 
 
 def derive_decision_seed(game_seed: int, game_id: str, seat: int, rnd: int, trick: int) -> int:
@@ -85,7 +88,8 @@ class Observation:
     bid_value: int = 0
     doubled: bool = False
     #: Coiffeur's extra rows only (empty otherwise): the contract each of the nine tricks is
-    #: played in (`krass_jass/schedule.py`). Public — the chooser said it aloud — and `contract`
+    #: played in (`krass_jass/schedule.py`), -1 for a 3×3 block not yet named and `TUTTI_UNLED`
+    #: for a Tutti trick not yet led. Public — the chooser said it aloud — and `contract`
     #: stays the one the round is counted in.
     schedule: tuple = ()
     #: Coiffeur Misère: each team is credited with what the other took. Public — it was chosen
@@ -98,6 +102,8 @@ class Observation:
         if not self.schedule:
             return self.contract
         named = self.schedule[min(len(self.tricks_played), 8)]
+        if named == TUTTI_UNLED and self.trick:
+            return Contract(card_suit(self.trick[0]))
         return self.contract if named < 0 else Contract(named)
 
     @property
@@ -197,6 +203,8 @@ def build_observation(
         bid_value=bid_value,
         doubled=doubled,
         # -1 for a 3×3 block not yet named: nobody knows it yet, not even its chooser.
-        schedule=tuple(-1 if c is None else int(c) for c in state.schedule) if state.schedule else (),
+        schedule=tuple(
+            (TUTTI_UNLED if state.tutti else -1) if c is None else int(c) for c in state.schedule
+        ) if state.schedule else (),
         misere=misere,
     )

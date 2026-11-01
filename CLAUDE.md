@@ -35,13 +35,16 @@ under the same two-implementation rule as everything else, and so is the bidder
 the Sidi with the same bots as the server, doubling on the same estimate.
 
 **Coiffeur is a third game mode** (`RulesConfig.mode = "coiffeur"`, preset `COIFFEUR`), started
-2026-10-30 on branch `coiffeur`. Eight rows a team, row multipliers dealt at random from the game seed
+2026-10-30 on branch `coiffeur`. Seven rows a team plus the extra rows, row multipliers dealt at random from the game seed
 by default, points written in tens (owner, 2026-10-31); engine in both implementations, an **untrained** rule-based row choice.
-Slalom, Guschti, 3×3 and Misère are four more rows (on by default). The first three change the card
+One **Chance** row (was two Jokers): any game, always ×13, out of the random draw (owner, 2026-11-01).
+Tutti, Slalom, Guschti, 3×3 and Misère are five more rows (on by default). The first four change the card
 order trick by trick, written out as a **schedule** (`krass_jass/schedule.py`, `rust/src/schedule.rs`). The search reads
 it through `Kernel::at` — card values from `k.count`, everything else from the kernel of the trick in
 play; for every other round both are the one contract, so nothing else changed. A 3×3's later blocks
-are named mid-round by the leaders of tricks 4 and 7 (a `block` phase); the search samples them.
+are named mid-round by the leaders of tricks 4 and 7 (a `block` phase); the search samples them. A
+Tutti's tricks are named by their lead card (the suit led is trump), so `Kernel::at` takes the trick's
+cards, and its count is open until the first card (`Kernel::on_card`).
 Misère turns the reward round for every seat. Rules and open
 points in `docs/rules-config.md`, the bots and the training runs it needs in `docs/coiffeur-plan.md`.
 

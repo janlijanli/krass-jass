@@ -120,7 +120,7 @@ pub fn random_remaining(
     let mut to_play = to_move(trick, trick_leader);
     let mut pts = [0i32; 2];
     while !t.is_empty() {
-        let k = &k.at(&hands, t.len());
+        let k = &k.at(&hands, &t);
         let led = card_suit(t[0]) as i32;
         let legal = legal_moves(hands[to_play], k.trump, led, best_trump(&t, k),
                                 k.strict_undertrump, k.puur_exempt);
@@ -131,7 +131,7 @@ pub fn random_remaining(
         hands[to_play] &= !(1u64 << c);
         t.push(c);
         if t.len() == NUM_SEATS {
-            let strength = &STRENGTH[k.at(&hands, t.len()).contract][card_suit(t[0])];
+            let strength = &STRENGTH[k.at(&hands, &t).contract][card_suit(t[0])];
             let best = (0..NUM_SEATS).max_by_key(|&i| strength[t[i]]).unwrap_or(0);
             let winner = (leader + best) & 3;
             pts[winner & 1] += t.iter().map(|&x| values[x]).sum::<i32>();

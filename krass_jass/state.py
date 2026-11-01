@@ -35,6 +35,9 @@ class RoundState:
     #: is *played* in — who must follow, who may trump, who takes it. `None`: `contract` for all.
     #: A 3×3's later blocks are `None` until their leader names them (`set_block`).
     schedule: list | None = None
+    #: Tutti: every trick is `None` until it is led, and then the trump of the suit led. The first
+    #: card also fixes `contract`, what the round is counted in.
+    tutti: bool = False
 
     trick: list[int] = field(default_factory=list)       #: cards played this trick, in order
     tricks_played: list[tuple[int, tuple[int, ...]]] = field(default_factory=list)
@@ -71,12 +74,14 @@ class RoundState:
         if self.schedule is None:
             return self.contract
         named = self.schedule[min(len(self.tricks_played), TRICKS_PER_ROUND - 1)]
+        if named is None and self.tutti and self.trick:
+            return Contract(card_suit(self.trick[0]))
         return self.contract if named is None else named
 
     @property
     def block_pending(self) -> bool:
         """A 3×3 is between blocks and the next one has not been named: nobody may play."""
-        if self.schedule is None or self.trick or self.done:
+        if self.schedule is None or self.tutti or self.trick or self.done:
             return False
         return self.schedule[len(self.tricks_played)] is None
 
@@ -140,10 +145,21 @@ class RoundState:
         if not self.legal_moves(seat) & bit(card):
             raise IllegalMove(f"card {card} is not legal for seat {seat}")
 
+        if self.tutti and not self.trick:
+            self._name_by_lead(card)
         self.hands[seat] ^= bit(card)
         self.trick.append(card)
         if len(self.trick) == NUM_SEATS:
             self._resolve_trick()
+
+    def _name_by_lead(self, card: int) -> None:
+        """Tutti: the suit led is this trick's trump; the first trick's is the round's count."""
+        led = Contract(card_suit(card))
+        self.schedule[len(self.tricks_played)] = led
+        if not self.tricks_played:
+            self.contract = led
+            self._values = CARD_VALUES[led]
+            self.trump = led.trump_suit
 
     def _resolve_trick(self) -> None:
         strength = STRENGTH[self.trick_contract][card_suit(self.trick[0])]

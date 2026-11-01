@@ -106,31 +106,34 @@ class RulesConfig:
 
     # -- Coiffeur (docs/rules-config.md, "Coiffeur"). The trick-taking is the Schieber's; the
     # choosing, the scoring and the game end are the sheet's (`krass_jass/coiffeur.py`).
-    #: Deal the row multipliers out at random — a permutation of 1..8 drawn from the game seed —
-    #: instead of the fixed table below. On by default (owner, 2026-10-30).
+    #: Deal the row multipliers out at random — a permutation of 1..n over the n rows played,
+    #: the Chance excepted — instead of the fixed table below. On by default (owner, 2026-10-30).
     coiffeur_random_multipliers: bool = True
-    #: The fixed table, in row order: diamonds, hearts, spades, clubs, Obenabe, Undenufe, Joker 1,
-    #: Joker 2, then the extra rows: Slalom, Guschti, 3x3, Misère. jassverzeichnis.ch's sheet: Eichel x1,
-    #: Rosen x2, Schilten x3, Schellen x4, Obenabe x5, Undenufe x6, the Jokers x7 and x8; the extra
-    #: rows follow on (Fässler counts on past the eight the same way). A row not in the game is
-    #: simply not read.
-    coiffeur_multipliers: tuple[int, ...] = (4, 2, 3, 1, 5, 6, 7, 8, 9, 10, 11, 12)
+    #: The fixed table, in row order: diamonds, hearts, spades, clubs, Obenabe, Undenufe, Chance,
+    #: then the extra rows: Tutti, Slalom, Guschti, 3x3, Misère. jassverzeichnis.ch's sheet: Eichel
+    #: x1, Rosen x2, Schilten x3, Schellen x4, Obenabe x5, Undenufe x6; the extra rows follow on
+    #: (Fässler counts on the same way). The Chance's slot is not read — it is always
+    #: `coiffeur_chance_multiplier` — and neither is a row not in the game.
+    coiffeur_multipliers: tuple[int, ...] = (4, 2, 3, 1, 5, 6, 0, 7, 8, 9, 10, 11)
+    #: The Chance row's multiplier, random or not (owner, 2026-11-01).
+    coiffeur_chance_multiplier: int = 13
     #: Also credit the defenders with their card points, times the row's multiplier. Off:
     #: Swisslos, jassverzeichnis.ch and pagat write only the choosing team.
     coiffeur_score_opponents: bool = False
     #: Write card points in tens, rounded half up (85 -> 9, a match's 257 -> 26), and multiply
     #: those. On (owner, 2026-10-31); off writes the points in full.
     coiffeur_tens: bool = True
-    #: The rows played beyond the eight, from `krass_jass.schedule.EXTRA_ROWS`: "SLALOM", "GUSCHTI",
-    #: "TRIO" (3x3) and "MISERE". All four (owner, 2026-10-31); `()` is the classic eight-row sheet.
-    coiffeur_extra_rows: tuple[str, ...] = ("SLALOM", "GUSCHTI", "TRIO", "MISERE")
+    #: The rows played beyond the seven, from `krass_jass.schedule.EXTRA_ROWS`: "TUTTI", "SLALOM",
+    #: "GUSCHTI", "TRIO" (3x3) and "MISERE". All five (owner, 2026-10-31 and 2026-11-01); `()` is
+    #: the six contracts and the Chance.
+    coiffeur_extra_rows: tuple[str, ...] = ("TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE")
     #: Guschti also as four tricks then five, not only five then four. Off: Swisslos plays 5/4;
     #: jasswiki, swissjass.ch's Riesenslalom and Fässler allow both.
     coiffeur_guschti_45: bool = False
-    #: A Joker row may also take an extra row's game (a Slalom, a Guschti, a 3x3). Off: the
-    #: Swisslos Joker is a free choice of trump type, and the sources that allow more (Fässler's
-    #: "Frei") play a fourteen-row sheet.
-    coiffeur_joker_takes_extra: bool = False
+    #: The Chance may also take an extra row's game (a Tutti, a Slalom, a Guschti, a 3x3, a
+    #: Misère), not only one of the six contracts. On: "free of choice" (owner, 2026-11-01); the
+    #: Swisslos Joker is the six contracts only.
+    coiffeur_chance_takes_extra: bool = True
 
     @property
     def sidi(self) -> bool:

@@ -301,12 +301,12 @@ def test_the_bot_service_chooses_coiffeur_rows():
     hand = "HJ H9 HA HK HQ HT H8 S6 D7".split()
     answer = client.post(
         "/coiffeur_choice",
-        json={"hand": hand, "legal": legal + ["SHOVE"], "multipliers": [1, 3, 2, 4, 5, 6, 7, 8, 0, 0, 0], "seat": 0},
+        json={"hand": hand, "legal": legal + ["SHOVE"], "multipliers": [1, 3, 2, 4, 5, 6, 13, 0, 0, 0, 0, 0], "seat": 0},
     )
-    assert answer.json() == {"choice": "HEARTS/JOKER2"}
+    assert answer.json() == {"choice": "HEARTS/CHANCE"}
     bad = client.post(
         "/coiffeur_choice",
-        json={"hand": hand, "legal": ["HEARTS/SPADES"], "multipliers": [1] * 11, "seat": 0},
+        json={"hand": hand, "legal": ["HEARTS/SPADES"], "multipliers": [1] * 12, "seat": 0},
     )
     assert bad.status_code == 422
 

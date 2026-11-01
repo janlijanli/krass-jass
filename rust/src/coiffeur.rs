@@ -1,13 +1,14 @@
 //! Coiffeur: the sheet, its multipliers, and who chooses. Twin of `krass_jass/coiffeur.py`,
 //! which carries the prose; `docs/rules-config.md`, "Coiffeur", is the rule text.
 //!
-//! Eight rows per team — the four suits, Obenabe, Undenufe, two Jokers — plus the extra rows the
-//! game is played with (Slalom, Guschti, 3x3; `schedule.rs`), each played once. Forehand chooses
+//! Seven rows per team — the four suits, Obenabe, Undenufe and the Chance — plus the extra rows the
+//! game is played with (Tutti, Slalom, Guschti, 3x3, Misère; `schedule.rs`), each played once. The
+//! Chance takes any game and is always `coiffeur_chance_multiplier`. Forehand chooses
 //! or shoves to the next seat; after four shoves forehand must choose. Once a team is done the
 //! other chooses alone and may shove to the partner and back, once.
 //!
-//! Rows have fixed slots whichever are played: 0-5 the contracts, 6-7 the Jokers, 8-11 the
-//! extra rows. A slot the game does not play is never open and never written.
+//! Rows have fixed slots whichever are played: 0-5 the contracts, 6 the Chance, 7-11 the extra
+//! rows. A slot the game does not play is never open and never written.
 
 use crate::cards::NUM_SEATS;
 use crate::config::{team_of, Rules};
@@ -17,10 +18,10 @@ use crate::tables::{contract_name, NUM_CONTRACTS};
 
 /// Every slot on the sheet, played or not.
 pub const ALL_ROWS: usize = 12;
-pub const JOKER_ROWS: [usize; 2] = [6, 7];
+pub const CHANCE_ROW: usize = 6;
 pub const ROW_NAMES: [&str; ALL_ROWS] = [
-    "DIAMONDS", "HEARTS", "SPADES", "CLUBS", "OBENABE", "UNDENUFE", "JOKER1", "JOKER2",
-    "SLALOM", "GUSCHTI", "TRIO", "MISERE",
+    "DIAMONDS", "HEARTS", "SPADES", "CLUBS", "OBENABE", "UNDENUFE", "CHANCE",
+    "TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE",
 ];
 
 /// The `Rng::split` index the multipliers are drawn from — clear of every round's deal.
@@ -42,11 +43,13 @@ pub fn row_value(points: i32, rules: &Rules) -> i32 {
     if rules.coiffeur_tens { (points + 5).div_euclid(10) } else { points }
 }
 
-/// The row multipliers, one per slot, 0 for a slot not played. Random by default: Fisher-Yates
-/// over 1..n for the n rows played, on its own stream, exactly as `multipliers` in `coiffeur.py`.
+/// The row multipliers, one per slot, 0 for a slot not played. The Chance is always
+/// `coiffeur_chance_multiplier`; the rest random by default: Fisher-Yates over 1..n for the n of
+/// them played, on its own stream, exactly as `multipliers` in `coiffeur.py`.
 pub fn multipliers(seed: u64, rules: &Rules) -> [i32; ALL_ROWS] {
-    let rows = active_rows(rules);
+    let rows: Vec<usize> = active_rows(rules).into_iter().filter(|&r| r != CHANCE_ROW).collect();
     let mut out = [0i32; ALL_ROWS];
+    out[CHANCE_ROW] = rules.coiffeur_chance_multiplier;
     if !rules.coiffeur_random_multipliers {
         for &row in &rows {
             out[row] = rules.coiffeur_multipliers[row];
@@ -65,8 +68,8 @@ pub fn multipliers(seed: u64, rules: &Rules) -> [i32; ALL_ROWS] {
     out
 }
 
-/// What is written where: a contract into its own row or a Joker, or an extra row's game into
-/// that row (or a Joker, with `coiffeur_joker_takes_extra`). `contract` is the one the round is
+/// What is written where: a contract into its own row or the Chance, or an extra row's game into
+/// that row (or the Chance, with `coiffeur_chance_takes_extra`). `contract` is the one the round is
 /// counted in — a schedule's first trick's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Choice {
@@ -89,7 +92,7 @@ impl Choice {
             Some(s) => s.name(),
             None => contract_name(self.contract).to_string(),
         };
-        if JOKER_ROWS.contains(&self.row) {
+        if self.row == CHANCE_ROW {
             format!("{own}/{}", ROW_NAMES[self.row])
         } else {
             own
@@ -100,7 +103,7 @@ impl Choice {
         let text = text.trim().to_ascii_uppercase();
         let (name, joker) = match text.split_once('/') {
             Some((n, r)) => {
-                let row = JOKER_ROWS.iter().copied().find(|&j| ROW_NAMES[j] == r)?;
+                let row = (ROW_NAMES[CHANCE_ROW] == r).then_some(CHANCE_ROW)?;
                 (n.to_string(), Some(row))
             }
             None => (text.clone(), None),
@@ -122,7 +125,7 @@ pub struct Sheet {
 }
 
 impl Default for Sheet {
-    /// The classic eight rows.
+    /// The six contracts and the Chance.
     fn default() -> Self {
         let mut rows = [false; ALL_ROWS];
         rows[..FIRST_EXTRA_ROW].fill(true);
@@ -152,7 +155,7 @@ impl Sheet {
     }
 
     /// Every legal choice, in the order of `Sheet.choices` in Python: own rows (the contracts,
-    /// then each extra row's games), then each Joker per contract and, if allowed, per game.
+    /// then each extra row's games), then the Chance per contract and, if allowed, per game.
     pub fn choices(&self, team: usize, rules: &Rules) -> Vec<Choice> {
         let mut out: Vec<Choice> = (0..NUM_CONTRACTS)
             .filter(|&row| self.is_open(team, row))
@@ -163,14 +166,13 @@ impl Sheet {
                 out.extend(for_row(row, rules).into_iter().map(|s| Choice::game(s, row)));
             }
         }
-        for row in JOKER_ROWS {
-            if self.is_open(team, row) {
-                out.extend((0..NUM_CONTRACTS).map(|contract| Choice::plain(contract, row)));
-                if rules.coiffeur_joker_takes_extra {
-                    for extra in FIRST_EXTRA_ROW..ALL_ROWS {
-                        if self.rows[extra] {
-                            out.extend(for_row(extra, rules).into_iter().map(|s| Choice::game(s, row)));
-                        }
+        if self.is_open(team, CHANCE_ROW) {
+            let row = CHANCE_ROW;
+            out.extend((0..NUM_CONTRACTS).map(|contract| Choice::plain(contract, row)));
+            if rules.coiffeur_chance_takes_extra {
+                for extra in FIRST_EXTRA_ROW..ALL_ROWS {
+                    if self.rows[extra] {
+                        out.extend(for_row(extra, rules).into_iter().map(|s| Choice::game(s, row)));
                     }
                 }
             }

@@ -3,19 +3,21 @@
 The trick-taking is the Schieber's. What changes is everything around it
 (`docs/rules-config.md`, "Coiffeur"):
 
-* Each team has a column of rows — the four suits, Obenabe, Undenufe and two Jokers, plus the
-  extra rows the game is played with (Slalom, Guschti, 3×3; `krass_jass/schedule.py`) — and must
-  play every row exactly once. A Joker row takes any of the six contracts.
-* Each row has a multiplier. By default they are dealt out at random, a permutation of 1..n
-  drawn from the game seed, so the same seed gives the same sheet in both implementations.
+* Each team has a column of rows — the four suits, Obenabe, Undenufe and the Chance, plus the
+  extra rows the game is played with (Tutti, Slalom, Guschti, 3×3, Misère;
+  `krass_jass/schedule.py`) — and must play every row exactly once. The Chance takes any game:
+  any of the six contracts or any extra row's (owner, 2026-11-01).
+* Each row has a multiplier. The Chance's is fixed, ×13 (`coiffeur_chance_multiplier`); the
+  others are by default dealt out at random, a permutation of 1..n over the n other rows, drawn
+  from the game seed, so the same seed gives the same sheet in both implementations.
 * Forehand chooses or shoves — to the *next seat*, an opponent, not to the partner. After four
   shoves the choice is back with forehand, who must choose ("im Loch"). Once one team has
   filled its column only the other team chooses: it may shove to the partner and back, once.
 * Whoever chooses leads. Only the choosing team's card points are written — in tens, rounded
   half up — times the row's multiplier. The game ends when both columns are full.
 
-**Rows have fixed slots**, whichever are played: 0–5 the contracts, 6–7 the Jokers, 8–11 Slalom,
-Guschti, 3×3 and Misère. A row not in the game is never open and never written, so both implementations
+**Rows have fixed slots**, whichever are played: 0–5 the contracts, 6 the Chance, 7–11 Tutti,
+Slalom, Guschti, 3×3 and Misère. A row not in the game is never open and never written, so both implementations
 index the sheet the same way whatever the configuration.
 """
 
@@ -30,11 +32,13 @@ from .schedule import parse as parse_schedule
 from .scoring import team_of
 from .trick import NUM_SEATS
 
-JOKER_ROWS = (6, 7)
+CHANCE_ROW = 6
 ROW_NAMES = (
-    "DIAMONDS", "HEARTS", "SPADES", "CLUBS", "OBENABE", "UNDENUFE", "JOKER1", "JOKER2",
+    "DIAMONDS", "HEARTS", "SPADES", "CLUBS", "OBENABE", "UNDENUFE", "CHANCE",
     *EXTRA_ROWS,
 )
+#: The extra rows' slots, after the Chance.
+EXTRA_SLOTS = tuple(range(CHANCE_ROW + 1, CHANCE_ROW + 1 + len(EXTRA_ROWS)))
 #: Every slot on the sheet, played or not.
 ALL_ROWS = len(ROW_NAMES)
 
@@ -46,7 +50,7 @@ MULTIPLIER_STREAM = 0xC0FFE00000000001
 def active_rows(cfg: RulesConfig) -> tuple[int, ...]:
     """The slots this game plays, in sheet order."""
     extra = tuple(ROW_NAMES.index(r) for r in EXTRA_ROWS if r in cfg.coiffeur_extra_rows)
-    return tuple(range(8)) + extra
+    return tuple(range(CHANCE_ROW + 1)) + extra
 
 
 def row_value(points: int, cfg: RulesConfig) -> int:
@@ -57,12 +61,13 @@ def row_value(points: int, cfg: RulesConfig) -> int:
 def multipliers(seed: int, cfg: RulesConfig) -> tuple[int, ...]:
     """The row multipliers for a game, one per slot; 0 for a row the game does not play.
 
-    Random by default: Fisher-Yates over 1..n for the n rows played, descending, index by
-    Lemire multiply-shift — the deal's algorithm on its own stream, so Rust reproduces it
-    exactly. With the eight classic rows this is the draw it always was.
+    The Chance is always `coiffeur_chance_multiplier`. The other rows are random by default:
+    Fisher-Yates over 1..n for the n of them played, descending, index by Lemire multiply-shift —
+    the deal's algorithm on its own stream, so Rust reproduces it exactly.
     """
-    rows = active_rows(cfg)
+    rows = tuple(r for r in active_rows(cfg) if r != CHANCE_ROW)
     out = [0] * ALL_ROWS
+    out[CHANCE_ROW] = cfg.coiffeur_chance_multiplier
     if not cfg.coiffeur_random_multipliers:
         for row in rows:
             out[row] = cfg.coiffeur_multipliers[row]
@@ -79,10 +84,11 @@ def multipliers(seed: int, cfg: RulesConfig) -> tuple[int, ...]:
 
 @dataclass(frozen=True)
 class Choice:
-    """What is written where: a contract into its own row or a Joker, or an extra row's game
-    (a `Schedule`) into that row — or, with `coiffeur_joker_takes_extra`, into a Joker.
+    """What is written where: a contract into its own row or the Chance, or an extra row's game
+    (a `Schedule`) into that row — or, with `coiffeur_chance_takes_extra`, into the Chance.
 
-    `contract` is the contract the round is *counted* in: for a schedule, its first trick's.
+    `contract` is the contract the round is *counted* in: for a schedule, its first trick's (a
+    Tutti's is a placeholder until the first card, `schedule.TUTTI_PLACEHOLDER`).
     """
 
     contract: Contract
@@ -91,7 +97,7 @@ class Choice:
 
     def __str__(self) -> str:
         own = self.schedule.name if self.schedule is not None else self.contract.name
-        if self.row in JOKER_ROWS:
+        if self.row == CHANCE_ROW:
             return f"{own}/{ROW_NAMES[self.row]}"
         return own
 
@@ -100,9 +106,9 @@ class Choice:
         if isinstance(text, Choice):
             return text
         name, _, row = str(text).strip().upper().partition("/")
-        if row and row not in (ROW_NAMES[j] for j in JOKER_ROWS):
-            raise ValueError(f"{row!r} is not a Joker row")
-        joker = ROW_NAMES.index(row) if row else None
+        if row and row != ROW_NAMES[CHANCE_ROW]:
+            raise ValueError(f"{row!r} is not the Chance row")
+        joker = CHANCE_ROW if row else None
         if is_schedule_name(name):
             schedule = parse_schedule(name)
             own = ROW_NAMES.index(schedule.row)
@@ -119,7 +125,7 @@ class Sheet:
     """Points written per team and row slot; `None` while the row is open. Only the slots in
     `rows` are played."""
 
-    rows: tuple[int, ...] = tuple(range(8))
+    rows: tuple[int, ...] = tuple(range(CHANCE_ROW + 1))
     written: list[list[int | None]] = field(
         default_factory=lambda: [[None] * ALL_ROWS for _ in range(2)]
     )
@@ -140,29 +146,31 @@ class Sheet:
 
     def choices(self, team: int, cfg: RulesConfig | None = None) -> list[Choice]:
         """Every legal choice for the team, in a fixed order: own rows first (the contracts,
-        then each extra row's games), then each Joker — per contract, then per extra game when
-        a Joker may take one."""
+        then each extra row's games), then the Chance — per contract, then per extra game when
+        the Chance may take one."""
+        cfg = _cfg(cfg)
         open_rows = self.open_rows(team)
         out = [Choice(Contract(row), row) for row in open_rows if row < 6]
         for row in open_rows:
-            if row >= 8:
-                out.extend(Choice(s.count, row, s) for s in _games(ROW_NAMES[row], cfg))
-        for row in open_rows:
-            if row in JOKER_ROWS:
-                out.extend(Choice(c, row) for c in Contract)
-                if cfg is not None and cfg.coiffeur_joker_takes_extra:
-                    for extra in self.rows:
-                        if extra >= 8:
-                            out.extend(Choice(s.count, row, s) for s in _games(ROW_NAMES[extra], cfg))
+            if row in EXTRA_SLOTS:
+                out.extend(Choice(s.count, row, s) for s in for_row(ROW_NAMES[row], cfg))
+        if CHANCE_ROW in open_rows:
+            out.extend(Choice(c, CHANCE_ROW) for c in Contract)
+            if cfg.coiffeur_chance_takes_extra:
+                for extra in self.rows:
+                    if extra in EXTRA_SLOTS:
+                        out.extend(
+                            Choice(s.count, CHANCE_ROW, s) for s in for_row(ROW_NAMES[extra], cfg)
+                        )
         return out
 
 
-def _games(row: str, cfg: RulesConfig | None) -> list[Schedule]:
+def _cfg(cfg: RulesConfig | None) -> RulesConfig:
     if cfg is None:
         from .rules import COIFFEUR
 
-        cfg = COIFFEUR
-    return for_row(row, cfg)
+        return COIFFEUR
+    return cfg
 
 
 def first_chooser(forehand: int, sheet: Sheet) -> int:

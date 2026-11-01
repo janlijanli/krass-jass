@@ -276,7 +276,8 @@ def create_app() -> FastAPI:
                 },
                 "targets": TARGET_SCORES,
                 "coiffeur_rows": [
-                    ("SLALOM", "Slalom"), ("GUSCHTI", "Guschti"), ("TRIO", "3×3"), ("MISERE", "Misère"),
+                    ("TUTTI", "Tutti"), ("SLALOM", "Slalom"), ("GUSCHTI", "Guschti"), ("TRIO", "3×3"),
+                    ("MISERE", "Misère"),
                 ],
                 "multiplier_range": MULTIPLIER_RANGE,
                 "contracts": [(c.name, c.name.lower()) for c in Contract],

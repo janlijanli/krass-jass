@@ -9,7 +9,7 @@ import random
 import pytest
 
 from krass_jass.cards import card_list
-from krass_jass.coiffeur import ROW_NAMES, Choice, Choosing, Sheet, multipliers, row_value
+from krass_jass.coiffeur import CHANCE_ROW, ROW_NAMES, Choice, Choosing, Sheet, multipliers, row_value
 from krass_jass.game import Game, Phase
 from krass_jass.rules import COIFFEUR, SHOVE, Contract
 from krass_jass.state import IllegalMove
@@ -36,10 +36,13 @@ def test_preset_has_no_weis_no_stoeck_no_target_and_unit_contract_multipliers():
 
 def test_multipliers_are_random_by_default_and_fixed_on_request():
     assert COIFFEUR.coiffeur_random_multipliers
-    assert multipliers(3, FIXED) == (4, 2, 3, 1, 5, 6, 7, 8, 9, 10, 11, 12)
-    eight = FIXED.variant(coiffeur_extra_rows=())
-    assert multipliers(3, eight) == (4, 2, 3, 1, 5, 6, 7, 8, 0, 0, 0, 0)
-    assert sorted(m for m in multipliers(3, COIFFEUR) if m) == list(range(1, 13))
+    assert multipliers(3, FIXED) == (4, 2, 3, 1, 5, 6, 13, 7, 8, 9, 10, 11)
+    seven = FIXED.variant(coiffeur_extra_rows=())
+    assert multipliers(3, seven) == (4, 2, 3, 1, 5, 6, 13, 0, 0, 0, 0, 0)
+    # The Chance is x13 and never drawn (owner, 2026-11-01); the other eleven rows are 1..11.
+    random_sheet = multipliers(3, COIFFEUR)
+    assert random_sheet[CHANCE_ROW] == 13
+    assert sorted(m for i, m in enumerate(random_sheet) if m and i != CHANCE_ROW) == list(range(1, 12))
     # Same seed, same sheet — replay depends on it.
     assert multipliers(3, COIFFEUR) == multipliers(3, COIFFEUR)
     assert multipliers(3, COIFFEUR) != multipliers(4, COIFFEUR) or multipliers(5, COIFFEUR) != multipliers(4, COIFFEUR)
@@ -49,19 +52,23 @@ def test_choice_wire_form_round_trips():
     for choice in Sheet().choices(0):
         assert Choice.parse(str(choice)) == choice
     assert str(Choice(Contract.HEARTS, 1)) == "HEARTS"
-    assert str(Choice(Contract.OBENABE, 7)) == "OBENABE/JOKER2"
+    assert str(Choice(Contract.OBENABE, CHANCE_ROW)) == "OBENABE/CHANCE"
+    assert Choice.parse("TUTTI/CHANCE").row == CHANCE_ROW
     with pytest.raises(ValueError):
-        Choice.parse("HEARTS/OBENABE")      # only a Joker takes a foreign contract
+        Choice.parse("HEARTS/OBENABE")      # only the Chance takes a foreign game
+    with pytest.raises(ValueError):
+        Choice.parse("HEARTS/JOKER1")
 
 
-def test_a_fresh_sheet_offers_six_rows_and_two_jokers_of_six():
-    assert len(Sheet().choices(0)) == 6 + 2 * 6
-    # With the extra rows: two Slaloms, two Guschtis, six 3x3 openings, two Misères.
-    assert len(Sheet.for_game(COIFFEUR).choices(0, COIFFEUR)) == 6 + 2 + 2 + 6 + 2 + 2 * 6
+def test_a_fresh_sheet_offers_every_row_and_the_chance_takes_any_game():
+    assert len(Sheet().choices(0)) == 6 + 6
+    # The extra rows: a Tutti, two Slaloms, two Guschtis, six 3x3 openings, two Misères — 13
+    # games, each in its own row and in the Chance.
+    assert len(Sheet.for_game(COIFFEUR).choices(0, COIFFEUR)) == 6 + 13 + (6 + 13)
     g45 = COIFFEUR.variant(coiffeur_guschti_45=True)
-    assert len(Sheet.for_game(g45).choices(0, g45)) == 6 + 2 + 4 + 6 + 2 + 2 * 6
-    joker = COIFFEUR.variant(coiffeur_joker_takes_extra=True)
-    assert len(Sheet.for_game(joker).choices(0, joker)) == 6 + 12 + 2 * (6 + 12)
+    assert len(Sheet.for_game(g45).choices(0, g45)) == 6 + 15 + (6 + 15)
+    six = COIFFEUR.variant(coiffeur_chance_takes_extra=False)
+    assert len(Sheet.for_game(six).choices(0, six)) == 6 + 13 + 6
 
 
 def test_shoving_goes_round_the_table_and_forehand_ends_up_in_the_hole():
@@ -80,7 +87,7 @@ def test_shoving_goes_round_the_table_and_forehand_ends_up_in_the_hole():
 
 def test_once_a_team_is_done_only_the_other_chooses_and_shoves_to_the_partner_and_back():
     sheet = Sheet()
-    sheet.written[0] = [100] * 8
+    sheet.written[0] = [100] * 7
     choosing = Choosing(forehand=0, sheet=sheet)      # forehand's team is finished
     assert choosing.chooser == 1
     choosing.act(1, SHOVE)
@@ -90,7 +97,7 @@ def test_once_a_team_is_done_only_the_other_chooses_and_shoves_to_the_partner_an
     assert SHOVE not in choosing.legal()
 
 
-def test_a_played_row_is_closed_but_its_contract_can_still_go_to_a_joker():
+def test_a_played_row_is_closed_but_its_contract_can_still_go_to_the_chance():
     sheet = Sheet()
     sheet.written[1][Contract.HEARTS] = 80
     choices = sheet.choices(1)
@@ -146,7 +153,7 @@ def test_illegal_choices_are_refused():
         game.bid(seat, "HEARTS/UNDENUFE")
 
 
-@pytest.mark.parametrize("extra,rounds", [((), 16), (("SLALOM", "GUSCHTI"), 20), (None, 24)])
+@pytest.mark.parametrize("extra,rounds", [((), 14), (("SLALOM", "GUSCHTI"), 18), (None, 24)])
 def test_a_game_is_two_rounds_a_row_and_ends_with_the_sheet(extra, rounds):
     rng = random.Random(9)
     cfg = COIFFEUR if extra is None else COIFFEUR.variant(coiffeur_extra_rows=extra)
@@ -173,13 +180,13 @@ def test_a_game_is_two_rounds_a_row_and_ends_with_the_sheet(extra, rounds):
 
 def test_row_names_cover_the_sheet():
     assert ROW_NAMES[:6] == tuple(c.name for c in Contract)
-    assert ROW_NAMES[8:] == ("SLALOM", "GUSCHTI", "TRIO", "MISERE")
+    assert ROW_NAMES[6:] == ("CHANCE", "TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE")
 
 
 # --- the extra rows: a card order per trick ---------------------------------
 
 from krass_jass.cards import SUIT_MASK  # noqa: E402
-from krass_jass.schedule import block_options, for_row, guschti, misere, parse, slalom, trio  # noqa: E402
+from krass_jass.schedule import block_options, for_row, guschti, misere, parse, slalom, trio, tutti  # noqa: E402
 from krass_jass.state import RoundState  # noqa: E402
 from krass_jass.tables import CARD_VALUES  # noqa: E402
 from krass_jass.voids import infer_forbidden  # noqa: E402
@@ -193,10 +200,11 @@ def test_schedules_are_what_their_names_say():
     assert guschti(U, 4).tricks == (U,) * 4 + (O,) * 5
     assert trio(U).tricks == (U,) * 3 + (None,) * 6 and trio(U).is_open
     assert misere(O).tricks == (O,) * 9 and misere(O).misere
-    for row in ("SLALOM", "GUSCHTI", "TRIO", "MISERE"):
+    assert tutti().tricks == (None,) * 9 and tutti().led and tutti().is_open
+    for row in ("TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE"):
         for schedule in for_row(row, COIFFEUR.variant(coiffeur_guschti_45=True)):
             assert parse(schedule.name) == schedule and schedule.row == row
-    for bad in ("SLALOM_HEARTS", "GUSCHTI_CLUBS", "TRIO_HEARTS_TOU", "MISERE_SPADES", "TRIO"):
+    for bad in ("SLALOM_HEARTS", "GUSCHTI_CLUBS", "TRIO_HEARTS_TOU", "MISERE_SPADES", "TRIO", "TUTTI_HEARTS"):
         with pytest.raises(ValueError):
             parse(bad)
     choice = Choice.parse("TRIO_SPADES")
@@ -210,7 +218,7 @@ def deal_round(schedule, seed=4):
 
     return RoundState(
         contract=schedule.count, hands=list(deal(seed, 0)), cfg=COIFFEUR, leader=0,
-        schedule=schedule.tricks,
+        schedule=schedule.tricks, tutti=schedule.led,
     )
 
 
@@ -287,7 +295,7 @@ def test_a_misere_credits_each_team_with_what_the_other_took():
     team = seat % 2
     taken = game.last_score["round_total"]
     assert game.sheet.written[team][ROW_NAMES.index("MISERE")] == (taken[1 - team] + 5) // 10
-    assert game.last_score["written"][team] == (taken[1 - team] + 5) // 10 * 12
+    assert game.last_score["written"][team] == (taken[1 - team] + 5) // 10 * 11
 
 
 def test_a_slalom_trick_goes_to_the_highest_then_the_lowest():
@@ -327,7 +335,7 @@ def test_a_scheduled_round_runs_in_the_game_and_the_event_says_so():
     event = game.log.all()[-1]
     assert event.payload["schedule"] == "GUSCHTI_UNDENUFE"
     assert event.payload["tricks"] == ["UNDENUFE"] * 5 + ["OBENABE"] * 4
-    assert event.payload["multiplier"] == 10 and event.payload["row"] == "GUSCHTI"
+    assert event.payload["multiplier"] == 9 and event.payload["row"] == "GUSCHTI"
     assert game.contract is U and game.round.trick_contract is U
     obs = game.observation(game.to_act)
     assert obs.schedule == (int(U),) * 5 + (int(O),) * 4 and obs.trick_contract is U
@@ -365,20 +373,21 @@ def test_the_selector_always_returns_something_legal():
 
 def test_a_monster_trump_hand_goes_into_the_dearest_row_that_takes_it():
     monster = hand("HJ", "H9", "HA", "HK", "HQ", "HT", "H8", "S6", "D7")
-    mults = (1, 3, 2, 4, 5, 6, 7, 8)        # hearts x3, the Jokers x7 and x8
+    mults = (1, 3, 2, 4, 5, 6, 13)          # hearts x3, the Chance x13
     choice = choose(monster, Sheet().choices(0) + [SHOVE], mults, COIFFEUR)
-    assert choice == Choice(Contract.HEARTS, 7)
+    assert choice == Choice(Contract.HEARTS, CHANCE_ROW)
 
 
 def test_a_weak_hand_shoves_when_it_may_and_chooses_when_it_must():
     # Queens and tens: no Puur, no Nell, no aces, no sixes — nothing in any contract.
     weak = hand("DQ", "DT", "HQ", "HT", "SQ", "ST", "CQ", "CT", "DK")
     legal = Sheet().choices(0)
-    assert choose(weak, legal + [SHOVE], COIFFEUR.coiffeur_multipliers, COIFFEUR) == SHOVE
-    forced = choose(weak, legal, COIFFEUR.coiffeur_multipliers, COIFFEUR)
-    assert forced in legal
+    mults = multipliers(0, FIXED)
+    assert choose(weak, legal + [SHOVE], mults, COIFFEUR) == SHOVE
+    forced = choose(weak, legal, mults, COIFFEUR)
+    assert forced in legal and forced.row != CHANCE_ROW
     # Forced, it spends the cheapest row it can rather than a dear one.
-    values = value_choices(weak, legal, COIFFEUR.coiffeur_multipliers, COIFFEUR)
+    values = value_choices(weak, legal, mults, COIFFEUR)
     assert values[forced] == max(values.values())
 
 
@@ -388,7 +397,9 @@ def test_the_search_plays_every_extra_row_game_legally():
     from krass_jass.agent import DmctsAgent
 
     agent = DmctsAgent(determinizations=4, iterations=60, cfg=COIFFEUR, label="t")
-    for seed, name in enumerate(("SLALOM_UNDENUFE", "GUSCHTI_OBENABE", "TRIO_HEARTS", "TRIO_OBENABE", "MISERE_OBENABE")):
+    names = ("SLALOM_UNDENUFE", "GUSCHTI_OBENABE", "TRIO_HEARTS", "TRIO_OBENABE", "MISERE_OBENABE",
+             "TUTTI", "TUTTI/CHANCE", "SLALOM_OBENABE/CHANCE")
+    for seed, name in enumerate(names):
         game = Game(cfg=COIFFEUR, seed=seed)
         game.bid(game.to_act, name)
         while game.phase in (Phase.PLAYING, Phase.BLOCK):
@@ -400,14 +411,14 @@ def test_the_search_plays_every_extra_row_game_legally():
             card = agent.decide(obs)
             assert game.round.legal_moves(seat) & (1 << card)
             game.play(seat, card)
-        assert game.last_score["row"] == Choice.parse(name).schedule.row
+        assert game.last_score["row"] == ROW_NAMES[Choice.parse(name).row]
 
 
 def test_void_inference_per_trick_agrees_with_rust():
     """Both implementations read each trick under its own trump, over random scheduled rounds."""
     core = pytest.importorskip("krass_jass_core")
     rng = random.Random(17)
-    schedules = [s for row in ("SLALOM", "GUSCHTI", "TRIO", "MISERE") for s in for_row(row, COIFFEUR)]
+    schedules = [s for row in ("TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE") for s in for_row(row, COIFFEUR)]
     for seed in range(60):
         schedule = rng.choice(schedules)
         st = deal_round(schedule, seed)
@@ -421,3 +432,81 @@ def test_void_inference_per_trick_agrees_with_rust():
                 st.contract.trump_suit, True, [c.trump_suit if c is not None else -1 for c in st.schedule],
             )
             assert py == list(rs)
+
+
+# --- Tutti and the Chance (owner, 2026-11-01) --------------------------------
+
+from krass_jass.cards import card_suit  # noqa: E402
+from krass_jass.tables import STRENGTH  # noqa: E402
+
+
+def test_tutti_the_suit_led_is_trump_and_the_first_trick_counts():
+    """Every trick is a trump lead in the suit led: follow it if you can (the Puur excepted), and
+    the highest card of it in trump order takes the trick. The whole round is counted as if the
+    first trick's suit were trump — its Puur 20 and Nell 14."""
+    rng = random.Random(5)
+    for seed in range(60):
+        st = deal_round(tutti(), seed)
+        first = None
+        while not st.done:
+            assert not st.block_pending
+            if not st.trick:
+                assert st.legal_moves() == st.hands[st.to_play]      # any card may lead
+            else:
+                led = Contract(st.led_suit)
+                assert st.trick_contract is led
+                seat = st.to_play
+                follow = st.hands[seat] & SUIT_MASK[st.led_suit]
+                puur = 1 << (st.led_suit * 9 + 3)                    # the Jack of the led suit (A K Q J …)
+                if follow and follow != puur:
+                    assert st.legal_moves(seat) == follow
+            card = rng.choice(card_list(st.legal_moves()))
+            if first is None:
+                first = Contract(card_suit(card))
+            t = len(st.tricks_played)
+            st.play(card)
+            if len(st.tricks_played) > t:
+                leader, cards = st.tricks_played[-1]
+                led = card_suit(cards[0])
+                strength = STRENGTH[Contract(led)][led]
+                best = max(range(4), key=lambda i: strength[cards[i]])
+                assert st.last_trick_winner == (leader + best) % 4
+        assert st.contract is first and st.schedule[0] is first
+        assert all(st.schedule[t] is Contract(card_suit(c[0])) for t, (_, c) in enumerate(st.tricks_played))
+        values = CARD_VALUES[first]
+        assert sum(st.trick_points) == sum(values[c] for _, cards in st.tricks_played for c in cards) == 152
+
+
+def test_a_tutti_in_the_game_is_counted_in_the_chooser_first_suit():
+    game = Game(cfg=FIXED, seed=21)
+    seat = game.to_act
+    game.bid(seat, "TUTTI")
+    event = game.log.all()[-1]
+    assert event.payload["schedule"] == "TUTTI" and event.payload["tricks"] == [None] * 9
+    assert event.payload["multiplier"] == 7 and event.payload["row"] == "TUTTI"
+    obs = game.observation(seat)
+    assert obs.schedule == (-2,) * 9
+    card = card_list(game.round.legal_moves(seat))[-1]
+    game.play(seat, card)
+    suit = Contract(card_suit(card))
+    assert game.contract is suit and game.round.contract is suit
+    obs = game.observation(game.to_act)
+    assert obs.schedule == (int(suit),) + (-2,) * 8 and obs.trick_contract is suit
+    play_out(game, random.Random(0))
+    taken = game.last_score["round_total"][seat % 2]
+    assert game.sheet.written[seat % 2][ROW_NAMES.index("TUTTI")] == (taken + 5) // 10
+
+
+def test_the_chance_is_x13_and_takes_any_game():
+    game = Game(cfg=COIFFEUR, seed=2)
+    assert game.row_multipliers[CHANCE_ROW] == 13
+    seat = game.to_act
+    assert "GUSCHTI_UNDENUFE/CHANCE" in [str(c) for c in game.legal_choices()]
+    game.bid(seat, "GUSCHTI_UNDENUFE/CHANCE")
+    assert game.round.trick_contract is U and game.round.schedule[5] is O
+    play_out(game, random.Random(1))
+    team = seat % 2
+    tens = (game.last_score["round_total"][team] + 5) // 10
+    assert game.sheet.written[team][CHANCE_ROW] == tens
+    assert game.sheet.written[team][ROW_NAMES.index("GUSCHTI")] is None
+    assert game.last_score["written"][team] == tens * 13

@@ -72,6 +72,9 @@ class Agent:
     #: "rules" or "random". A field rather than a subclass so agents stay picklable and
     #: can cross a process pool — the arena runs deals in parallel.
     trump_policy: str = "rules"
+    #: The Coiffeur row choice's weights, or None for `krass_jass/data/coiffeur_weights.json`.
+    #: Set only to A/B two versions against each other.
+    coiffeur_weights: dict | None = None
 
     def decide(self, obs: Observation) -> int:
         """Card play."""
@@ -97,7 +100,7 @@ class Agent:
         if self.trump_policy == "random":
             options = [c for c in legal if c != SHOVE]
             return str(random.Random(hand ^ 0x5DEECE66D).choice(options))
-        return str(coiffeur_select.choose(hand, legal, multipliers, self.cfg))
+        return str(coiffeur_select.choose(hand, legal, multipliers, self.cfg, self.coiffeur_weights))
 
     def coiffeur_block(self, hand: int, options: list) -> str:
         """Coiffeur 3×3: the next block to name, from `options` (the engine's), by name."""

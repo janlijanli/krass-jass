@@ -310,13 +310,13 @@ def test_sidi_games_produce_identical_event_streams(seed):
 # --- Coiffeur ---------------------------------------------------------------
 
 
-def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True, extra=None, g45=False, joker=False):
+def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True, extra=None, g45=False, chance=True):
     """Both engines through the same Coiffeur game: random choices, shoves and cards."""
     from krass_jass.rules import COIFFEUR
 
     cfg = COIFFEUR.variant(
         coiffeur_score_opponents=opponents, coiffeur_tens=tens, coiffeur_guschti_45=g45,
-        coiffeur_joker_takes_extra=joker,
+        coiffeur_chance_takes_extra=chance,
     )
     if extra is not None:
         cfg = cfg.variant(coiffeur_extra_rows=tuple(extra))
@@ -331,7 +331,7 @@ def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True, extra=None
         coiffeur_tens=tens,
         coiffeur_extra_rows=None if extra is None else list(extra),
         coiffeur_guschti_45=g45,
-        coiffeur_joker_takes_extra=joker,
+        coiffeur_chance_takes_extra=chance,
     )
     assert list(py.row_multipliers) == rs.row_multipliers
     rng = random.Random(seed)
@@ -373,21 +373,23 @@ def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True, extra=None
 
 
 @pytest.mark.parametrize(
-    "seed,fixed,opponents,tens,extra,g45,joker",
+    "seed,fixed,opponents,tens,extra,g45,chance",
     [
-        (1, None, False, True, None, False, False),
+        (1, None, False, True, None, False, True),
         (7, None, True, True, None, True, False),
-        (42, None, False, False, (), False, False),          # the classic eight rows
-        (1234, (4, 2, 3, 1, 5, 6, 7, 8, 9, 10, 11, 12), False, True, None, False, True),
+        (42, None, False, False, (), False, True),          # the six contracts and the Chance
+        (1234, (4, 2, 3, 1, 5, 6, 0, 7, 8, 9, 10, 11), False, True, None, False, True),
         (99, None, False, True, ("TRIO",), False, True),
         (3, None, True, True, ("TRIO", "MISERE"), False, False),
         (5, None, False, True, ("SLALOM", "GUSCHTI"), True, False),
+        (11, None, False, True, ("TUTTI",), False, True),
+        (12, None, True, False, ("TUTTI",), False, False),
     ],
 )
-def test_coiffeur_games_produce_identical_event_streams(seed, fixed, opponents, tens, extra, g45, joker):
+def test_coiffeur_games_produce_identical_event_streams(seed, fixed, opponents, tens, extra, g45, chance):
     if not hasattr(core.RsGame, "choose"):
         pytest.skip("Rust core predates Coiffeur")
-    py, rs = drive_both_coiffeur(seed, fixed, opponents, tens, extra, g45, joker)
+    py, rs = drive_both_coiffeur(seed, fixed, opponents, tens, extra, g45, chance)
     a, b = py_events(py), rs_events(rs)
     assert len(a) == len(b), f"{len(a)} python events vs {len(b)} rust"
     for i, (x, y) in enumerate(zip(a, b)):
@@ -403,11 +405,12 @@ def test_coiffeur_multipliers_agree_and_are_a_permutation():
 
     seen = set()
     for seed in range(200):
+        # The Chance is always x13 and out of the draw; the other rows are 1..n.
         m = multipliers(seed, COIFFEUR)
-        assert sorted(x for x in m if x) == list(range(1, 13))
-        eight = multipliers(seed, COIFFEUR.variant(coiffeur_extra_rows=()))
-        assert sorted(x for x in eight if x) == list(range(1, 9))
-        assert list(eight) == core.RsGame(seed, coiffeur=True, coiffeur_extra_rows=[]).row_multipliers
+        assert m[6] == 13 and sorted(x for i, x in enumerate(m) if x and i != 6) == list(range(1, 12))
+        seven = multipliers(seed, COIFFEUR.variant(coiffeur_extra_rows=()))
+        assert seven[6] == 13 and sorted(x for i, x in enumerate(seven) if x and i != 6) == list(range(1, 7))
+        assert list(seven) == core.RsGame(seed, coiffeur=True, coiffeur_extra_rows=[]).row_multipliers
         assert list(m) == core.RsGame(seed, coiffeur=True).row_multipliers
         seen.add(m)
     assert len(seen) > 150, "the multipliers are not being shuffled"

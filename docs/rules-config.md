@@ -340,17 +340,22 @@ They agree on the core and disagree on the details; every detail is a flag or li
 Defaults taken 2026-10-30 when the mode was started and **confirmed by the owner 2026-10-31**, with
 one change: points are written in tens.
 
-**The sheet.** Each team has a column of **eight rows**: diamonds, hearts, spades, clubs, Obenabe,
-Undenufe, Joker 1, Joker 2. Each team plays every row exactly once, so a game is **16 rounds**. A
-Joker row takes any of the six contracts. A contract whose own row is filled can only go into a
-Joker.
+**The sheet.** Each team has a column of **seven rows** — diamonds, hearts, spades, clubs, Obenabe,
+Undenufe and the **Chance** — plus the extra rows (next sections; all five by default, so twelve rows
+and a game of **24 rounds**). Each team plays every row exactly once. The Chance (owner, 2026-11-01:
+the two Jokers became one Chance) is free of choice: it takes any game, a contract or any extra row's
+— `coiffeur_chance_takes_extra`, **default `True`**; `False` limits it to the six contracts, as on
+Swisslos's Joker. A game whose own row is filled can only go into the Chance.
 
-**Multipliers.** Each row has one, the same for both teams.
-`coiffeur_random_multipliers` — **default `True`** (owner, 2026-10-30): the rows get a permutation of
-1..8 drawn from the game seed (`krass_jass/coiffeur.py`, the deal's SplitMix64 → Fisher-Yates → Lemire
-on its own stream, so both implementations deal the same sheet). With `False`, `coiffeur_multipliers`
-— **default `4, 2, 3, 1, 5, 6, 7, 8`** in row order, jassverzeichnis.ch's sheet: Eichel ×1, Rosen ×2,
-Schilten ×3, Schellen ×4, Obenabe ×5, Undenufe ×6, Jokers ×7 and ×8. **Disagreement:** pagat's
+**Multipliers.** Each row has one, the same for both teams. **The Chance is always ×13**
+(`coiffeur_chance_multiplier`, owner, 2026-11-01) and is never part of the draw.
+`coiffeur_random_multipliers` — **default `True`** (owner, 2026-10-30): the other rows get a
+permutation of 1..n over the n of them played — 1..11 with all five extra rows — drawn from the game
+seed (`krass_jass/coiffeur.py`, the deal's SplitMix64 → Fisher-Yates → Lemire on its own stream, so
+both implementations deal the same sheet). With `False`, `coiffeur_multipliers` — **default
+`4, 2, 3, 1, 5, 6, ·, 7, 8, 9, 10, 11`** in slot order (the Chance's slot is not read),
+jassverzeichnis.ch's sheet for the contracts: Eichel ×1, Rosen ×2, Schilten ×3, Schellen ×4, Obenabe
+×5, Undenufe ×6; the extra rows follow on. **Disagreement:** pagat's
 four-player table puts acorns/spades ×1, flowers/clubs ×2, shields/diamonds ×3, bells/hearts ×4 —
 the sources do not even agree which suit is cheapest, which is one reason random is a good default.
 
@@ -376,17 +381,17 @@ card points times the same multiplier (Jassclub Wasserturm's rule); their row st
 
 **Open, not implemented** (each needs a decision before it is built):
 
-- **The other extra rows** — Tutti, Zick-Zack, Züri, Mezzo. Researched 2026-10-31, below; not built,
-  each waiting for the owner's definition. Slalom, Guschti, 3×3 and Misère are (next section).
+- **The other extra rows** — Zick-Zack, Züri, Mezzo. Researched 2026-10-31, below; not built,
+  each waiting for the owner's definition. Tutti, Slalom, Guschti, 3×3 and Misère are (next section).
 - **Counter-match** (the choosing team takes no trick). pagat scores it with sticks and potatoes in
   the three-player game and gives no four-player rule; the sheet simply writes 0.
 - **A wrong choice** ("Fehlwahl") — the engine refuses a closed row, so it cannot arise.
 
-### Coiffeur — Slalom, Guschti, 3×3 and Misère (built 2026-10-31)
+### Coiffeur — Tutti, Slalom, Guschti, 3×3 and Misère (built 2026-10-31 and 2026-11-01)
 
-The owner chose these four. `coiffeur_extra_rows` — **default all four** (owner, 2026-10-31);
-`()` is the classic eight-row sheet. They sit after the Jokers on the sheet (slots 8–11), and with
-random multipliers the permutation grows to 1..12. `krass_jass/schedule.py` and `rust/src/schedule.rs`
+The owner chose these five. `coiffeur_extra_rows` — **default all five** (owner, 2026-10-31, Tutti
+2026-11-01); `()` is the six contracts and the Chance. They sit after the Chance on the sheet (slots
+7–11: Tutti, Slalom, Guschti, 3×3, Misère), and with random multipliers the permutation grows to 1..11. `krass_jass/schedule.py` and `rust/src/schedule.rs`
 write each game out as the contract of each of its nine tricks.
 
 - **Counted in the first trick's contract**, as every source that says how agrees.
@@ -402,12 +407,20 @@ write each game out as the contract of each of its nine tricks.
   event `block_chosen`). The search does not know a block before it is named and draws it at random
   from what may be named, once per iteration; the bots name a block by the rule selector's edge
   (`coiffeur_select.choose_block`).
+- **Tutti** (owner, 2026-11-01, swissjass.ch's definition): **the suit led to each trick is trump for
+  that trick.** Every trick is therefore a trump lead: follow the suit led if you can, the Puur
+  exempt; nobody can trump in, because no other suit is trump; the highest card of the led suit in
+  trump order (Puur, Nell, Ace…) takes it. The round is **counted as if the first trick's suit were
+  trump all round** — its Puur 20 and Nell 14, the other Jacks 2 and nines 0 — so the chooser, who
+  leads, picks the counting suit with the first card. Until a trick is led its order is unknown
+  (`None` in the schedule, `-2` in the observation); until the first card the round's contract is a
+  placeholder, Obenabe, and the search treats the count as open until it sees the lead
+  (`Kernel::count_open`).
 - **Misère** (owner, 2026-10-31): the chooser picks Obenabe or Undenufe (`MISERE_OBENABE`), and the
   aim is to take as few points as possible. The choosing team writes the points the **opponents**
   took — 157 minus its own, 257 if the opponents make a match — so both teams play to avoid points,
   and the search's objective is turned round for every seat (`Stakes::misere`).
-- **Joker rows**: `coiffeur_joker_takes_extra` — **default `False`**: a Joker takes one of the six
-  contracts, as on Swisslos's sheet. `True` lets it take any extra row's game too.
+- **The Chance** takes any of these games too (`coiffeur_chance_takes_extra`, above).
 
 ### Coiffeur — the extra rows, researched (2026-10-31)
 

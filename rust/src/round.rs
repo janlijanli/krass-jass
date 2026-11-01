@@ -71,7 +71,12 @@ impl Round {
         match self.schedule {
             Some(s) => {
                 let named = s[self.tricks_played.len().min(TRICKS_PER_ROUND - 1)];
-                if named == crate::schedule::UNNAMED { self.contract } else { named }
+                match named {
+                    // Tutti: led by now only mid-trick, and then the suit led is trump.
+                    crate::schedule::LED => self.trick.first().map_or(self.contract, |&c| card_suit(c)),
+                    crate::schedule::UNNAMED => self.contract,
+                    _ => named,
+                }
             }
             None => self.contract,
         }
@@ -172,12 +177,29 @@ impl Round {
             return Err(PlayError::Illegal { seat, card });
         }
 
+        if self.trick.is_empty() {
+            self.name_by_lead(card);
+        }
         self.hands[seat] ^= 1u64 << card;
         self.trick.push(card);
         if self.trick.len() == NUM_SEATS {
             self.resolve_trick();
         }
         Ok(())
+    }
+
+    /// Tutti: the suit led is this trick's trump; the first trick's is the round's count.
+    fn name_by_lead(&mut self, card: usize) {
+        let at = self.tricks_played.len();
+        let Some(s) = self.schedule.as_mut() else { return };
+        if s[at] != crate::schedule::LED {
+            return;
+        }
+        s[at] = card_suit(card);
+        if at == 0 {
+            self.contract = card_suit(card);
+            self.trump = card_suit(card) as i32;
+        }
     }
 
     fn resolve_trick(&mut self) {

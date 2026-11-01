@@ -71,7 +71,7 @@ impl Position {
     /// this seat's or one it cannot see.
     pub fn kernel_now(&self, k: &Kernel) -> Kernel {
         let held = (self.hand | self.unseen).count_ones() as usize;
-        k.at_trick((NUM_CARDS - held - self.trick.len()) / NUM_SEATS)
+        k.at_trick_led((NUM_CARDS - held - self.trick.len()) / NUM_SEATS, self.trick.first().copied())
     }
 
     fn best_trump(&self, k: &Kernel) -> i32 {
@@ -161,7 +161,7 @@ impl Tree {
     }
 
     fn legal_at(&self, w: &Walk) -> u64 {
-        let k = self.k.at(&w.hands, w.trick.len());
+        let k = self.k.at(&w.hands, &w.trick);
         let led = if w.trick.is_empty() {
             -1
         } else {
@@ -190,13 +190,15 @@ impl Tree {
     }
 
     /// Apply a card and resolve the trick if it completes.
-    fn advance(&self, w: &mut Walk, card: usize) {
+    fn advance(&mut self, w: &mut Walk, card: usize) {
+        // A Tutti's count is fixed by the round's first card; `tree.k` is reset every iteration.
+        self.k.on_card(card, w.trick.is_empty());
         let values = &CARD_VALUES[self.k.count];
         w.hands[w.to_play] ^= 1u64 << card;
         w.trick.push(card);
         if w.trick.len() == NUM_SEATS {
             let led = card_suit(w.trick[0]);
-            let strength = &STRENGTH[self.k.at(&w.hands, w.trick.len()).contract][led];
+            let strength = &STRENGTH[self.k.at(&w.hands, &w.trick).contract][led];
             let mut bi = 0;
             let mut bs = strength[w.trick[0]];
             let mut pts = 0;

@@ -375,6 +375,7 @@ class Game:
             cfg=self.cfg,
             leader=leader,
             schedule=self.schedule.tricks if self.schedule is not None else None,
+            tutti=self.schedule is not None and self.schedule.led,
         )
         payload = {
             "contract": self.contract.name,
@@ -555,6 +556,8 @@ class Game:
 
         tricks_before = len(self.round.tricks_played)
         self.round.play(card)   # raises IllegalMove on anything not legal
+        # Tutti: the first card made its suit what the round is counted in.
+        self.contract = self.round.contract
         self.log.emit(EventType.CARD_PLAYED, {"seat": seat, "card": format_card(card)})
         self._check_stoeck(seat, tricks_before)
 

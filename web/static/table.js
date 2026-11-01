@@ -469,6 +469,16 @@ function renderSidi(view) {
 function renderContract(contract, multiplier) {
   // Always visible while a contract is live — you cannot judge a card without knowing
   // whether you are in trumps, Obenabe or Undenufe.
+  // A Tutti before its first card: no trump yet, but the game and its row are known.
+  const schedule = lastView.coiffeur?.schedule;
+  if (!contract && schedule && multiplier) {
+    el.contract.className = "contract";
+    delete el.contract.dataset.contract;
+    el.contract.innerHTML =
+      `<span>${rowLabel(schedule.name.split("_")[0])}</span><span class="mult">×${multiplier}</span>` +
+      scheduleStrip(schedule);
+    return;
+  }
   if (!contract) {
     el.contract.className = "contract none";
     delete el.contract.dataset.contract;
@@ -489,31 +499,30 @@ function renderContract(contract, multiplier) {
       ? `<span class="sidi-bid">${lastView.bid}</span>` +
         (lastView.doubled ? `<span class="doubled">${t("sidi.doubled")}</span>` : "")
       : multiplier ? `<span class="mult">×${multiplier}</span>` : "") +
-    (/^(JOKER|SLALOM|GUSCHTI|TRIO|MISERE)/.test(lastView.coiffeur?.row ?? "") ? `<span class="mult">${rowLabel(lastView.coiffeur.row)}</span>` : "") +
+    (/^(CHANCE|TUTTI|SLALOM|GUSCHTI|TRIO|MISERE)/.test(lastView.coiffeur?.row ?? "") ? `<span class="mult rowname">${rowLabel(lastView.coiffeur.row)}</span>` : "") +
     (lastView.coiffeur?.schedule ? scheduleStrip(lastView.coiffeur.schedule) : "");
 }
 
 /* ---------- Coiffeur: the sheet and the row choice --------------------------
  *
  * The sheet is public — it lies on the table — and the choices on offer are the engine's
- * (`coiffeur.legal`, in wire form: "HEARTS", "OBENABE/JOKER1", "SHOVE"). The client only
+ * (`coiffeur.legal`, in wire form: "HEARTS", "OBENABE/CHANCE", "TUTTI", "SHOVE"). The client only
  * lays them out: a row is a button when something may be written into it.
  */
-let coiffeurJoker = null;     // the Joker row whose contracts are showing
+let coiffeurOpen = null;     // the row (the Chance or an extra row) whose games are showing
 let coiffeurTurn = null;
 
 function rowLabel(row) {
-  if (row === "JOKER1") return t("coiffeur.joker", { n: 1 });
-  if (row === "JOKER2") return t("coiffeur.joker", { n: 2 });
-  if (EXTRA_ROWS.includes(row)) return t(`coiffeur.row.${row}`);
+  if (row === "CHANCE" || EXTRA_ROWS.includes(row)) return t(`coiffeur.row.${row}`);
   return contractName(row);
 }
 
-/* The extra rows (krass_jass/schedule.py). A game there is named on the wire — SLALOM_OBENABE,
- * GUSCHTI4_UNDENUFE, TRIO_HEARTS, MISERE_UNDENUFE — and shown as the orders it runs through:
- * pips for trump, arrows for Obenabe (↓) and Undenufe (↑), "?" for a 3×3 block not yet named. */
-const EXTRA_ROWS = ["SLALOM", "GUSCHTI", "TRIO", "MISERE"];
-const isGame = (name) => /^(SLALOM|GUSCHTI4?|TRIO|MISERE)_/.test(name);
+/* The extra rows (krass_jass/schedule.py). A game there is named on the wire — TUTTI,
+ * SLALOM_OBENABE, GUSCHTI4_UNDENUFE, TRIO_HEARTS, MISERE_UNDENUFE — and shown as the orders it
+ * runs through: pips for trump, arrows for Obenabe (↓) and Undenufe (↑), "?" for a trick whose
+ * order is not known yet (a 3×3 block not named, a Tutti trick not led). */
+const EXTRA_ROWS = ["TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE"];
+const isGame = (name) => /^((SLALOM|GUSCHTI4?|TRIO|MISERE)_|TUTTI$)/.test(name);
 const gameRow = (name) => name.split("_")[0].replace(/4$/, "");
 
 function orderSymbol(contract) {
@@ -523,6 +532,8 @@ function orderSymbol(contract) {
 function gameSymbols(name) {
   const [kind, a] = name.split("/")[0].split("_");
   const flip = (c) => (c === "OBENABE" ? "UNDENUFE" : "OBENABE");
+  // Tutti: whatever suit is led is trump, trick by trick.
+  if (kind === "TUTTI") return `${orderSymbol(null)}<em>${t("coiffeur.row.TUTTI")}</em>`;
   if (kind === "SLALOM") return `${orderSymbol(a)}${orderSymbol(flip(a))}${orderSymbol(a)}<em>…</em>`;
   if (kind === "GUSCHTI" || kind === "GUSCHTI4") {
     const first = kind === "GUSCHTI" ? 5 : 4;
@@ -566,7 +577,7 @@ function coiffeurSheet(view, pick = null) {
       return `<td>${value}</td>`;
     };
     const tr = document.createElement("tr");
-    const choosable = pick && (row.startsWith("JOKER")
+    const choosable = pick && (row === "CHANCE"
       ? c.legal.some((x) => x.endsWith(`/${row}`))
       : EXTRA_ROWS.includes(row)
         ? c.legal.some((x) => !x.includes("/") && isGame(x) && gameRow(x) === row)
@@ -574,7 +585,7 @@ function coiffeurSheet(view, pick = null) {
     tr.className = [
       choosable ? "choosable" : "",
       c.row === row ? "current" : "",
-      coiffeurJoker === row ? "on" : "",
+      coiffeurOpen === row ? "on" : "",
     ].join(" ").trim();
     tr.innerHTML =
       `<td class="row">${rowPip(row)}<span>${rowLabel(row)}</span></td>` +
@@ -598,20 +609,23 @@ function renderCoiffeur(view) {
   const c = view.coiffeur;
   const mine = !!c && view.phase === "bidding" && c.legal.length > 0;
   el.coiffeurBidding.hidden = !mine;
-  if (!mine) { coiffeurJoker = null; return; }
+  if (!mine) { coiffeurOpen = null; return; }
   const turn = `${view.round}:${c.shoves}`;
-  if (turn !== coiffeurTurn) { coiffeurTurn = turn; coiffeurJoker = null; }
+  if (turn !== coiffeurTurn) { coiffeurTurn = turn; coiffeurOpen = null; }
 
   const canShove = c.legal.includes("SHOVE");
-  const open = coiffeurJoker;
+  const open = coiffeurOpen;
   el.coiffeurPrompt.textContent = !open
     ? (canShove ? t("coiffeur.prompt") : t("coiffeur.mustChoose"))
     : open === "TRIO" ? t("coiffeur.pickFirstBlock")
+    : open === "CHANCE" ? t("coiffeur.pickAny", { row: rowLabel(open) })
     : EXTRA_ROWS.includes(open) ? t("coiffeur.pickGame", { row: rowLabel(open) })
     : t("coiffeur.pickContract", { row: rowLabel(open) });
   el.coiffeurSheet.replaceChildren(coiffeurSheet(view, (row) => {
-    if (row.startsWith("JOKER") || EXTRA_ROWS.includes(row)) {
-      coiffeurJoker = coiffeurJoker === row ? null : row;
+    if (row === "TUTTI") {
+      send({ type: "bid", action: row });     // one game: nothing to pick
+    } else if (row === "CHANCE" || EXTRA_ROWS.includes(row)) {
+      coiffeurOpen = coiffeurOpen === row ? null : row;
       renderCoiffeur(lastView);
     } else {
       send({ type: "bid", action: row });
@@ -621,9 +635,9 @@ function renderCoiffeur(view) {
   el.coiffeurJokers.replaceChildren();
   el.coiffeurJokers.hidden = !open;
   if (open) {
-    // What may go into the open row: a Joker's contracts (and games, if it takes them), or an
-    // extra row's games. A 3×3 is named by its first block, a contract like a Joker's.
-    const offered = open.startsWith("JOKER")
+    // What may go into the open row: any game for the Chance, or an extra row's games. A 3×3 is
+    // named by its first block, shown as a contract.
+    const offered = open === "CHANCE"
       ? c.legal.filter((x) => x.endsWith(`/${open}`))
       : c.legal.filter((x) => !x.includes("/") && isGame(x) && gameRow(x) === open);
     for (const choice of offered) {
@@ -662,8 +676,7 @@ function renderBlock(view) {
   );
 }
 
-/** One choice in the open row: a contract (a Joker) or a game (an extra row, or a Joker that
- *  takes one). */
+/** One choice in the open row: a contract or a game (an extra row's, or one in the Chance). */
 function choiceButton(choice) {
   const name = choice.split("/")[0];
   if (isGame(name)) {

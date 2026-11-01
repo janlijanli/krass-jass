@@ -1,8 +1,9 @@
 """What each Coiffeur game is worth to the team that chooses it — step 1 of `docs/coiffeur-plan.md`.
 
 `arena/contracts.py` prices the Schieber's six calls; this prices every game a Coiffeur chooser
-can name: the six contracts, the two Slaloms, the two Guschtis, the six 3×3 openings and the two
-Misères. Same method: hold the chooser's hand, deal the other 27 cards at random several times,
+can name: the six contracts, the Tutti, the two Slaloms, the two Guschtis, the six 3×3 openings and
+the two Misères. (The 2026-10-31 run predates the Tutti; `arena/fit_coiffeur.py` reads the games a file
+holds by name.) Same method: hold the chooser's hand, deal the other 27 cards at random several times,
 play each game out with the real card-play bot, and store what the choosing team writes.
 
 **The label** is what goes on the sheet before the row's multiplier — the choosing team's card
@@ -43,7 +44,7 @@ from krass_jass.state import RoundState  # noqa: E402
 #: Every game a chooser can name with a fresh sheet, in a fixed order: the six contracts (as
 #: `None`), then each extra row's games.
 GAMES: list[tuple[str, Contract, Schedule | None]] = [(c.name, c, None) for c in Contract] + [
-    (s.name, s.count, s) for row in ("SLALOM", "GUSCHTI", "TRIO", "MISERE") for s in for_row(row, COIFFEUR)
+    (s.name, s.count, s) for row in ("TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE") for s in for_row(row, COIFFEUR)
 ]
 
 #: The Coiffeur as played — no Weis, no Stöck, the match bonus on — scored in full points.
@@ -72,6 +73,7 @@ def play_game(hands: list[int], game: tuple, agent: DmctsAgent, game_seed: int) 
     st = RoundState(
         contract=contract, hands=list(hands), cfg=LABEL_CFG, leader=0,
         schedule=schedule.tricks if schedule is not None else None,
+        tutti=schedule is not None and schedule.led,
     )
     misere = schedule is not None and schedule.misere
     while not st.done:

@@ -76,7 +76,7 @@ fn best_trump(trick: &[usize], k: &Kernel) -> i32 {
 }
 
 fn legal_at(w: &Walk, k: &Kernel) -> u64 {
-    let k = &k.at(&w.hands, w.trick.len());
+    let k = &k.at(&w.hands, &w.trick);
     legal_moves(
         w.hands[w.to_play],
         k.trump,
@@ -87,12 +87,13 @@ fn legal_at(w: &Walk, k: &Kernel) -> u64 {
     )
 }
 
-fn advance(w: &mut Walk, card: usize, k: &Kernel) {
+fn advance(w: &mut Walk, card: usize, k: &mut Kernel) {
+    k.on_card(card, w.trick.is_empty());
     let values = &CARD_VALUES[k.count];
     w.hands[w.to_play] ^= 1u64 << card;
     w.trick.push(card);
     if w.trick.len() == NUM_SEATS {
-        let k = &k.at(&w.hands, w.trick.len());
+        let k = &k.at(&w.hands, &w.trick);
         let strength = &STRENGTH[k.contract][card_suit(w.trick[0])];
         let mut best = 0;
         let mut pts = 0;
@@ -183,8 +184,9 @@ pub fn ismcts(
     let base = *k;
     for iter in 0..iterations {
         // Coiffeur 3x3: the blocks still to be named, drawn afresh each iteration.
-        let sampled = base.sample_open(&mut rng);
-        let k = &sampled;
+        // A Tutti's count is fixed by the round's first card, which this iteration may play.
+        let mut sampled = base.sample_open(&mut rng);
+        let k = &mut sampled;
         // A fresh world every `every` iterations, and always the *same* tree. The shared tree
         // is the difference from a determinized search; the resampling rate is only a cost.
         if iter % every == 0 || !have_world {
@@ -260,7 +262,7 @@ pub fn ismcts(
                     let live = w.hands.iter().fold(0u64, |a, h| a | h)
                         | w.trick.iter().fold(0u64, |a, &c| a | 1u64 << c);
                     let (partner, opp) = trick_owner(&w, k);
-                    let kt = k.at(&w.hands, w.trick.len());
+                    let kt = k.at(&w.hands, &w.trick);
                     let mut p = [0.0f32; NUM_CARDS];
                     learned_prior(
                         policy_weights, w.hands[w.to_play], live, &w.trick, kt.contract,
@@ -281,7 +283,7 @@ pub fn ismcts(
                 let live = w.hands.iter().fold(0u64, |a, h| a | h);
                 let ctx = PlayCtx::new(
                     w.hands[w.to_play], live, &w.trick, w.trick_leader, w.to_play,
-                    k.at(&w.hands, w.trick.len()).contract, pos.play.declarer,
+                    k.at(&w.hands, &w.trick).contract, pos.play.declarer,
                 );
                 let c = pos.play.play_model().sample(&ctx, legal, pos.play.policy_temperature, &mut rng);
                 let existing = present[..n_present].iter().find(|&&(card, _)| card == c);
@@ -371,7 +373,7 @@ pub fn ismcts(
             // left is exact, so the expected points follow and the share stays linear in it.
             let mut x = [0.0f32; crate::valuenet::N_VALUE_FEATURES];
             crate::valuenet::features(
-                &w.hands, &w.trick, w.trick_leader, k.at(&w.hands, w.trick.len()).contract, &mut x,
+                &w.hands, &w.trick, w.trick_leader, k.at(&w.hands, &w.trick).contract, &mut x,
             );
             let f = pos.play.value_model().eval(&x) as f64;
             let left = crate::valuenet::remaining_points(&w.hands, &w.trick, k) as f64;
@@ -408,7 +410,7 @@ pub fn ismcts(
                     let live = w.hands.iter().fold(0u64, |a, h| a | h);
                     let ctx = PlayCtx::new(
                         w.hands[w.to_play], live, &w.trick, w.trick_leader, w.to_play,
-                        k.at(&w.hands, w.trick.len()).contract, pos.play.declarer,
+                        k.at(&w.hands, &w.trick).contract, pos.play.declarer,
                     );
                     m.sample(&ctx, legal, pos.play.rollout_temperature, &mut rng)
                 };
@@ -494,7 +496,7 @@ pub fn ismcts(
 /// - **Do not over-trump.** The commonest amateur error, per every source consulted.
 fn policy_prior(w: &Walk, legal: u64, k: &Kernel, prior: &mut [f64; 36]) {
     let values = &CARD_VALUES[k.count];
-    let k = &k.at(&w.hands, w.trick.len());
+    let k = &k.at(&w.hands, &w.trick);
     let contract = k.contract;
     let live: u64 = w.hands.iter().fold(0u64, |a, h| a | h) | w.trick.iter().fold(0u64, |a, &c| a | 1u64 << c);
     let me = w.to_play;
@@ -593,7 +595,7 @@ fn policy_prior(w: &Walk, legal: u64, k: &Kernel, prior: &mut [f64; 36]) {
 /// Who is taking the trick as it stands, relative to the player about to act.
 fn trick_owner(w: &Walk, k: &Kernel) -> (bool, bool) {
     let Some(&first) = w.trick.first() else { return (false, false) };
-    let k = &k.at(&w.hands, w.trick.len());
+    let k = &k.at(&w.hands, &w.trick);
     let strength = &STRENGTH[k.contract][card_suit(first)];
     let mut best = 0usize;
     for (i, &c) in w.trick.iter().enumerate() {

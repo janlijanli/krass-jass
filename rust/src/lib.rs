@@ -87,18 +87,23 @@ fn make_kernel(
 
 #[cfg(feature = "python")]
 /// Nine contract indices, one per trick, or nothing.
-/// -1 for a 3x3 block not yet named (`schedule::UNNAMED`).
+/// -1 for a 3x3 block not yet named (`schedule::UNNAMED`), -2 for a Tutti trick not yet led
+/// (`schedule::LED`; `TUTTI_UNLED` in `observation.py`).
 pub(crate) fn parse_schedule(schedule: Option<Vec<i64>>) -> PyResult<Option<[usize; 9]>> {
     match schedule {
         None => Ok(None),
         Some(s)
             if s.len() == 9
-                && s[0] >= 0
-                && s.iter().all(|&c| c == -1 || (0..tables::NUM_CONTRACTS as i64).contains(&c)) =>
+                && (s[0] >= 0 || s[0] == -2)
+                && s.iter().all(|&c| c == -1 || c == -2 || (0..tables::NUM_CONTRACTS as i64).contains(&c)) =>
         {
             let mut out = [0usize; 9];
             for (o, &c) in out.iter_mut().zip(&s) {
-                *o = if c < 0 { schedule::UNNAMED } else { c as usize };
+                *o = match c {
+                    -1 => schedule::UNNAMED,
+                    -2 => schedule::LED,
+                    _ => c as usize,
+                };
             }
             Ok(Some(out))
         }

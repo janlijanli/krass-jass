@@ -622,6 +622,8 @@ impl Game {
             .unwrap()
             .play(card)
             .map_err(GameError::Play)?;
+        // Tutti: the first card made its suit what the round is counted in.
+        self.contract = Some(self.round.as_ref().unwrap().contract);
         self.log.emit(Payload::CardPlayed { seat, card }, None);
         self.check_stoeck(seat, tricks_before);
 

@@ -30,7 +30,7 @@ and the training runs the mode needs. The Schieber and the Sidi stay as they are
   `_score_coiffeur`, events (`multipliers` on `game_started`, `row` on `contract_set`, `written` on
   `round_scored`, `decided_by: "sheet"`). `tests/test_coiffeur.py` from the rule text,
   `tests/test_game_port.py` holds both implementations to one event stream.
-- **Choice, untrained** — `krass_jass/coiffeur_select.py`, `Agent.coiffeur_choice`. Scores the hand
+- **Choice, fitted to step 1 (2026-11-01; was hand-set)** — `krass_jass/coiffeur_select.py`, `Agent.coiffeur_choice`. Scores the hand
   with the Schieber's trump weights and values each open choice as
   `multiplier[row] × (edge − reserve[row])`. Reserves are measured means (20,000 random hands);
   the Joker reserve is the mean of a hand's best edge; the shove threshold is a guess
@@ -58,10 +58,41 @@ In order; each is measured before the next.
 | 6 | **Play model and beliefs from Coiffeur self-play** (chooser leads; who chose what into which row is a signal, like the Schieber bid's +1.3) | ≈ 2 h recording + fit | A/B, replicated |
 | 7 | Optional: late-game objective (needs X points to win) | — | A/B |
 
-**Step 1 is running** (started 2026-10-31): `arena/coiffeur_contracts.py` prices all 18 games a
-chooser can name — six contracts, two Slaloms, two Guschtis, six 3×3 openings, two Misères — on 1,500
-hands × 2 deals at 2,400 iterations without the tree policy, as §5n priced the Schieber's calls. About
-seven hours on eight cores; output in `arena/runs/2026-10-31/coiffeur_games.npz`, `summary` reads it.
+**Steps 1, 2 and 5 are done (2026-10-31 – 2026-11-01).**
+
+*Step 1.* `arena/coiffeur_contracts.py` priced all 18 games a chooser can name — six contracts, two
+Slaloms, two Guschtis, six 3×3 openings, two Misères — on 1,500 hands × 2 deals at 2,400 iterations
+without the tree policy, as §5n priced the Schieber's calls (`arena/runs/2026-10-31/coiffeur_games.npz`).
+The order-changing games came out high: Slalom and Guschti ~95 points, the trump 3×3s ~100, against
+~80 for a plain contract. Checked before fitting, because it looked like a bug:
+
+- *Random play* writes ~80 points in every game, matches ~1.3%: the scoring is not inflated.
+- *With the search, swapping who leads* (same hands): Obenabe 78.7 / 77.5, Undenufe 83.3 / 81.8 —
+  no lead effect; Slalom-Obenabe 95.7 / 72.5, Guschti-Undenufe 93.7 / 77.2, 3×3-Undenufe 96.1 / 79.0.
+  The edge follows the leading team. When the card order flips, the side on lead takes the next order
+  with the right cards in hand. The chooser always leads, so these games really are worth more to it.
+
+*Step 2.* `arena/fit_coiffeur.py` fits, per game, `points ≈ a + b × edge` on the selector's existing
+edge, on half the hands, scored on the other half. Held-out R²: 0.24–0.27 for the trumps, 0.16–0.22
+for Obenabe/Undenufe, 0.10–0.16 for Slalom/Guschti/3×3, 0.07 for Misère. A ridge fit on all 49 hand
+features is barely better (+0.00 to +0.04): the one-number edge leaves little on the table, the rest
+is the deal. Reserves, in points, are what a random hand writes in a row at its best: plain rows
+78–82, Joker 109, Slalom 98, Guschti 97, 3×3 115, Misère 85. Written into `coiffeur_weights.json`
+(`value_map`, `points_reserve`); `coiffeur_select.value_choices` uses them when present. Step 3's
+reserve-as-a-function-of-open-rows is not done; the reserve is a constant per row.
+
+*Step 5.* `arena/coiffeur_ab.py`, 200 paired whole games (sides swapped, one seed a pair), fitted row
+choice vs the untrained one: **+6.5 points a game, t = 1.09, p = 0.275; 52.4% of games.** Not
+significant. Leaning the right way, but 200 pairs cannot separate it from nothing; it would take
+roughly 1,500 pairs to see +6.5 at this spread. Shipped as the default because it is fitted on
+measured values where the untrained one was guessed, not because it measured stronger.
+
+**Tutti and the Chance (2026-11-01) are not priced yet.** Tutti borrows the trump suits' mean line
+from step 2, valued on the hand's best suit (`game_edge`: the chooser makes it the counting suit with
+the first card and can lead it again whenever it has the lead). Its reserve and the Chance's — now
+any game, ×13 — are recomputed under that borrowed line (`points_reserve`: Tutti 103, Chance 119).
+Step 1 has to be re-run with `TUTTI` among the games before either is trusted; the A/B above
+predates both.
 
 **The extra rows (Slalom, Guschti, 3×3, Misère) need the same runs, and one of their own.** Their games are
 valued today as the mean edge of the contracts their tricks are played in, and kept at a random hand's

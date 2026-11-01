@@ -6,7 +6,9 @@
 //! tables indexed per trick. The round is **counted** in the first trick's contract.
 //!
 //! A 3x3's second and third blocks are named during the round by the leaders of tricks 4 and 7,
-//! so until then their tricks hold `UNNAMED`.
+//! so until then their tricks hold `UNNAMED`. A Tutti's tricks are named by their lead card — the
+//! suit led is trump — so until each is led it holds `LED`, and the round is counted in the suit
+//! of its very first card.
 
 use crate::config::Rules;
 use crate::scoring::TRICKS_PER_ROUND;
@@ -15,13 +17,17 @@ use crate::tables::contract_name;
 const OBENABE: usize = 4;
 const UNDENUFE: usize = 5;
 
-/// The extra rows' sheet slots and names, after the eight (`coiffeur.rs`).
-pub const EXTRA_ROWS: [&str; 4] = ["SLALOM", "GUSCHTI", "TRIO", "MISERE"];
-pub const FIRST_EXTRA_ROW: usize = 8;
+/// The extra rows' sheet slots and names, after the six contracts and the Chance (`coiffeur.rs`).
+pub const EXTRA_ROWS: [&str; 5] = ["TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE"];
+pub const FIRST_EXTRA_ROW: usize = 7;
 /// A 3x3's blocks start at these tricks; the leader of each names it.
 pub const TRIO_BLOCKS: [usize; 3] = [0, 3, 6];
 /// A trick whose 3x3 block has not been named yet.
 pub const UNNAMED: usize = usize::MAX;
+/// A Tutti trick not led yet: its contract is the trump of the suit led to it.
+pub const LED: usize = usize::MAX - 1;
+/// What a Tutti is counted in before its first card (`TUTTI_PLACEHOLDER` in Python).
+pub const TUTTI_PLACEHOLDER: usize = OBENABE;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Schedule {
@@ -33,6 +39,8 @@ pub enum Schedule {
     Trio { first: usize },
     /// Misère: nine tricks of `contract`, and each team is credited with what the other took.
     Misere { contract: usize },
+    /// Tutti: the suit led to each trick is trump for it.
+    Tutti,
 }
 
 fn other(c: usize) -> usize {
@@ -48,24 +56,32 @@ impl Schedule {
                 Schedule::Guschti { first, n } => if i < n { first } else { other(first) },
                 Schedule::Trio { first } => if i < 3 { first } else { UNNAMED },
                 Schedule::Misere { contract } => contract,
+                Schedule::Tutti => LED,
             };
         }
         out
     }
 
-    /// The contract the round's card points are counted in: the first trick's.
+    /// The contract the round's card points are counted in: the first trick's. A Tutti's is not
+    /// known until the first card; until then, the placeholder.
     pub fn count(&self) -> usize {
-        self.tricks()[0]
+        if self.led() { TUTTI_PLACEHOLDER } else { self.tricks()[0] }
+    }
+
+    /// Tutti: each trick is named by its lead card.
+    pub fn led(&self) -> bool {
+        matches!(self, Schedule::Tutti)
     }
 
     /// The sheet slot of the extra row this schedule belongs in.
     pub fn row(&self) -> usize {
         FIRST_EXTRA_ROW
             + match self {
-                Schedule::Slalom { .. } => 0,
-                Schedule::Guschti { .. } => 1,
-                Schedule::Trio { .. } => 2,
-                Schedule::Misere { .. } => 3,
+                Schedule::Tutti => 0,
+                Schedule::Slalom { .. } => 1,
+                Schedule::Guschti { .. } => 2,
+                Schedule::Trio { .. } => 3,
+                Schedule::Misere { .. } => 4,
             }
     }
 
@@ -82,6 +98,7 @@ impl Schedule {
             }
             Schedule::Trio { first } => format!("TRIO_{}", contract_name(first)),
             Schedule::Misere { contract } => format!("MISERE_{}", contract_name(contract)),
+            Schedule::Tutti => "TUTTI".to_string(),
         }
     }
 
@@ -98,6 +115,7 @@ impl Schedule {
                 contract(c).filter(|&c| c >= 4).map(|first| Schedule::Guschti { first, n: 4 })
             }
             ["TRIO", c] => contract(c).map(|first| Schedule::Trio { first }),
+            ["TUTTI"] => Some(Schedule::Tutti),
             ["MISERE", c] => {
                 contract(c).filter(|&c| c >= 4).map(|contract| Schedule::Misere { contract })
             }
@@ -109,7 +127,7 @@ impl Schedule {
         let upper = text.trim().to_ascii_uppercase();
         matches!(
             upper.split('_').next(),
-            Some("SLALOM" | "GUSCHTI" | "GUSCHTI4" | "TRIO" | "MISERE")
+            Some("TUTTI" | "SLALOM" | "GUSCHTI" | "GUSCHTI4" | "TRIO" | "MISERE")
         )
     }
 }
@@ -117,8 +135,9 @@ impl Schedule {
 /// Every schedule a player may choose for an extra row, in the order of `for_row` in Python.
 pub fn for_row(row: usize, rules: &Rules) -> Vec<Schedule> {
     match row - FIRST_EXTRA_ROW {
-        0 => vec![Schedule::Slalom { first: OBENABE }, Schedule::Slalom { first: UNDENUFE }],
-        1 => {
+        0 => vec![Schedule::Tutti],
+        1 => vec![Schedule::Slalom { first: OBENABE }, Schedule::Slalom { first: UNDENUFE }],
+        2 => {
             let mut out = vec![
                 Schedule::Guschti { first: OBENABE, n: 5 },
                 Schedule::Guschti { first: UNDENUFE, n: 5 },
@@ -129,7 +148,7 @@ pub fn for_row(row: usize, rules: &Rules) -> Vec<Schedule> {
             }
             out
         }
-        2 => (0..6).map(|first| Schedule::Trio { first }).collect(),
+        3 => (0..6).map(|first| Schedule::Trio { first }).collect(),
         _ => vec![Schedule::Misere { contract: OBENABE }, Schedule::Misere { contract: UNDENUFE }],
     }
 }
@@ -160,7 +179,7 @@ mod tests {
     #[test]
     fn names_round_trip_and_tricks_are_as_named() {
         let rules = Rules { coiffeur_guschti_45: true, ..Rules::coiffeur() };
-        for row in 8..12 {
+        for row in FIRST_EXTRA_ROW..FIRST_EXTRA_ROW + EXTRA_ROWS.len() {
             for s in for_row(row, &rules) {
                 assert_eq!(Schedule::parse(&s.name()), Some(s));
                 assert_eq!(s.row(), row);
@@ -178,5 +197,8 @@ mod tests {
         assert_eq!(Schedule::parse("SLALOM_HEARTS"), None);
         assert_eq!(Schedule::parse("MISERE_HEARTS"), None);
         assert!(Schedule::parse("MISERE_UNDENUFE").unwrap().misere());
+        let tutti = Schedule::parse("TUTTI").unwrap();
+        assert!(tutti.led() && tutti.tricks() == [LED; TRICKS_PER_ROUND]);
+        assert_eq!(tutti.count(), TUTTI_PLACEHOLDER);
     }
 }

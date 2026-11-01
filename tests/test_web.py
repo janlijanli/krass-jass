@@ -398,14 +398,16 @@ def test_coiffeur_is_a_mode_of_its_own_with_the_sheet_in_the_view():
     game = table.game
     frame = view(table, game.to_act)
     sheet = frame["coiffeur"]
-    assert sorted(sheet["multipliers"]) == list(range(1, 13))
-    assert sheet["rows"][8:] == ["SLALOM", "GUSCHTI", "TRIO", "MISERE"]
+    # The Chance is always x13; the other eleven rows are dealt 1..11.
+    assert sheet["multipliers"][6] == 13
+    assert sorted(sheet["multipliers"][:6] + sheet["multipliers"][7:]) == list(range(1, 12))
+    assert sheet["rows"][6:] == ["CHANCE", "TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE"]
     assert sheet["sheet"] == [[None] * 12, [None] * 12]
-    eight = view(new_table(settings={"mode": "coiffeur", "rows": []}), 0)["coiffeur"]
-    assert len(eight["rows"]) == len(eight["multipliers"]) == 8
+    seven = view(new_table(settings={"mode": "coiffeur", "rows": []}), 0)["coiffeur"]
+    assert len(seven["rows"]) == len(seven["multipliers"]) == 7
     # The choices on offer are the engine's, in wire form, and only for the seat on turn.
     assert sheet["legal"] == [str(c) for c in game.legal_choices()]
-    assert "SHOVE" in sheet["legal"] and "HEARTS/JOKER1" in sheet["legal"]
+    assert "SHOVE" in sheet["legal"] and "HEARTS/CHANCE" in sheet["legal"]
     assert view(table, (game.to_act + 1) % 4)["coiffeur"]["legal"] == []
     # The Schieber's shove button and bidding panel are not this game's.
     assert frame["can_shove"] is False

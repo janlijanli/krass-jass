@@ -23,6 +23,12 @@ Wire names, which are also what a player chooses:
   third. Over the three, at least one block is a trump suit and at least one is Obenabe or
   Undenufe; the suit may change from block to block (owner, 2026-10-31). Until a block is named
   its tricks are `None`.
+* ``TUTTI`` — the suit **led** to each trick is trump for that trick (owner, 2026-11-01, after
+  swissjass.ch). Every trick is therefore a trump lead: follow suit, the Puur exempt; nobody can
+  trump in, because no other suit is trump. The round is counted as if the first trick's suit
+  were trump all round — its Puur 20 and Nell 14, the other Jacks 2 and nines 0 — so the chooser,
+  who leads, picks the counting suit with the first card. Until a trick is led its contract is
+  `None`; `led` marks the schedule as named this way rather than by a 3×3's leaders.
 * ``MISERE_OBENABE`` / ``MISERE_UNDENUFE`` — Misère: nine tricks in that contract, and the aim is
   to take as few points as possible. The choosing team writes the points the *opponents* took
   (owner, 2026-10-31) — so both teams play to avoid points.
@@ -36,9 +42,12 @@ from .rules import Contract, RulesConfig
 from .scoring import TRICKS_PER_ROUND
 
 O, U = Contract.OBENABE, Contract.UNDENUFE
+#: What a Tutti is counted in before its first card: no suit is trump yet. Only the leader acts
+#: before the first card, and leading is legal with any card whatever the contract.
+TUTTI_PLACEHOLDER = O
 
 #: The extra rows, in sheet order after the eight (`krass_jass/coiffeur.py`).
-EXTRA_ROWS = ("SLALOM", "GUSCHTI", "TRIO", "MISERE")
+EXTRA_ROWS = ("TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE")
 #: A 3×3's blocks start at these tricks; the leader of each names it.
 TRIO_BLOCKS = (0, 3, 6)
 
@@ -46,9 +55,11 @@ TRIO_BLOCKS = (0, 3, 6)
 @dataclass(frozen=True)
 class Schedule:
     name: str
-    #: The contract of each trick; `None` for a 3×3 block not yet named.
+    #: The contract of each trick; `None` for a 3×3 block not yet named, and for every Tutti trick.
     tricks: tuple[Contract | None, ...]
     misere: bool = False
+    #: Tutti: each trick's contract is the trump of the suit led to it.
+    led: bool = False
 
     @property
     def is_open(self) -> bool:
@@ -56,8 +67,9 @@ class Schedule:
 
     @property
     def count(self) -> Contract:
-        """The contract the round's card points are counted in: the first trick's."""
-        return self.tricks[0]
+        """The contract the round's card points are counted in: the first trick's. A Tutti's is
+        not known until the first card; until then this is a placeholder (`TUTTI_PLACEHOLDER`)."""
+        return TUTTI_PLACEHOLDER if self.led else self.tricks[0]
 
     @property
     def row(self) -> str:
@@ -88,6 +100,10 @@ def guschti(first: Contract, n_first: int = 5) -> Schedule:
 
 def trio(first: Contract) -> Schedule:
     return Schedule(f"TRIO_{first.name}", (first,) * 3 + (None,) * 6)
+
+
+def tutti() -> Schedule:
+    return Schedule("TUTTI", (None,) * TRICKS_PER_ROUND, led=True)
 
 
 def misere(contract: Contract) -> Schedule:
@@ -122,6 +138,8 @@ def for_row(row: str, cfg: RulesConfig) -> list[Schedule]:
         return out
     if row == "TRIO":
         return [trio(c) for c in Contract]
+    if row == "TUTTI":
+        return [tutti()]
     if row == "MISERE":
         return [misere(O), misere(U)]
     raise ValueError(f"unknown row {row!r}")
@@ -141,6 +159,8 @@ def parse(name: str) -> Schedule:
                 return guschti(first, 5 if parts[0] == "GUSCHTI" else 4)
         elif parts[0] == "TRIO" and len(parts) == 2:
             return trio(Contract[parts[1]])
+        elif parts == ["TUTTI"]:
+            return tutti()
         elif parts[0] == "MISERE" and len(parts) == 2:
             contract = Contract[parts[1]]
             if contract in (O, U):
@@ -151,4 +171,4 @@ def parse(name: str) -> Schedule:
 
 
 def is_schedule_name(name: str) -> bool:
-    return name.strip().upper().split("_")[0] in ("SLALOM", "GUSCHTI", "GUSCHTI4", "TRIO", "MISERE")
+    return name.strip().upper().split("_")[0] in ("TUTTI", "SLALOM", "GUSCHTI", "GUSCHTI4", "TRIO", "MISERE")
