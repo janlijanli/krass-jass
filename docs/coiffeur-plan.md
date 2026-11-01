@@ -58,5 +58,19 @@ In order; each is measured before the next.
 | 6 | **Play model and beliefs from Coiffeur self-play** (chooser leads; who chose what into which row is a signal, like the Schieber bid's +1.3) | ≈ 2 h recording + fit | A/B, replicated |
 | 7 | Optional: late-game objective (needs X points to win) | — | A/B |
 
+**Step 1 is running** (started 2026-10-31): `arena/coiffeur_contracts.py` prices all 18 games a
+chooser can name — six contracts, two Slaloms, two Guschtis, six 3×3 openings, two Misères — on 1,500
+hands × 2 deals at 2,400 iterations without the tree policy, as §5n priced the Schieber's calls. About
+seven hours on eight cores; output in `arena/runs/2026-10-31/coiffeur_games.npz`, `summary` reads it.
+
+**The extra rows (Slalom, Guschti, 3×3, Misère) need the same runs, and one of their own.** Their games are
+valued today as the mean edge of the contracts their tricks are played in, and kept at a random hand's
+best game in the row (`extra_reserve` in `coiffeur_weights.json`, untrained). Step 1 extends to them
+directly: simulate each game (2 Slaloms, 2 Guschtis, 24 3×3s) as a contract and fit its value. The
+play model of step 6 has only ever seen rounds in one order: inside a schedule it is shown the trick's
+contract, which is right for the trick and blind to the order change still to come. Whether that costs
+anything is a measurement — the search plays the schedule correctly either way, only the model of the
+other seats is approximate.
+
 Random multipliers make step 1–3's tables reusable for any sheet: they are per contract, and the
 multiplier enters only as a factor.

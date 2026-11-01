@@ -250,6 +250,8 @@ def test_the_request_carries_no_hidden_cards():
         # Sidi Barrani: the mode, the auction the whole table heard, and the contract's bid
         # and double. None of them names a card.
         "mode", "auction", "bid_value", "doubled",
+        # Coiffeur's extra rows: the game the chooser named aloud, as nine contracts — no card.
+        "schedule", "misere",
     }, "the bot request shape changed — is the new field public?"
 
 
@@ -286,3 +288,58 @@ def test_the_bot_service_answers_sidi_calls():
         "/sidi_double", json={"hand": hand, "contract": "HEARTS", "bid_value": 120, "seat": 1}
     ).json()
     assert answer == {"double": True}
+
+
+def test_the_bot_service_chooses_coiffeur_rows():
+    from fastapi.testclient import TestClient
+
+    from bot.service import create_app
+    from krass_jass.coiffeur import Sheet
+
+    client = TestClient(create_app())
+    legal = [str(c) for c in Sheet().choices(0)]
+    hand = "HJ H9 HA HK HQ HT H8 S6 D7".split()
+    answer = client.post(
+        "/coiffeur_choice",
+        json={"hand": hand, "legal": legal + ["SHOVE"], "multipliers": [1, 3, 2, 4, 5, 6, 7, 8, 0, 0, 0], "seat": 0},
+    )
+    assert answer.json() == {"choice": "HEARTS/JOKER2"}
+    bad = client.post(
+        "/coiffeur_choice",
+        json={"hand": hand, "legal": ["HEARTS/SPADES"], "multipliers": [1] * 11, "seat": 0},
+    )
+    assert bad.status_code == 422
+
+
+def test_a_failed_coiffeur_choice_chooses_here_and_never_shoves():
+    from krass_jass.coiffeur import Sheet
+    from krass_jass.rules import COIFFEUR
+
+    agent = RemoteAgent(url="http://127.0.0.1:9")
+    agent.cfg = COIFFEUR
+    legal = Sheet().choices(0) + [SHOVE]
+    choice = agent.coiffeur_choice(parse_hand("DQ DT HQ HT SQ ST CQ CT DK"), legal, (4, 2, 3, 1, 5, 6, 7, 8))
+    assert choice != SHOVE and choice in [str(c) for c in legal]
+    assert agent.failures == 1
+
+
+def test_the_bot_service_plays_a_coiffeur_schedule_and_refuses_a_bad_one():
+    from fastapi.testclient import TestClient
+
+    from bot.service import create_app
+    from krass_jass.game import Game
+    from krass_jass.rules import COIFFEUR
+
+    client = TestClient(create_app())
+    game = Game(cfg=COIFFEUR, seed=3)
+    game.bid(game.to_act, "SLALOM_OBENABE")
+    obs = game.observation(game.to_act)
+    payload = {
+        "hand": [format_card(c) for c in card_list(obs.hand)],
+        "legal_moves": [format_card(c) for c in card_list(obs.legal_moves)],
+        "contract": obs.contract.name, "declarer_seat": obs.declarer_seat, "seat": obs.seat,
+        "mode": "coiffeur", "schedule": list(obs.schedule),
+    }
+    card = parse_card(client.post("/play_card", json=payload).json()["card"])
+    assert obs.legal_moves & (1 << card)
+    assert client.post("/play_card", json={**payload, "schedule": [7] * 9}).status_code == 422

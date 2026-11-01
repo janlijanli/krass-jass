@@ -84,6 +84,21 @@ class Observation:
     #: The standing bid the declarers must reach, and whether it was doubled.
     bid_value: int = 0
     doubled: bool = False
+    #: Coiffeur's extra rows only (empty otherwise): the contract each of the nine tricks is
+    #: played in (`krass_jass/schedule.py`). Public — the chooser said it aloud — and `contract`
+    #: stays the one the round is counted in.
+    schedule: tuple = ()
+    #: Coiffeur Misère: each team is credited with what the other took. Public — it was chosen
+    #: aloud — and it turns what every seat plays for around.
+    misere: bool = False
+
+    @property
+    def trick_contract(self) -> Contract:
+        """The contract the current trick is played in."""
+        if not self.schedule:
+            return self.contract
+        named = self.schedule[min(len(self.tricks_played), 8)]
+        return self.contract if named < 0 else Contract(named)
 
     @property
     def team(self) -> int:
@@ -154,6 +169,7 @@ def build_observation(
     auction: tuple = (),
     bid_value: int = 0,
     doubled: bool = False,
+    misere: bool = False,
 ) -> Observation:
     """The only way an agent learns anything. Add fields here and nowhere else.
 
@@ -180,4 +196,7 @@ def build_observation(
         auction=auction,
         bid_value=bid_value,
         doubled=doubled,
+        # -1 for a 3×3 block not yet named: nobody knows it yet, not even its chooser.
+        schedule=tuple(-1 if c is None else int(c) for c in state.schedule) if state.schedule else (),
+        misere=misere,
     )

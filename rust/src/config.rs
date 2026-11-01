@@ -39,12 +39,19 @@ pub struct Rules {
     pub coiffeur: bool,
     /// Deal the row multipliers out at random from the game seed (default) or use the table.
     pub coiffeur_random_multipliers: bool,
-    /// Row order: diamonds, hearts, spades, clubs, Obenabe, Undenufe, Joker 1, Joker 2.
-    pub coiffeur_multipliers: [i32; 8],
+    /// Slot order: diamonds, hearts, spades, clubs, Obenabe, Undenufe, Joker 1, Joker 2, Slalom,
+    /// Guschti, 3x3, Misère. A slot not played is not read.
+    pub coiffeur_multipliers: [i32; 12],
     /// Also credit the defenders with their card points, times the row's multiplier.
     pub coiffeur_score_opponents: bool,
     /// Write card points in tens, rounded half up, and multiply those.
     pub coiffeur_tens: bool,
+    /// The extra rows played: Slalom, Guschti, 3x3, Misère (`schedule.rs`).
+    pub coiffeur_extra_rows: [bool; 4],
+    /// Guschti also as four tricks then five.
+    pub coiffeur_guschti_45: bool,
+    /// A Joker row may also take an extra row's game.
+    pub coiffeur_joker_takes_extra: bool,
 }
 
 pub const SIDI_BIDS: usize = 14;
@@ -77,9 +84,12 @@ impl Default for Rules {
             sidi_double_ends_auction: true,
             coiffeur: false,
             coiffeur_random_multipliers: true,
-            coiffeur_multipliers: [4, 2, 3, 1, 5, 6, 7, 8],
+            coiffeur_multipliers: [4, 2, 3, 1, 5, 6, 7, 8, 9, 10, 11, 12],
             coiffeur_score_opponents: false,
             coiffeur_tens: true,
+            coiffeur_extra_rows: [true; 4],
+            coiffeur_guschti_45: false,
+            coiffeur_joker_takes_extra: false,
         }
     }
 }

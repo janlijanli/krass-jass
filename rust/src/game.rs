@@ -24,6 +24,8 @@ pub enum Phase {
     Doubling,
     Weis,
     Playing,
+    /// Coiffeur 3x3: between blocks, the leader names the next one.
+    Block,
     RoundOver,
     GameOver,
 }
@@ -35,6 +37,7 @@ impl Phase {
             Phase::Doubling => "doubling",
             Phase::Weis => "weis",
             Phase::Playing => "playing",
+            Phase::Block => "block",
             Phase::RoundOver => "round_over",
             Phase::GameOver => "game_over",
         }
@@ -87,9 +90,11 @@ pub struct Game {
     double_queue: Vec<usize>,
     /// Coiffeur: the sheet, its row multipliers, this round's shoves and the row chosen.
     pub sheet: Sheet,
-    pub row_multipliers: [i32; coiffeur::ROWS],
+    pub row_multipliers: [i32; coiffeur::ALL_ROWS],
     pub shoves: u32,
     pub row: Option<usize>,
+    /// The chosen extra row's game, when it is one (`schedule.rs`).
+    pub schedule: Option<crate::schedule::Schedule>,
     pub last_coiffeur: Option<CoiffeurDetail>,
 
     dealt: [u64; NUM_SEATS],
@@ -125,10 +130,11 @@ impl Game {
             bid_value: 0,
             doubled: false,
             double_queue: Vec::new(),
-            sheet: Sheet::default(),
+            sheet: Sheet::for_game(&rules),
             row_multipliers: coiffeur::multipliers(seed, &rules),
             shoves: 0,
             row: None,
+            schedule: None,
             last_coiffeur: None,
             dealt: [0; NUM_SEATS],
             weis_points: [0, 0],
@@ -178,6 +184,7 @@ impl Game {
         self.double_queue.clear();
         self.shoves = 0;
         self.row = None;
+        self.schedule = None;
         if self.rules.coiffeur {
             self.declarer = coiffeur::first_chooser(self.forehand, &self.sheet);
         }
@@ -227,7 +234,7 @@ impl Game {
                 None => Some(self.declarer),
             },
             Phase::Doubling => self.double_queue.first().copied(),
-            Phase::Playing => self.round.as_ref().map(|r| r.to_play()),
+            Phase::Playing | Phase::Block => self.round.as_ref().map(|r| r.to_play()),
             _ => None,
         }
     }
@@ -291,14 +298,41 @@ impl Game {
             }
             Some(c) => c,
         };
-        if !self.sheet.choices(team_of(seat)).contains(&choice) {
+        if !self.sheet.choices(team_of(seat), &self.rules).contains(&choice) {
             return Err(GameError::Choose(ChooseError::RowNotOpen));
         }
         self.contract = Some(choice.contract);
         self.row = Some(choice.row);
+        self.schedule = choice.schedule;
         self.log.emit(Payload::Bid { seat, action: choice.name() }, None);
         self.begin_play();
         Ok(())
+    }
+
+    /// Coiffeur 3x3: the leader of trick 4 or 7 names the next block.
+    pub fn choose_block(&mut self, seat: usize, contract: usize) -> Result<(), GameError> {
+        if self.phase != Phase::Block {
+            return Err(GameError::WrongPhase("no block to name"));
+        }
+        let round = self.round.as_mut().ok_or(GameError::WrongPhase("no round"))?;
+        if seat != round.to_play() {
+            return Err(GameError::NotYourTurn(seat));
+        }
+        if !round.set_block(contract) {
+            return Err(GameError::Choose(ChooseError::RowNotOpen));
+        }
+        let trick = round.tricks_played.len() + 1;
+        self.log.emit(Payload::BlockChosen { seat, trick, contract }, None);
+        self.phase = Phase::Playing;
+        Ok(())
+    }
+
+    /// Coiffeur 3x3: what the leader may name for the next block.
+    pub fn legal_blocks(&self) -> Vec<usize> {
+        match (&self.round, self.phase) {
+            (Some(r), Phase::Block) => r.block_options(),
+            _ => Vec::new(),
+        }
     }
 
     /// Coiffeur: the choices open to the seat on turn, and whether it may still shove.
@@ -307,7 +341,7 @@ impl Game {
             return (Vec::new(), false);
         }
         (
-            self.sheet.choices(team_of(self.declarer)),
+            self.sheet.choices(team_of(self.declarer), &self.rules),
             self.shoves < coiffeur::max_shoves(&self.sheet),
         )
     }
@@ -371,7 +405,10 @@ impl Game {
             Some(row) if self.rules.coiffeur => self.row_multipliers[row],
             _ => self.rules.multiplier(contract),
         };
-        self.round = Some(Round::new(contract, self.dealt, leader, self.rules));
+        self.round = Some(
+            Round::new(contract, self.dealt, leader, self.rules)
+                .with_schedule(self.schedule.map(|s| s.tricks())),
+        );
         self.log.emit(
             Payload::ContractSet {
                 contract,
@@ -380,6 +417,7 @@ impl Game {
                 leader,
                 sidi: if self.rules.sidi { Some((self.bid_value, self.doubled)) } else { None },
                 row: if self.rules.coiffeur { self.row } else { None },
+                schedule: self.schedule,
             },
             None,
         );
@@ -593,6 +631,9 @@ impl Game {
             let winner = round.last_trick_winner as usize;
             let index = round.tricks_played.len();
             self.log.emit(Payload::TrickWon { seat: winner, trick: index, cards }, None);
+            if self.round.as_ref().unwrap().block_pending() {
+                self.phase = Phase::Block;
+            }
         }
         let round = self.round.as_ref().unwrap();
         if self.rules.sidi
@@ -688,7 +729,9 @@ impl Game {
         let declarers = team_of(self.declarer);
         let row = self.row.expect("row chosen");
         let multiplier = self.row_multipliers[row];
-        let values = points.map(|p| crate::coiffeur::row_value(p, &self.rules));
+        // Misère: each team is credited with what the other took.
+        let credit = if self.schedule.is_some_and(|s| s.misere()) { [points[1], points[0]] } else { points };
+        let values = credit.map(|p| crate::coiffeur::row_value(p, &self.rules));
         self.sheet.written[declarers][row] = Some(values[declarers]);
         let mut written = [0i32; 2];
         written[declarers] = values[declarers] * multiplier;

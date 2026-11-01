@@ -387,3 +387,77 @@ def test_the_player_is_asked_to_knock_the_moment_an_opponent_bids():
     table.knock_declined = None
     game.bid(0, "DOUBLE")
     assert game.doubled and game.declarer == 1
+
+
+def test_coiffeur_is_a_mode_of_its_own_with_the_sheet_in_the_view():
+    from web.app import build_config, new_table, view
+
+    cfg = build_config({"mode": "coiffeur", "target": 2500, "mult_hearts": 4})
+    assert cfg.coiffeur and cfg.target_score is None and cfg.coiffeur_tens
+    table = new_table(settings={"mode": "coiffeur"})
+    game = table.game
+    frame = view(table, game.to_act)
+    sheet = frame["coiffeur"]
+    assert sorted(sheet["multipliers"]) == list(range(1, 13))
+    assert sheet["rows"][8:] == ["SLALOM", "GUSCHTI", "TRIO", "MISERE"]
+    assert sheet["sheet"] == [[None] * 12, [None] * 12]
+    eight = view(new_table(settings={"mode": "coiffeur", "rows": []}), 0)["coiffeur"]
+    assert len(eight["rows"]) == len(eight["multipliers"]) == 8
+    # The choices on offer are the engine's, in wire form, and only for the seat on turn.
+    assert sheet["legal"] == [str(c) for c in game.legal_choices()]
+    assert "SHOVE" in sheet["legal"] and "HEARTS/JOKER1" in sheet["legal"]
+    assert view(table, (game.to_act + 1) % 4)["coiffeur"]["legal"] == []
+    # The Schieber's shove button and bidding panel are not this game's.
+    assert frame["can_shove"] is False
+    assert view(new_table(settings={"mode": "schieber"}), 0)["coiffeur"] is None
+
+
+def test_a_coiffeur_game_runs_through_the_web_loop_to_the_end():
+    """Bots choose rows and play, the human's choices go through `handle`, the sheet fills."""
+    import asyncio
+
+    from krass_jass.agent import GreedyAgent
+    from krass_jass.cards import card_list, format_card
+    from krass_jass.game import Phase
+    from web import app as web
+
+    class Socket:
+        async def send_json(self, message):
+            assert message.get("type") != "rejected", message
+
+    async def nothing():
+        pass
+
+    async def run():
+        table = web.new_table(settings={"mode": "coiffeur"})
+        bot = GreedyAgent()
+        bot.cfg = table.game.cfg
+        table.bots = {s: bot for s in (1, 2, 3)}
+        game, socket = table.game, Socket()
+        web.pace = lambda *a, **k: nothing()       # no thinking pauses in a test
+        for _ in range(2000):
+            await web.drive(table, 0, socket, nothing)
+            if game.phase is Phase.GAME_OVER:
+                break
+            frame = web.view(table, 0)
+            if frame["trick_complete"]:
+                await web.handle(table, 0, {"type": "ack_trick"}, socket)
+            elif game.phase is Phase.ROUND_OVER:
+                assert frame["scorecard"]["row"] in frame["coiffeur"]["rows"]
+                await web.handle(table, 0, {"type": "next_round"}, socket)
+            elif game.phase is Phase.BLOCK:
+                await web.handle(table, 0, {"type": "block", "contract": frame["coiffeur"]["blocks"][0]}, socket)
+            elif game.phase is Phase.BIDDING:
+                legal = frame["coiffeur"]["legal"]
+                action = "SHOVE" if "SHOVE" in legal else legal[-1]
+                await web.handle(table, 0, {"type": "bid", "action": action}, socket)
+            else:
+                await web.handle(table, 0, {"type": "play", "card": frame["legal"][0]}, socket)
+        return table
+
+    original = web.pace
+    try:
+        table = asyncio.run(run())
+    finally:
+        web.pace = original
+    assert table.game.phase is Phase.GAME_OVER and table.game.sheet.complete

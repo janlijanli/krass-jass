@@ -341,13 +341,17 @@ export function initMenu({
   });
 
   // The game decides which settings exist. Sidi Barrani counts every contract once and has
-  // no Weis, so those two sections go while it is chosen, and its usual target is 2000.
+  // no Weis, so those two sections go while it is chosen, and its usual target is 2000. The
+  // Coiffeur has neither and no target either: the sheet decides when the game ends.
   const form = document.getElementById("mode-settings");
   const TARGET_FOR = { sidi: "2000", schieber: "1000" };
   const syncMode = (changed) => {
     const mode = form?.querySelector('input[name="mode"]:checked')?.value || "sidi";
-    form?.querySelectorAll("[data-schieber-only]").forEach((n) => { n.hidden = mode === "sidi"; });
-    if (changed) {
+    form?.querySelectorAll("[data-schieber-only]").forEach((n) => { n.hidden = mode !== "schieber"; });
+    // Coiffeur ends with the sheet: no target, and its own note in place of the Sidi's.
+    form?.querySelectorAll("[data-not-coiffeur]").forEach((n) => { n.hidden = mode === "coiffeur"; });
+    form?.querySelectorAll("[data-coiffeur-only]").forEach((n) => { n.hidden = mode !== "coiffeur"; });
+    if (changed && TARGET_FOR[mode]) {
       const target = form.querySelector(`input[name="target"][value="${TARGET_FOR[mode]}"]`);
       if (target) target.checked = true;
     }

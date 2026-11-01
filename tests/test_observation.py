@@ -37,6 +37,11 @@ EXPECTED_FIELDS = {
     "auction",
     "bid_value",
     "doubled",
+    # Coiffeur's extra rows: the contract each trick is played in. The chooser named the game
+    # aloud, so it is public, and it is nine contracts — never a card.
+    "schedule",
+    # Coiffeur Misère: chosen aloud, a flag on how the round is scored — no card.
+    "misere",
 }
 
 
@@ -124,6 +129,27 @@ def test_the_sidi_auction_is_public_and_names_no_card():
             for word in call.split():
                 with pytest.raises(ValueError):
                     parse_card(word)
+
+
+def test_a_coiffeur_schedule_is_the_game_named_aloud_and_names_no_card():
+    """The schedule in an observation is exactly the game the chooser named, the same for all
+    four seats, and the same as the leak test below finds it: card identifiers stay public."""
+    from krass_jass.coiffeur import Choice
+    from krass_jass.game import Game
+    from krass_jass.rules import COIFFEUR
+
+    game = Game(cfg=COIFFEUR, seed=21)
+    game.bid(game.to_act, "SLALOM_UNDENUFE")
+    named = Choice.parse("SLALOM_UNDENUFE").schedule
+    rng = random.Random(5)
+    while not game.round.done:
+        for seat in range(4):
+            obs = game.observation(seat)
+            assert obs.schedule == tuple(int(c) for c in named.tricks)
+            allowed = game.round.hands[seat] | obs.played
+            assert obs.legal_moves & ~obs.hand == 0 and obs.hand & ~allowed == 0
+        legal = card_list(game.round.legal_moves())
+        game.play(game.to_act, legal[rng.randrange(len(legal))])
 
 
 @pytest.mark.parametrize("contract", list(Contract))

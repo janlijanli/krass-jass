@@ -17,6 +17,7 @@ from enum import Enum
 from .auction import Auction, bonus as sidi_bonus
 from .cards import parse_card, card_list, format_card
 from .coiffeur import ROW_NAMES, Choice, Choosing, Sheet, row_value
+from .schedule import Schedule
 from .coiffeur import multipliers as coiffeur_multipliers
 from .deal import deal as deal_hands
 from .events import EventLog, EventType
@@ -38,6 +39,8 @@ class Phase(str, Enum):
     DOUBLING = "doubling"
     WEIS = "weis"
     PLAYING = "playing"
+    #: Coiffeur 3×3: between blocks, the leader names the next one.
+    BLOCK = "block"
     ROUND_OVER = "round_over"
     GAME_OVER = "game_over"
 
@@ -69,13 +72,15 @@ class Game:
     row_multipliers: tuple = ()
     choosing: Choosing | None = None
     row: int = -1
+    #: The chosen extra row's game, when it is one (`krass_jass/schedule.py`).
+    schedule: Schedule | None = None
     _dealt: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
 
     def __post_init__(self) -> None:
         started = {"game_id": self.game_id, "target_score": self.cfg.target_score}
         if self.cfg.coiffeur:
             # The sheet is public from the first card: everyone sees what each row is worth.
-            self.sheet = Sheet()
+            self.sheet = Sheet.for_game(self.cfg)
             self.row_multipliers = coiffeur_multipliers(self.seed, self.cfg)
             started["multipliers"] = list(self.row_multipliers)
         self.log.emit(EventType.GAME_STARTED, started)
@@ -111,8 +116,9 @@ class Game:
         self.auction = Auction(opener=self.forehand, cfg=self.cfg) if self.cfg.sidi else None
         self.choosing = None
         self.row = -1
+        self.schedule = None
         if self.cfg.coiffeur:
-            self.choosing = Choosing(forehand=self.forehand, sheet=self.sheet)
+            self.choosing = Choosing(forehand=self.forehand, sheet=self.sheet, cfg=self.cfg)
             self.declarer = self.choosing.chooser
         self.bid_value = 0
         self.doubled = False
@@ -153,7 +159,7 @@ class Game:
             return self.declarer
         if self.phase is Phase.DOUBLING:
             return self._double_queue[0]
-        if self.phase is Phase.PLAYING and self.round is not None:
+        if self.phase in (Phase.PLAYING, Phase.BLOCK) and self.round is not None:
             return self.round.to_play
         return None
 
@@ -223,6 +229,7 @@ class Game:
             auction=self.public_auction(),
             bid_value=self.bid_value,
             doubled=self.doubled,
+            misere=self.schedule is not None and self.schedule.misere,
         )
 
     def public_auction(self) -> tuple:
@@ -294,9 +301,31 @@ class Game:
             self.declarer = self.choosing.chooser
             self.log.emit(EventType.BID, {"seat": seat, "action": SHOVE})
             return
-        self.contract, self.row = result.contract, result.row
+        self.contract, self.row, self.schedule = result.contract, result.row, result.schedule
         self.log.emit(EventType.BID, {"seat": seat, "action": str(result)})
         self._begin_play()
+
+    def choose_block(self, seat: int, contract) -> None:
+        """Coiffeur 3×3: the leader of trick 4 or 7 names the next block."""
+        if self.phase is not Phase.BLOCK or self.round is None:
+            raise IllegalMove("no block to name")
+        if seat != self.round.to_play:
+            raise IllegalMove(f"seat {seat} does not lead this block")
+        if not isinstance(contract, Contract):
+            try:
+                contract = Contract[str(contract).strip().upper()]
+            except KeyError:
+                raise IllegalMove(f"unknown contract {contract!r}") from None
+        self.round.set_block(contract)
+        self.log.emit(
+            EventType.BLOCK_CHOSEN,
+            {"seat": seat, "trick": len(self.round.tricks_played) + 1, "contract": contract.name},
+        )
+        self.phase = Phase.PLAYING
+
+    def legal_blocks(self) -> list[Contract]:
+        """Coiffeur 3×3: what the leader may name for the next block."""
+        return self.round.block_options() if self.phase is Phase.BLOCK and self.round else []
 
     def legal_choices(self) -> list:
         """Coiffeur: what the seat on turn may do, as `Choice`s and `SHOVE`."""
@@ -345,6 +374,7 @@ class Game:
             hands=list(self._dealt),
             cfg=self.cfg,
             leader=leader,
+            schedule=self.schedule.tricks if self.schedule is not None else None,
         )
         payload = {
             "contract": self.contract.name,
@@ -356,6 +386,11 @@ class Game:
             payload.update(bid=self.bid_value, doubled=self.doubled)
         if self.cfg.coiffeur:
             payload.update(multiplier=self.row_multipliers[self.row], row=ROW_NAMES[self.row])
+            if self.schedule is not None:
+                payload.update(
+                    schedule=self.schedule.name,
+                    tricks=[c.name if c is not None else None for c in self.schedule.tricks],
+                )
         self.log.emit(EventType.CONTRACT_SET, payload)
         # Stöck is settled now whatever happens to the Weis: a King/Queen of trumps can go
         # down on the first trick, before the last player has answered.
@@ -533,6 +568,8 @@ class Game:
                     "cards": [format_card(c) for c in cards],
                 },
             )
+            if self.round.block_pending:
+                self.phase = Phase.BLOCK
         if (
             self.cfg.sidi
             and self.cfg.sidi_double_after_lead
@@ -671,7 +708,12 @@ class Game:
         points = list(score.total)
         declarers = team_of(self.declarer)
         multiplier = self.row_multipliers[self.row]
-        values = [row_value(p, self.cfg) for p in points]
+        credit = points
+        if self.schedule is not None and self.schedule.misere:
+            # Misère: each team is credited with what the other took — the fewer points a
+            # team takes itself, the more it writes.
+            credit = [points[1], points[0]]
+        values = [row_value(p, self.cfg) for p in credit]
         self.sheet.written[declarers][self.row] = values[declarers]
         written = [0, 0]
         written[declarers] = values[declarers] * multiplier

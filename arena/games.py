@@ -80,6 +80,8 @@ def play_game(a: Agent, b: Agent, seed: int, cfg: RulesConfig) -> int:
                 seat,
                 agent.coiffeur_choice(game.hand_of(seat), game.legal_choices(), game.row_multipliers),
             )
+        elif game.phase is Phase.BLOCK:
+            game.choose_block(seat, agent.coiffeur_block(game.hand_of(seat), game.legal_blocks()))
         elif game.phase is Phase.BIDDING:
             game.bid(seat, agent.select_trump(game.hand_of(seat), seat == game.forehand))
         elif game.phase is Phase.WEIS:

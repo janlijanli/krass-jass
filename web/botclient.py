@@ -85,6 +85,42 @@ class RemoteAgent(Agent):
 
             return rule_based(hand, is_forehand=False, cfg=self.cfg)
 
+    def coiffeur_choice(self, hand: int, legal: list, multipliers: tuple) -> str:
+        options = [str(c) for c in legal]
+        payload = {
+            "hand": [format_card(c) for c in card_list(hand)],
+            "legal": options,
+            "multipliers": list(multipliers),
+            "seat": self.seat,
+        }
+        try:
+            response = self.client().post("/coiffeur_choice", json=payload, timeout=TIMEOUT_MARGIN_S)
+            response.raise_for_status()
+            choice = str(response.json()["choice"])
+            if choice in options:
+                return choice
+            raise ValueError(f"not on offer: {choice!r}")
+        except Exception as exc:  # noqa: BLE001 — any failure means fall back, by design
+            self.failures += 1
+            log.warning("bot %s coiffeur choice failed (%s); choosing by rule here", self.label, exc)
+            # A shove would hand the decision on for a reason nobody can see. Choose.
+            return super().coiffeur_choice(hand, [c for c in legal if str(c) != SHOVE], multipliers)
+
+    def coiffeur_block(self, hand: int, options: list) -> str:
+        names = [Contract(c).name for c in options]
+        payload = {"hand": [format_card(c) for c in card_list(hand)], "options": names, "seat": self.seat}
+        try:
+            response = self.client().post("/coiffeur_block", json=payload, timeout=TIMEOUT_MARGIN_S)
+            response.raise_for_status()
+            contract = str(response.json()["contract"]).upper()
+            if contract in names:
+                return contract
+            raise ValueError(f"not on offer: {contract!r}")
+        except Exception as exc:  # noqa: BLE001 — any failure means fall back, by design
+            self.failures += 1
+            log.warning("bot %s block choice failed (%s); choosing by rule here", self.label, exc)
+            return super().coiffeur_block(hand, options)
+
     def sidi_call(self, hand: int, auction: tuple, seat: int) -> str:
         payload = {
             "hand": [format_card(c) for c in card_list(hand)],
@@ -151,10 +187,12 @@ class RemoteAgent(Agent):
             "seat": obs.seat,
             "time_budget_ms": obs.time_budget_ms,
             "decision_seed": obs.decision_seed,
-            "mode": "sidi" if obs.auction else "schieber",
+            "mode": self.cfg.mode,
             "auction": [{"seat": s, "call": c} for s, c in obs.auction],
             "bid_value": obs.bid_value,
             "doubled": obs.doubled,
+            "schedule": list(obs.schedule),
+            "misere": obs.misere,
         }
         timeout = obs.time_budget_ms / 1000 + TIMEOUT_MARGIN_S
         try:

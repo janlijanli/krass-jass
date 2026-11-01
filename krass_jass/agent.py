@@ -12,6 +12,7 @@ bottom of the ladder you cannot tell whether the top of it works.
 
 from __future__ import annotations
 
+import dataclasses
 import random
 from dataclasses import dataclass
 from functools import lru_cache
@@ -97,6 +98,12 @@ class Agent:
             options = [c for c in legal if c != SHOVE]
             return str(random.Random(hand ^ 0x5DEECE66D).choice(options))
         return str(coiffeur_select.choose(hand, legal, multipliers, self.cfg))
+
+    def coiffeur_block(self, hand: int, options: list) -> str:
+        """Coiffeur 3×3: the next block to name, from `options` (the engine's), by name."""
+        if self.trump_policy == "random":
+            return Contract(random.Random(hand ^ 0x5DEECE66D).choice(list(options))).name
+        return coiffeur_select.choose_block(hand, [Contract(c) for c in options], self.cfg).name
 
     def sidi_call(self, hand: int, auction: tuple, seat: int) -> str:
         """Sidi Barrani: one call in the auction, in its wire form. The auction is public."""
@@ -416,7 +423,10 @@ class DmctsAgent(Agent):
         if not self.conventions:
             return candidates[0][0]
         # The search has spoken; this only orders the moves it rated the same. See
-        # krass_jass/convention.py for why that restriction is the whole design.
+        # krass_jass/convention.py for why that restriction is the whole design. A Coiffeur
+        # schedule changes the card order trick by trick; the conventions read this trick's.
+        if obs.schedule:
+            obs = dataclasses.replace(obs, contract=obs.trick_contract)
         return convention.choose(candidates, obs, forbidden, *self.convention_slack)
 
     def _beliefs(self, obs: Observation) -> tuple[list[int], dict]:
@@ -439,6 +449,7 @@ class DmctsAgent(Agent):
             obs.trick_leader,
             obs.contract,
             self.cfg,
+            obs.schedule or None,
         )
         if self.use_known_cards:
             for seat, card in obs.known_cards:
@@ -477,6 +488,7 @@ class DmctsAgent(Agent):
             "adversarial": self.adversarial,
             "risk_lambda": self.risk_lambda,
             "leaf_weights": list(self.leaf_weights) if self.leaf_weights else None,
+            "misere": obs.misere,
             "ismcts": self.ismcts,
             "resample_every": self.resample_every,
             "order_moves": self.order_moves,
@@ -507,6 +519,7 @@ class DmctsAgent(Agent):
         return {
             "declarer": obs.declarer_seat,
             "history": history,
+            "schedule": list(obs.schedule) or None,
             "belief_alpha": self.belief_alpha,
             "belief_pool": self.belief_pool if weighting else 0,
             # The bid model is the Schieber's choose-or-shove. A Sidi auction is another language,

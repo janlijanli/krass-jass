@@ -36,7 +36,13 @@ the Sidi with the same bots as the server, doubling on the same estimate.
 
 **Coiffeur is a third game mode** (`RulesConfig.mode = "coiffeur"`, preset `COIFFEUR`), started
 2026-10-30 on branch `coiffeur`. Eight rows a team, row multipliers dealt at random from the game seed
-by default, points written in tens (owner, 2026-10-31); engine in both implementations, an **untrained** rule-based row choice. Rules and open
+by default, points written in tens (owner, 2026-10-31); engine in both implementations, an **untrained** rule-based row choice.
+Slalom, Guschti, 3×3 and Misère are four more rows (on by default). The first three change the card
+order trick by trick, written out as a **schedule** (`krass_jass/schedule.py`, `rust/src/schedule.rs`). The search reads
+it through `Kernel::at` — card values from `k.count`, everything else from the kernel of the trick in
+play; for every other round both are the one contract, so nothing else changed. A 3×3's later blocks
+are named mid-round by the leaders of tricks 4 and 7 (a `block` phase); the search samples them.
+Misère turns the reward round for every seat. Rules and open
 points in `docs/rules-config.md`, the bots and the training runs it needs in `docs/coiffeur-plan.md`.
 
 **The search is Rust** (`rust/`, exposed via `krass_jass.native`). Measured: 1.48M DMCTS

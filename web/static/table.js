@@ -47,6 +47,14 @@ const el = {
   sidiValues: document.getElementById("sidi-values"),
   sidiDouble: document.getElementById("sidi-double"),
   doublePrompt: document.getElementById("double-prompt"),
+  coiffeurBidding: document.getElementById("coiffeur-bidding"),
+  coiffeurPrompt: document.getElementById("coiffeur-prompt"),
+  coiffeurSheet: document.getElementById("coiffeur-sheet"),
+  coiffeurJokers: document.getElementById("coiffeur-jokers"),
+  coiffeurShove: document.getElementById("coiffeur-shove"),
+  coiffeurBlock: document.getElementById("coiffeur-block"),
+  coiffeurBlockPrompt: document.getElementById("coiffeur-block-prompt"),
+  coiffeurBlockButtons: document.getElementById("coiffeur-block-buttons"),
   doubleText: document.getElementById("double-text"),
 };
 
@@ -150,6 +158,8 @@ function renderTafel(view) {
   const mine = view.seat % 2;
   const slate = el.tafelSlate;
   slate.replaceChildren();
+  // The Coiffeur is written on its sheet, not in chalk strokes: the sheet is the board.
+  if (view.coiffeur) { slate.append(coiffeurSheet(view)); return; }
 
   // The board is written up round by round, so it gets the history rather than the totals.
   const history = [
@@ -478,7 +488,197 @@ function renderContract(contract, multiplier) {
     (sidi
       ? `<span class="sidi-bid">${lastView.bid}</span>` +
         (lastView.doubled ? `<span class="doubled">${t("sidi.doubled")}</span>` : "")
-      : multiplier ? `<span class="mult">×${multiplier}</span>` : "");
+      : multiplier ? `<span class="mult">×${multiplier}</span>` : "") +
+    (/^(JOKER|SLALOM|GUSCHTI|TRIO|MISERE)/.test(lastView.coiffeur?.row ?? "") ? `<span class="mult">${rowLabel(lastView.coiffeur.row)}</span>` : "") +
+    (lastView.coiffeur?.schedule ? scheduleStrip(lastView.coiffeur.schedule) : "");
+}
+
+/* ---------- Coiffeur: the sheet and the row choice --------------------------
+ *
+ * The sheet is public — it lies on the table — and the choices on offer are the engine's
+ * (`coiffeur.legal`, in wire form: "HEARTS", "OBENABE/JOKER1", "SHOVE"). The client only
+ * lays them out: a row is a button when something may be written into it.
+ */
+let coiffeurJoker = null;     // the Joker row whose contracts are showing
+let coiffeurTurn = null;
+
+function rowLabel(row) {
+  if (row === "JOKER1") return t("coiffeur.joker", { n: 1 });
+  if (row === "JOKER2") return t("coiffeur.joker", { n: 2 });
+  if (EXTRA_ROWS.includes(row)) return t(`coiffeur.row.${row}`);
+  return contractName(row);
+}
+
+/* The extra rows (krass_jass/schedule.py). A game there is named on the wire — SLALOM_OBENABE,
+ * GUSCHTI4_UNDENUFE, TRIO_HEARTS, MISERE_UNDENUFE — and shown as the orders it runs through:
+ * pips for trump, arrows for Obenabe (↓) and Undenufe (↑), "?" for a 3×3 block not yet named. */
+const EXTRA_ROWS = ["SLALOM", "GUSCHTI", "TRIO", "MISERE"];
+const isGame = (name) => /^(SLALOM|GUSCHTI4?|TRIO|MISERE)_/.test(name);
+const gameRow = (name) => name.split("_")[0].replace(/4$/, "");
+
+function orderSymbol(contract) {
+  return contract ? rowPip(contract) : `<span class="pip unknown">?</span>`;
+}
+
+function gameSymbols(name) {
+  const [kind, a] = name.split("/")[0].split("_");
+  const flip = (c) => (c === "OBENABE" ? "UNDENUFE" : "OBENABE");
+  if (kind === "SLALOM") return `${orderSymbol(a)}${orderSymbol(flip(a))}${orderSymbol(a)}<em>…</em>`;
+  if (kind === "GUSCHTI" || kind === "GUSCHTI4") {
+    const first = kind === "GUSCHTI" ? 5 : 4;
+    return `<em>${first}</em>${orderSymbol(a)}<em>${9 - first}</em>${orderSymbol(flip(a))}`;
+  }
+  // 3×3: the first block is the chooser's; the other two come later, from other hands.
+  if (kind === "TRIO") return `<em>3</em>${orderSymbol(a)}<em>+ ? + ?</em>`;
+  return `${orderSymbol(a)}<em>${t("coiffeur.row.MISERE")}</em>`;
+}
+
+/** The nine tricks of the game being played, the one on the table marked. */
+function scheduleStrip(schedule) {
+  return `<span class="strip">${schedule.tricks
+    .map((c, i) => `<i class="${i === schedule.at ? "now" : i < schedule.at ? "done" : ""}">${orderSymbol(c)}</i>`)
+    .join("")}</span>`;
+}
+
+function rowPip(row) {
+  const pip = CONTRACT_PIPS[row] ?? CONTRACT_ARROWS[row];
+  if (!pip) return "";
+  const red = row === "HEARTS" || row === "DIAMONDS";
+  return `<span class="pip${red ? " red" : ""}">${pip}</span>`;
+}
+
+/** The sheet as a table: row, multiplier, us, them. `pick(row)` makes a row tappable. */
+function coiffeurSheet(view, pick = null) {
+  const c = view.coiffeur;
+  const mine = view.seat % 2;
+  const legal = new Set(c.legal);
+  const table = html("table", "coiffeur-table");
+  const head = document.createElement("tr");
+  head.innerHTML = `<th></th><th>×</th><th>${t("team.us")}</th><th>${t("team.them")}</th>`;
+  table.append(head);
+  const totals = [0, 0];
+  c.rows.forEach((row, i) => {
+    const mult = c.multipliers[i];
+    const cell = (team) => {
+      const value = c.sheet[team][i];
+      if (value === null) return `<td class="open">·</td>`;
+      totals[team] += value * mult;
+      return `<td>${value}</td>`;
+    };
+    const tr = document.createElement("tr");
+    const choosable = pick && (row.startsWith("JOKER")
+      ? c.legal.some((x) => x.endsWith(`/${row}`))
+      : EXTRA_ROWS.includes(row)
+        ? c.legal.some((x) => !x.includes("/") && isGame(x) && gameRow(x) === row)
+        : legal.has(row));
+    tr.className = [
+      choosable ? "choosable" : "",
+      c.row === row ? "current" : "",
+      coiffeurJoker === row ? "on" : "",
+    ].join(" ").trim();
+    tr.innerHTML =
+      `<td class="row">${rowPip(row)}<span>${rowLabel(row)}</span></td>` +
+      `<td class="mult">${mult}</td>` + cell(mine) + cell(1 - mine);
+    if (choosable) {
+      tr.tabIndex = 0;
+      const go = () => pick(row);
+      tr.addEventListener("click", go);
+      tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    }
+    table.append(tr);
+  });
+  const foot = document.createElement("tr");
+  foot.className = "total";
+  foot.innerHTML = `<td>${t("score.total")}</td><td></td><td>${totals[mine]}</td><td>${totals[1 - mine]}</td>`;
+  table.append(foot);
+  return table;
+}
+
+function renderCoiffeur(view) {
+  const c = view.coiffeur;
+  const mine = !!c && view.phase === "bidding" && c.legal.length > 0;
+  el.coiffeurBidding.hidden = !mine;
+  if (!mine) { coiffeurJoker = null; return; }
+  const turn = `${view.round}:${c.shoves}`;
+  if (turn !== coiffeurTurn) { coiffeurTurn = turn; coiffeurJoker = null; }
+
+  const canShove = c.legal.includes("SHOVE");
+  const open = coiffeurJoker;
+  el.coiffeurPrompt.textContent = !open
+    ? (canShove ? t("coiffeur.prompt") : t("coiffeur.mustChoose"))
+    : open === "TRIO" ? t("coiffeur.pickFirstBlock")
+    : EXTRA_ROWS.includes(open) ? t("coiffeur.pickGame", { row: rowLabel(open) })
+    : t("coiffeur.pickContract", { row: rowLabel(open) });
+  el.coiffeurSheet.replaceChildren(coiffeurSheet(view, (row) => {
+    if (row.startsWith("JOKER") || EXTRA_ROWS.includes(row)) {
+      coiffeurJoker = coiffeurJoker === row ? null : row;
+      renderCoiffeur(lastView);
+    } else {
+      send({ type: "bid", action: row });
+    }
+  }));
+
+  el.coiffeurJokers.replaceChildren();
+  el.coiffeurJokers.hidden = !open;
+  if (open) {
+    // What may go into the open row: a Joker's contracts (and games, if it takes them), or an
+    // extra row's games. A 3×3 is named by its first block, a contract like a Joker's.
+    const offered = open.startsWith("JOKER")
+      ? c.legal.filter((x) => x.endsWith(`/${open}`))
+      : c.legal.filter((x) => !x.includes("/") && isGame(x) && gameRow(x) === open);
+    for (const choice of offered) {
+      const name = choice.split("/")[0];
+      if (gameRow(name) === "TRIO" && !choice.includes("/")) {
+        el.coiffeurJokers.append(contractButton(name.split("_")[1], () => send({ type: "bid", action: choice })));
+      } else {
+        el.coiffeurJokers.append(choiceButton(choice));
+      }
+    }
+  }
+  el.coiffeurShove.hidden = !canShove;
+}
+
+/** A contract as a bid button: a suit in card colours, or Obenabe/Undenufe by name. */
+function contractButton(contract, onClick) {
+  const button = html("button", `bid word ${CONTRACT_PIPS[contract] ? "suit-" + contract[0].toLowerCase() : ""}`);
+  button.innerHTML = rowPip(contract) + (CONTRACT_PIPS[contract] ? "" : `<span>${contractName(contract)}</span>`);
+  button.dataset.contract = contract;     // the suit's ink, as on every other bid button
+  button.title = contractName(contract);
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+/* 3×3: whoever leads trick 4 or 7 names the next block — from the engine's options, which
+ * already enforce that the three include a trump suit and Obenabe or Undenufe. */
+function renderBlock(view) {
+  const blocks = view.coiffeur?.blocks ?? [];
+  const mine = view.phase === "block" && blocks.length > 0 && !view.trick_complete;
+  el.coiffeurBlock.hidden = !mine;
+  if (!mine) return;
+  const at = view.coiffeur.schedule?.at ?? 0;
+  el.coiffeurBlockPrompt.textContent = t("coiffeur.pickBlock", { n: at + 1, m: at + 3 });
+  el.coiffeurBlockButtons.replaceChildren(
+    ...blocks.map((contract) => contractButton(contract, () => send({ type: "block", contract })))
+  );
+}
+
+/** One choice in the open row: a contract (a Joker) or a game (an extra row, or a Joker that
+ *  takes one). */
+function choiceButton(choice) {
+  const name = choice.split("/")[0];
+  if (isGame(name)) {
+    const button = html("button", "bid word game");
+    button.innerHTML = `<span class="seq">${gameSymbols(name)}</span>`;
+    button.title = name;
+    button.addEventListener("click", () => send({ type: "bid", action: choice }));
+    return button;
+  }
+  const button = html("button", `bid word ${CONTRACT_PIPS[name] ? "suit-" + name[0].toLowerCase() : ""}`);
+  button.innerHTML = rowPip(name) + (CONTRACT_PIPS[name] ? "" : `<span>${contractName(name)}</span>`);
+  button.dataset.contract = name;     // the suit's ink, as on every other bid button
+  button.title = contractName(name);
+  button.addEventListener("click", () => send({ type: "bid", action: choice }));
+  return button;
 }
 
 // Which deal the fan last showed, so the cards are dealt in once per round, not per redraw.
@@ -705,6 +905,7 @@ function renderScorecard(view) {
   const mine = view.seat % 2;
   const pick = (pair) => [pair[mine], pair[1 - mine]];
   if (card.bid !== undefined) { renderSidiScorecard(view, card, pick); return; }
+  if (card.row !== undefined) { renderCoiffeurScorecard(view, card, pick); return; }
   const rows = [
     [t("score.tricks"), pick(card.trick_points)],
     [t("score.lastTrick"), pick(card.last_trick)],
@@ -753,6 +954,47 @@ function renderScorecard(view) {
   el.scContract.textContent = contractName(card.contract);
   // The flag, not the label: reading the button's own text to decide what it does made the
   // behaviour depend on the language it happened to be written in.
+  const over = view.phase === "game_over";
+  el.scContinue.dataset.over = over ? "1" : "";
+  el.scContinue.textContent = over ? t("score.newGame") : t("score.nextRound");
+  el.scorecard.hidden = false;
+}
+
+/** Coiffeur: the cards, then what goes on the sheet — in tens, times the row. */
+function renderCoiffeurScorecard(view, card, pick) {
+  el.scRows.replaceChildren();
+  const add = (label, us, them, cls) => {
+    const tr = document.createElement("tr");
+    if (cls) tr.className = cls;
+    tr.innerHTML = `<td>${label}</td><td>${us}</td><td>${them}</td>`;
+    el.scRows.appendChild(tr);
+  };
+  for (const [label, pair] of [
+    [t("score.tricks"), card.trick_points],
+    [t("score.lastTrick"), card.last_trick],
+    [t("score.match"), card.match],
+  ]) {
+    const [us, them] = pick(pair);
+    add(label, us || "—", them || "—", !us && !them ? "zero" : "");
+  }
+  const [pu, pt] = pick(card.round_total);
+  add(t("coiffeur.cardPoints"), pu, pt, "subtotal");
+  if (card.row === "MISERE") add(t("coiffeur.misereNote"), "", "", "note");
+  // What goes on the sheet, and the multiplication: "3 × 2" rather than a 6 from nowhere.
+  const tens = view.coiffeur?.tens;
+  const [wu, wt] = pick(card.written);
+  const sheetValue = (w) => (w ? `${w / card.multiplier} × ${card.multiplier}` : "—");
+  add(
+    t(tens ? "coiffeur.writtenTens" : "coiffeur.written", { row: rowLabel(card.row), n: card.multiplier }),
+    sheetValue(wu), sheetValue(wt), "note"
+  );
+  const [tu, tt] = pick(card.scores);
+  add(t("score.thisRound"), wu || "—", wt || "—", "subtotal");
+  add(t("score.total"), tu, tt, "total");
+
+  el.scTitle.textContent =
+    view.phase === "game_over" ? t("score.final") : t("round.n", { n: card.round + 1 });
+  el.scContract.textContent = `${contractName(card.contract)} · ${rowLabel(card.row)} ×${card.multiplier}`;
   const over = view.phase === "game_over";
   el.scContinue.dataset.over = over ? "1" : "";
   el.scContinue.textContent = over ? t("score.newGame") : t("score.nextRound");
@@ -962,6 +1204,16 @@ function statusText(view) {
       ? t("sidi.yourCall")
       : t("sidi.calling", { who: seatName(view, view.to_act) });
   }
+  if (view.coiffeur && view.phase === "block") {
+    return view.to_act === view.seat
+      ? t("coiffeur.yourBlock")
+      : t("coiffeur.naming", { who: seatName(view, view.to_act) });
+  }
+  if (view.coiffeur && view.phase === "bidding") {
+    return view.to_act === view.seat
+      ? t("coiffeur.yourChoice")
+      : t("coiffeur.choosing", { who: seatName(view, view.to_act) });
+  }
   if (view.to_act === view.seat) {
     if (view.phase === "bidding") {
       return view.declarer === view.seat && view.can_shove
@@ -1031,10 +1283,12 @@ function render(view) {
   renderContract(view.contract, view.multiplier);
   el.round.textContent = t("round.n", { n: view.round + 1 });
 
-  const bidding = view.mode !== "sidi" && view.phase === "bidding" && view.to_act === view.seat;
+  const bidding = view.mode === "schieber" && view.phase === "bidding" && view.to_act === view.seat;
   el.bidding.hidden = !bidding;
   renderAuction(view);
   renderSidi(view);
+  renderCoiffeur(view);
+  renderBlock(view);
   renderBeliefs(view);
   renderLikely(view);
 
@@ -1077,6 +1331,7 @@ document.querySelectorAll("[data-sidi]").forEach((button) =>
     sendSidiBid();
   })
 );
+el.coiffeurShove.addEventListener("click", () => send({ type: "bid", action: "SHOVE" }));
 document.querySelectorAll("[data-sidi-call]").forEach((button) =>
   button.addEventListener("click", () => send({ type: "bid", action: button.dataset.sidiCall }))
 );

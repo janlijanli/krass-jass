@@ -16,7 +16,7 @@ use crate::cards::format_card;
 #[derive(Clone, Debug)]
 pub enum Payload {
     /// `multipliers` is the Coiffeur's sheet; its game has no target, written `null`.
-    GameStarted { target_score: i32, multipliers: Option<[i32; 8]> },
+    GameStarted { target_score: i32, multipliers: Option<[i32; crate::coiffeur::ALL_ROWS]> },
     RoundStarted { round: u32, dealer: usize, forehand: usize },
     HandDealt { seat: usize, cards: Vec<usize> },
     Bid { seat: usize, action: String },
@@ -33,11 +33,15 @@ pub enum Payload {
         sidi: Option<(i32, bool)>,
         /// Coiffeur: the row the contract is written into. `multiplier` is then the row's.
         row: Option<usize>,
+        /// Coiffeur's extra rows: the game chosen, whose tricks are played as it says.
+        schedule: Option<crate::schedule::Schedule>,
     },
     WeisAnnounced { seat: usize, points: i32, melds: usize },
     WeisDeclared { seat: usize, kind: String, points: i32, cards: Vec<usize> },
     WeisResolved { seat: usize, team: usize, points: [i32; 2] },
     Stoeck { seat: usize, points: i32, trick: usize },
+    /// Coiffeur 3x3: the leader of trick 4 or 7 names the next block.
+    BlockChosen { seat: usize, trick: usize, contract: usize },
     CardPlayed { seat: usize, card: usize },
     TrickWon { seat: usize, trick: usize, cards: Vec<usize> },
     RoundScored { round: u32, detail: RoundDetail },
@@ -138,6 +142,7 @@ impl Event {
             Payload::Stoeck { .. } => "stoeck",
             Payload::CardPlayed { .. } => "card_played",
             Payload::TrickWon { .. } => "trick_won",
+            Payload::BlockChosen { .. } => "block_chosen",
             Payload::RoundScored { .. }
             | Payload::SidiRoundScored { .. }
             | Payload::CoiffeurRoundScored { .. } => "round_scored",
@@ -172,7 +177,7 @@ impl Event {
             Payload::DoubleAnswered { seat, double } => {
                 format!("\"seat\":{seat},\"double\":{double}")
             }
-            Payload::ContractSet { contract, declarer, multiplier, leader, sidi, row } => {
+            Payload::ContractSet { contract, declarer, multiplier, leader, sidi, row, schedule } => {
                 let mut out = format!(
                     "\"contract\":\"{}\",\"declarer\":{declarer},\"multiplier\":{multiplier},\"leader\":{leader}",
                     crate::tables::contract_name(*contract)
@@ -182,6 +187,24 @@ impl Event {
                 }
                 if let Some(row) = row {
                     out.push_str(&format!(",\"row\":\"{}\"", crate::coiffeur::ROW_NAMES[*row]));
+                }
+                if let Some(s) = schedule {
+                    let tricks: Vec<String> = s
+                        .tricks()
+                        .iter()
+                        .map(|&c| {
+                            if c == crate::schedule::UNNAMED {
+                                "null".to_string()
+                            } else {
+                                format!("\"{}\"", crate::tables::contract_name(c))
+                            }
+                        })
+                        .collect();
+                    out.push_str(&format!(
+                        ",\"schedule\":\"{}\",\"tricks\":[{}]",
+                        s.name(),
+                        tricks.join(",")
+                    ));
                 }
                 out
             }
@@ -201,6 +224,10 @@ impl Event {
             Payload::CardPlayed { seat, card } => {
                 format!("\"seat\":{seat},\"card\":\"{}\"", format_card(*card))
             }
+            Payload::BlockChosen { seat, trick, contract } => format!(
+                "\"seat\":{seat},\"trick\":{trick},\"contract\":\"{}\"",
+                crate::tables::contract_name(*contract)
+            ),
             Payload::TrickWon { seat, trick, cards } => {
                 format!("\"seat\":{seat},\"trick\":{trick},\"cards\":{}", cards_json(cards))
             }

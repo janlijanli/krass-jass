@@ -310,11 +310,16 @@ def test_sidi_games_produce_identical_event_streams(seed):
 # --- Coiffeur ---------------------------------------------------------------
 
 
-def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True):
+def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True, extra=None, g45=False, joker=False):
     """Both engines through the same Coiffeur game: random choices, shoves and cards."""
     from krass_jass.rules import COIFFEUR
 
-    cfg = COIFFEUR.variant(coiffeur_score_opponents=opponents, coiffeur_tens=tens)
+    cfg = COIFFEUR.variant(
+        coiffeur_score_opponents=opponents, coiffeur_tens=tens, coiffeur_guschti_45=g45,
+        coiffeur_joker_takes_extra=joker,
+    )
+    if extra is not None:
+        cfg = cfg.variant(coiffeur_extra_rows=tuple(extra))
     if fixed is not None:
         cfg = cfg.variant(coiffeur_random_multipliers=False, coiffeur_multipliers=tuple(fixed))
     py = Game(cfg=cfg, seed=seed)
@@ -324,6 +329,9 @@ def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True):
         coiffeur_multipliers=fixed,
         coiffeur_score_opponents=opponents,
         coiffeur_tens=tens,
+        coiffeur_extra_rows=None if extra is None else list(extra),
+        coiffeur_guschti_45=g45,
+        coiffeur_joker_takes_extra=joker,
     )
     assert list(py.row_multipliers) == rs.row_multipliers
     rng = random.Random(seed)
@@ -345,6 +353,12 @@ def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True):
             action = "SHOVE" if "SHOVE" in legal and rng.random() < 0.5 else rng.choice(legal)
             py.bid(seat, action)
             rs.choose(seat, action)
+        elif py.phase is Phase.BLOCK:
+            blocks = [c.name for c in py.legal_blocks()]
+            assert blocks == rs.legal_blocks(), "block options diverged"
+            block = rng.choice(blocks)
+            py.choose_block(seat, block)
+            rs.choose_block(seat, block)
         else:
             legal = py.round.legal_moves(seat)
             assert legal == rs.legal_moves(seat), "legal moves diverged"
@@ -359,24 +373,27 @@ def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True):
 
 
 @pytest.mark.parametrize(
-    "seed,fixed,opponents,tens",
+    "seed,fixed,opponents,tens,extra,g45,joker",
     [
-        (1, None, False, True),
-        (7, None, True, True),
-        (42, None, False, False),
-        (1234, (4, 2, 3, 1, 5, 6, 7, 8), False, True),
+        (1, None, False, True, None, False, False),
+        (7, None, True, True, None, True, False),
+        (42, None, False, False, (), False, False),          # the classic eight rows
+        (1234, (4, 2, 3, 1, 5, 6, 7, 8, 9, 10, 11, 12), False, True, None, False, True),
+        (99, None, False, True, ("TRIO",), False, True),
+        (3, None, True, True, ("TRIO", "MISERE"), False, False),
+        (5, None, False, True, ("SLALOM", "GUSCHTI"), True, False),
     ],
 )
-def test_coiffeur_games_produce_identical_event_streams(seed, fixed, opponents, tens):
+def test_coiffeur_games_produce_identical_event_streams(seed, fixed, opponents, tens, extra, g45, joker):
     if not hasattr(core.RsGame, "choose"):
         pytest.skip("Rust core predates Coiffeur")
-    py, rs = drive_both_coiffeur(seed, fixed, opponents, tens)
+    py, rs = drive_both_coiffeur(seed, fixed, opponents, tens, extra, g45, joker)
     a, b = py_events(py), rs_events(rs)
     assert len(a) == len(b), f"{len(a)} python events vs {len(b)} rust"
     for i, (x, y) in enumerate(zip(a, b)):
         assert x == y, f"event {i} differs:\n  python {x}\n  rust   {y}"
     assert py.scores == list(rs.scores)
-    assert py.sheet.complete and py.round_index == 15
+    assert py.sheet.complete and py.round_index == 2 * len(py.sheet.rows) - 1
     assert {"round_scored", "game_over"} <= {e["type"] for e in a}
 
 
@@ -387,7 +404,10 @@ def test_coiffeur_multipliers_agree_and_are_a_permutation():
     seen = set()
     for seed in range(200):
         m = multipliers(seed, COIFFEUR)
-        assert sorted(m) == list(range(1, 9))
+        assert sorted(x for x in m if x) == list(range(1, 13))
+        eight = multipliers(seed, COIFFEUR.variant(coiffeur_extra_rows=()))
+        assert sorted(x for x in eight if x) == list(range(1, 9))
+        assert list(eight) == core.RsGame(seed, coiffeur=True, coiffeur_extra_rows=[]).row_multipliers
         assert list(m) == core.RsGame(seed, coiffeur=True).row_multipliers
         seen.add(m)
     assert len(seen) > 150, "the multipliers are not being shuffled"

@@ -248,6 +248,50 @@ body {
 .bid.word { font-size: 12px; }
 .bid.shove { grid-column: 1 / -1; background: rgba(220,184,98,.18); border-color: rgba(220,184,98,.4); color: #f6e7c2; }
 
+/* ---------- Coiffeur: the sheet ---------- */
+
+.coiffeur-sheet { margin: 0 auto 8px; max-width: 420px; }
+.coiffeur-table {
+  width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums;
+  font-size: 14px; color: var(--paper);
+}
+.coiffeur-table th {
+  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  opacity: .6; padding: 2px 6px 4px;
+}
+.coiffeur-table td { padding: 5px 6px; border-top: 1px solid var(--hairline); text-align: center; }
+.coiffeur-table td.row { text-align: left; display: flex; align-items: center; gap: 6px; }
+.coiffeur-table td.row .pip { width: 1.1em; text-align: center; font-size: 17px; line-height: 1; }
+.coiffeur-table td.row .pip.red { color: var(--rose); }
+.coiffeur-table td.mult { color: var(--gold); font-weight: 700; }
+.coiffeur-table td.open { opacity: .35; }
+.coiffeur-table tr.current td { background: rgba(220,184,98,.12); }
+.coiffeur-table tr.total td { font-weight: 700; border-top: 1px solid rgba(255,255,255,.3); }
+.coiffeur-table tr.choosable { cursor: pointer; }
+.coiffeur-table tr.choosable td:first-child { font-weight: 600; }
+.coiffeur-table tr.choosable td:first-child::after { content: "›"; margin-left: auto; opacity: .55; }
+@media (hover: hover) { .coiffeur-table tr.choosable:hover td { background: rgba(255,255,255,.08); } }
+.coiffeur-table tr.choosable:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.coiffeur-table tr.on td { background: rgba(220,184,98,.22); }
+/* Not your rows to choose: still readable, plainly not a button. */
+.bidding.coiffeur .coiffeur-table tr:not(.choosable):not(.total) td { opacity: .5; }
+.bidding.coiffeur .coiffeur-table tr:not(.choosable) td.open { opacity: .25; }
+#coiffeur-jokers { grid-template-columns: repeat(6, 1fr); margin-bottom: 7px; }
+#coiffeur-jokers .bid.word { font-size: 11px; }
+.tafel-slate .coiffeur-table { font-size: 15px; }
+/* An extra row's game, as the orders it runs through, and the nine tricks on the badge. */
+.bid.game .seq { display: inline-flex; align-items: center; gap: 2px; font-size: 15px; }
+.bid.game .seq em { font-size: 11px; opacity: .75; font-style: normal; }
+.bid.game .pip.red, .contract .strip .pip.red { color: var(--rose); }
+#coiffeur-jokers:has(.bid.game) { grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); }
+.contract .strip { display: inline-flex; gap: 1px; margin-left: 6px; font-size: 11px; }
+.contract .strip i { font-style: normal; opacity: .35; }
+.contract .strip i.done { opacity: .2; }
+.contract .strip i.now { opacity: 1; color: var(--gold); }
+.contract .strip .pip { font-size: 11px; }
+.pip.unknown { opacity: .6; font-weight: 700; }
+#coiffeur-block-buttons { grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); }
+
 /* ---------- test mode: the bot's beliefs ---------- */
 
 .beliefs {

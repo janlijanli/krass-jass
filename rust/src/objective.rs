@@ -37,6 +37,9 @@ pub struct Stakes {
     pub sidi_declarers: usize,
     /// Sidi: the bid was doubled, so the stake is twice the bid.
     pub sidi_doubled: bool,
+    /// Coiffeur Misère: each team is credited with what the other took, so every seat plays
+    /// to take as little as it can.
+    pub misere: bool,
 }
 
 /// The card points in a Sidi hand, and what Match makes of them.
@@ -89,6 +92,9 @@ pub fn reward(ours: i32, theirs: i32, team: usize, s: &Stakes) -> f64 {
 
 /// `reward` for expected points, which a value network produces. Identical for whole numbers.
 pub fn reward_f(ours: f64, theirs: f64, team: usize, s: &Stakes) -> f64 {
+    if s.misere {
+        return reward_f(theirs, ours, team, &Stakes { misere: false, ..*s });
+    }
     if s.sidi_bid > 0 {
         return sidi_reward(ours, theirs, team, s);
     }

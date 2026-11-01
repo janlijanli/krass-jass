@@ -64,8 +64,9 @@ pub fn features(
     root_team: usize,
     out: &mut [f64; N_FEATURES],
 ) {
+    let k = &k.at(hands, trick.len());
     let contract = k.contract;
-    let values = &CARD_VALUES[contract];
+    let values = &CARD_VALUES[k.count];
     let trump: i32 = if contract < 4 { contract as i32 } else { -1 };
 
     let live = hands[0] | hands[1] | hands[2] | hands[3];
