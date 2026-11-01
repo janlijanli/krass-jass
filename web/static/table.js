@@ -568,7 +568,11 @@ function coiffeurSheet(view, pick = null) {
   head.innerHTML = `<th></th><th>×</th><th>${t("team.us")}</th><th>${t("team.them")}</th>`;
   table.append(head);
   const totals = [0, 0];
-  c.rows.forEach((row, i) => {
+  // Cheapest row first, the Chance (×13) last: the order a player weighs them in. Ties keep the
+  // sheet's own order. `i` stays the row's index into the engine's arrays.
+  const order = c.rows.map((row, i) => i).sort((a, b) => c.multipliers[a] - c.multipliers[b] || a - b);
+  order.forEach((i) => {
+    const row = c.rows[i];
     const mult = c.multipliers[i];
     const cell = (team) => {
       const value = c.sheet[team][i];
