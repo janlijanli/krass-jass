@@ -87,12 +87,15 @@ significant. Leaning the right way, but 200 pairs cannot separate it from nothin
 roughly 1,500 pairs to see +6.5 at this spread. Shipped as the default because it is fitted on
 measured values where the untrained one was guessed, not because it measured stronger.
 
-**Tutti and the Chance (2026-11-01) are not priced yet.** Tutti borrows the trump suits' mean line
-from step 2, valued on the hand's best suit (`game_edge`: the chooser makes it the counting suit with
-the first card and can lead it again whenever it has the lead). Its reserve and the Chance's — now
-any game, ×13 — are recomputed under that borrowed line (`points_reserve`: Tutti 103, Chance 119).
-Step 1 has to be re-run with `TUTTI` among the games before either is trusted; the A/B above
-predates both.
+**Tutti and the Chance, priced (2026-11-02).** Step 1 re-run with `TUTTI` among the games: 19 games,
+the same 1,500 hands × 2 deals, seed and budget, 7 h overnight (`arena/runs/2026-11-01/coiffeur_games.npz`).
+The other 18 games came out identical to the last run's prices, as a fixed seed should. Tutti is worth
+**~18 points less** than the trump-suit line it borrowed: `87.4 + 4.33 × edge` against `105.1 + 4.38 × edge`
+(held-out R² 0.15, ridge 0.18). Counting in the first lead's suit is not the same as holding that suit
+as trump: no one can trump in, and every later trick is trumped in whatever suit is led. Reserves: Tutti
+**86** (was 103), Chance 119 (unchanged; Tutti was never a random hand's best game). The chooser takes
+Tutti first on 2.9% of fresh hands, as before: the reserve fell with the line, so the row is no cheaper
+to fill. The A/B in step 5 predates both rows.
 
 **The extra rows (Slalom, Guschti, 3×3, Misère) need the same runs, and one of their own.** Their games are
 valued today as the mean edge of the contracts their tricks are played in, and kept at a random hand's

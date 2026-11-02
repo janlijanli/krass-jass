@@ -80,6 +80,8 @@ def main() -> None:
 
         contract, schedule = game_of(g)
         tricks = [contract] if schedule is None else [c for c in schedule.tricks if c is not None]
+        if not tricks:  # a Tutti: every trick is named by its lead, so any trump suit may count
+            tricks = [c for c in Contract if c.is_trump]
         X = np.mean([F[:, int(c)] for c in tricks], axis=0)
         X = np.hstack([X, np.ones((len(X), 1))])
         lam = 10.0
