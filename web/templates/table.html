@@ -50,7 +50,7 @@
           </label>
           <!-- /server-only -->
         </div>
-        <p class="menu-note" data-coiffeur-only hidden data-i18n="menu.coiffeurNote">Coiffeur: every team plays each of eight rows once, rows ×1 to ×8 dealt at random. Points in tens, no Weis, no Stöck.</p>
+        <p class="menu-note" data-coiffeur-only hidden><span data-i18n="menu.coiffeurNote">Coiffeur: every team plays each row once, the rows ×1 upwards dealt at random, the Chance always ×13. Points in tens, no Weis, no Stöck.</span><button type="button" class="link-button" data-open-rules="coiffeur" data-i18n="sidi.rules">Rules</button></p>
         <p class="menu-note" data-not-coiffeur><span data-i18n="menu.sidiNote">Sidi Barrani: bid for trump, every contract ×1, no Weis, no Stöck. Usually played to 2000.</span><button type="button" class="link-button" data-open-rules data-i18n="sidi.rules">Rules</button></p>
       </fieldset>
 
@@ -273,7 +273,7 @@
   <!-- Coiffeur. The sheet and the choices on offer come from the engine (`coiffeur.legal`):
        the client never works out which row is open. -->
   <section class="bidding coiffeur" id="coiffeur-bidding" hidden>
-    <p class="prompt" id="coiffeur-prompt"></p>
+    <p class="prompt"><span id="coiffeur-prompt"></span><button type="button" class="link-button" data-open-rules="coiffeur" data-i18n="sidi.rules">Rules</button></p>
     <div class="coiffeur-sheet" id="coiffeur-sheet"></div>
     <div class="bids" id="coiffeur-jokers" hidden></div>
     <div class="bids">

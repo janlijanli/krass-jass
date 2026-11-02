@@ -332,12 +332,13 @@ export function initMenu({
     onLanguageChange?.();
   });
 
-  // The Sidi rules are one tap away from the table: the bidding panel and the settings note
-  // ask for them with this event rather than knowing how the menu is built.
-  document.addEventListener("kj:open-rules", async () => {
+  // The rules are one tap away from the table: the bidding panels and the settings notes ask
+  // for them with this event rather than knowing how the menu is built. `detail` is the panel:
+  // "rules" for the Sidi, "coiffeur" for the Coiffeur.
+  document.addEventListener("kj:open-rules", async (event) => {
     open();
     await showMode("about");
-    document.querySelector('.about-tab[data-panel="rules"]')?.click();
+    document.querySelector(`.about-tab[data-panel="${event.detail || "rules"}"]`)?.click();
   });
 
   // The game decides which settings exist. Sidi Barrani counts every contract once and has

@@ -475,7 +475,7 @@ function renderContract(contract, multiplier) {
     el.contract.className = "contract";
     delete el.contract.dataset.contract;
     el.contract.innerHTML =
-      `<span>${rowLabel(schedule.name.split("_")[0])}</span><span class="mult">×${multiplier}</span>` +
+      `<span class="gamename">${coiffeurGameLabel() ?? rowLabel(gameRow(schedule.name))}</span><span class="mult">×${multiplier}</span>` +
       scheduleStrip(schedule);
     return;
   }
@@ -491,16 +491,33 @@ function renderContract(contract, multiplier) {
   const name = contractName(contract);
   const red = contract === "HEARTS" || contract === "DIAMONDS";
   const sidi = lastView.mode === "sidi" && lastView.bid;
+  // A Coiffeur game that is not a plain contract leads with its name — "Guschti", "Chance ·
+  // Slalom" — and the contract after it is the trick's own, which changes as the game runs.
+  // On a phone the contract's word gives way to the game's, and "Chance" to ×13; the pip or
+  // arrow stays.
+  const label = coiffeurGameLabel();
+  const game = !!lastView.coiffeur?.schedule;
   el.contract.innerHTML =
+    (label ? `<span class="gamename">${label}</span>` : "") +
     (pip ? `<span class="pip${red ? " red" : ""}">${pip}</span>` : "") +
     (CONTRACT_ARROWS[contract] ? `<span class="arrow">${CONTRACT_ARROWS[contract]}</span>` : "") +
-    `<span>${name}</span>` +
+    `<span${game ? ` class="modename"` : ""}>${name}</span>` +
     (sidi
       ? `<span class="sidi-bid">${lastView.bid}</span>` +
         (lastView.doubled ? `<span class="doubled">${t("sidi.doubled")}</span>` : "")
       : multiplier ? `<span class="mult">×${multiplier}</span>` : "") +
-    (/^(CHANCE|TUTTI|SLALOM|GUSCHTI|TRIO|MISERE)/.test(lastView.coiffeur?.row ?? "") ? `<span class="mult rowname">${rowLabel(lastView.coiffeur.row)}</span>` : "") +
     (lastView.coiffeur?.schedule ? scheduleStrip(lastView.coiffeur.schedule) : "");
+}
+
+/** The name of the Coiffeur game being played when it is more than its contract: the extra
+ * row's game, the Chance, or both. `null` for a plain contract in its own row. */
+function coiffeurGameLabel() {
+  const c = lastView.coiffeur;
+  if (!c?.row) return null;
+  const chance = c.row === "CHANCE" ? t("coiffeur.row.CHANCE") : null;
+  if (!c.schedule) return chance && `<span class="chancename">${chance}</span>`;
+  const game = rowLabel(gameRow(c.schedule.name));
+  return chance ? `<span class="chancename">${chance} · </span>${game}` : game;
 }
 
 /* ---------- Coiffeur: the sheet and the row choice --------------------------
@@ -1353,7 +1370,8 @@ document.querySelectorAll("[data-sidi-call]").forEach((button) =>
   button.addEventListener("click", () => send({ type: "bid", action: button.dataset.sidiCall }))
 );
 document.querySelectorAll("[data-open-rules]").forEach((button) =>
-  button.addEventListener("click", () => document.dispatchEvent(new Event("kj:open-rules")))
+  button.addEventListener("click", () =>
+    document.dispatchEvent(new CustomEvent("kj:open-rules", { detail: button.dataset.openRules || "rules" })))
 );
 document.getElementById("double-yes").addEventListener("click", () =>
   send({ type: "double", double: true })

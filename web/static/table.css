@@ -299,8 +299,9 @@ body {
     position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
     margin-left: 0; white-space: nowrap;
   }
-  .contract .rowname { display: none; }
+  .contract .modename, .contract .chancename { display: none; }
 }
+.contract .gamename { color: var(--gold); }
 .pip.unknown { opacity: .6; font-weight: 700; }
 #coiffeur-block-buttons { grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); }
 
