@@ -22,6 +22,7 @@ pub mod beliefnet;
 pub mod bidding;
 pub mod cards;
 pub mod coiffeur;
+pub mod coiffeur_select;
 pub mod config;
 pub mod convention;
 pub mod deal;

@@ -830,6 +830,31 @@ fn rs_sidi_choose_call(hand: u64, auction: Vec<(usize, String)>, seat: usize, do
     Ok(crate::sidi_bidding::choose_call(hand, &calls, seat & 3, double).name())
 }
 
+/// Coiffeur: the row choice — `coiffeur_select.rs`, held to `krass_jass/coiffeur_select.py`.
+/// `choices` by name (`Choice::name`), `multipliers` per sheet slot; `None` is a shove.
+#[pyfunction]
+fn rs_coiffeur_choose(
+    hand: u64, choices: Vec<String>, can_shove: bool, multipliers: Vec<i32>,
+) -> PyResult<(Option<String>, Vec<f64>)> {
+    let mut parsed = Vec::with_capacity(choices.len());
+    for text in &choices {
+        parsed.push(crate::coiffeur::Choice::parse(text).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!("unknown choice {text:?}"))
+        })?);
+    }
+    let mut mults = [0i32; crate::coiffeur::ALL_ROWS];
+    mults.copy_from_slice(&multipliers[..crate::coiffeur::ALL_ROWS]);
+    let values = crate::coiffeur_select::value_choices(hand, &parsed, &mults);
+    let pick = crate::coiffeur_select::choose(hand, &parsed, can_shove, &mults).map(|c| c.name());
+    Ok((pick, values))
+}
+
+/// Coiffeur 3x3: the block the rule bot names.
+#[pyfunction]
+fn rs_coiffeur_block(hand: u64, options: Vec<usize>) -> usize {
+    crate::coiffeur_select::choose_block(hand, &options)
+}
+
 /// log P(the auction | the dealt hands), for every seat but `root` — `sidi_read.rs`. Exposed so
 /// the reading can be tested and inspected without running a search.
 #[pyfunction]
@@ -1252,6 +1277,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_sidi_auction_loglik, m)?)?;
     m.add_function(wrap_pyfunction!(rs_sidi_make_probability, m)?)?;
     m.add_function(wrap_pyfunction!(rs_sidi_choose_call, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_coiffeur_choose, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_coiffeur_block, m)?)?;
     m.add_function(wrap_pyfunction!(rs_infer_from_bid, m)?)?;
     m.add_function(wrap_pyfunction!(rs_leaf_samples, m)?)?;
     m.add_function(wrap_pyfunction!(rs_card_features, m)?)?;

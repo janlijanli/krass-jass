@@ -43,18 +43,15 @@
             <input type="radio" name="mode" value="sidi" {% if settings.mode == "sidi" %}checked{% endif %}>
             <span>Sidi Barrani</span>
           </label>
-          <!-- server-only: the offline build cannot choose a Coiffeur row yet -->
           <label class="chip">
             <input type="radio" name="mode" value="coiffeur" {% if settings.mode == "coiffeur" %}checked{% endif %}>
             <span>Coiffeur</span>
           </label>
-          <!-- /server-only -->
         </div>
         <p class="menu-note" data-coiffeur-only hidden><span data-i18n="menu.coiffeurNote">Coiffeur: every team plays each row once, the rows ×1 upwards dealt at random, the Chance always ×13. Points in tens, no Weis, no Stöck.</span><button type="button" class="link-button" data-open-rules="coiffeur" data-i18n="sidi.rules">Rules</button></p>
         <p class="menu-note" data-not-coiffeur><span data-i18n="menu.sidiNote">Sidi Barrani: bid for trump, every contract ×1, no Weis, no Stöck. Usually played to 2000.</span><button type="button" class="link-button" data-open-rules data-i18n="sidi.rules">Rules</button></p>
       </fieldset>
 
-      <!-- server-only: the Coiffeur's extra rows -->
       <fieldset data-coiffeur-only hidden>
         <legend data-i18n="menu.coiffeurRows">Extra rows</legend>
         <input type="hidden" name="coiffeur_rows_sent" value="1">
@@ -68,7 +65,6 @@
         </div>
         <p class="menu-note" data-i18n="menu.coiffeurRowsNote">Tutti: the suit led is trump, trick by trick. Slalom: Obenabe and Undenufe trick by trick. Guschti: five tricks one way, four the other. 3×3: three blocks of three, the leaders of tricks 4 and 7 name the next. Misère: take as little as you can. Counted as the first trick. The Chance (×13) takes any game.</p>
       </fieldset>
-      <!-- /server-only -->
 
       <fieldset data-not-coiffeur>
         <legend data-i18n="menu.playTo">Play to</legend>

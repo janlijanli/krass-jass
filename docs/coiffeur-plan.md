@@ -41,8 +41,12 @@ and the training runs the mode needs. The Schieber and the Sidi stay as they are
   sheet, and reading it as a Schieber choice would mislead the beliefs.
 - `arena/games.py` plays whole Coiffeur games (`cfg=COIFFEUR`).
 
-Not yet: the selector in Rust (so not offline), the web app (sheet view, row picker, Joker), the
-bot service endpoint, Slalom / Guschti.
+**Offline (2026-11-03).** The selector is in Rust too (`rust/src/coiffeur_select.rs`, the weights
+`include_str!`d from the same JSON), held to Python by `tests/test_coiffeur_select_port.py`: the same
+row, shove and 3×3 block on 400 random hands and sheets, values to 1e-9. The browser build plays the
+Coiffeur with it (`wasm_api.rs`: `game_choose`, `game_block`, `bot_choose`, `bot_block`, the sheet
+in the view), the search reading the schedule and the Misère edge as the server's does. The
+browser search has the tree policy off, as in its other games.
 
 ## Training runs this needs
 

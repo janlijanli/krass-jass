@@ -17,11 +17,16 @@ export async function loadEngine(url = "krass_jass_core.wasm") {
     JSON.parse(decoder.decode(new Uint8Array(w.memory.buffer, w.view_ptr(), len)));
 
   return {
-    newGame({ seed, target = 1000, weis = true, weisManual = true, multipliers = [1, 2, 1, 2, 3, 4], mode = "schieber" }) {
+    newGame({
+      seed, target = 1000, weis = true, weisManual = true, multipliers = [1, 2, 1, 2, 3, 4],
+      mode = "schieber", rows = EXTRA_ROWS,
+    }) {
       const lo = seed >>> 0;
       const hi = Math.floor(seed / 2 ** 32) >>> 0;
+      // The Coiffeur's extra rows cross as a bitmask, bit i for EXTRA_ROWS[i].
+      const extra = EXTRA_ROWS.reduce((bits, row, i) => (rows.includes(row) ? bits | (1 << i) : bits), 0);
       return w.game_new(lo, hi, target, weis ? 1 : 0, weisManual ? 1 : 0, ...multipliers,
-                        mode === "sidi" ? 1 : 0);
+                        { sidi: 1, coiffeur: 2 }[mode] ?? 0, extra);
     },
     free: (h) => w.game_free(h),
     view: (h, seat, acked) => readView(w.game_view(h, seat, acked)),
@@ -40,12 +45,20 @@ export async function loadEngine(url = "krass_jass_core.wasm") {
     botCall: (h, seat) => callText(w.bot_call(h, seat)),
     botDouble: (h, seat) => w.bot_double(h, seat) === 1,
     botKnock: (h, seat) => w.bot_knock(h, seat) === 1,
+    // Coiffeur. A choice crosses as its index among the view's `coiffeur.legal` (the shove is
+    // -1), a 3x3 block as its contract.
+    choose: (h, seat, index) => w.game_choose(h, seat, index) === 0,
+    block: (h, seat, contract) => w.game_block(h, seat, contract) === 0,
+    botChoose: (h, seat) => w.bot_choose(h, seat),
+    botBlock: (h, seat) => w.bot_block(h, seat),
     // Test mode: the search's own belief pool, summarised — see wasm_api.rs.
     beliefs: (h, seat) => readView(w.belief_marginals(h, seat)),
   };
 }
 
-const CONTRACT_NAMES = ["DIAMONDS", "HEARTS", "SPADES", "CLUBS", "OBENABE", "UNDENUFE"];
+export const CONTRACT_NAMES = ["DIAMONDS", "HEARTS", "SPADES", "CLUBS", "OBENABE", "UNDENUFE"];
+/** `schedule::EXTRA_ROWS` in Rust, in its order. */
+export const EXTRA_ROWS = ["TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE"];
 
 /** "PASS" → -1, "DOUBLE" → -2, "HEARTS 100" → 1100. */
 export function callCode(text) {
