@@ -35,8 +35,10 @@ from fastapi.templating import Jinja2Templates
 from krass_jass.agent import Agent, DmctsAgent
 from krass_jass.awareness import trick_taker
 from krass_jass.cards import card_list, card_rank, card_suit, format_card, parse_card
+from krass_jass.coiffeur import ROW_NAMES
+from krass_jass.schedule import EXTRA_ROWS
 from krass_jass.game import Game, Phase
-from krass_jass.rules import DEFAULT_MULTIPLIERS, HOUSE, SIDI, Contract
+from krass_jass.rules import COIFFEUR, DEFAULT_MULTIPLIERS, HOUSE, SIDI, Contract
 from krass_jass.state import IllegalMove
 from krass_jass.trick import NUM_SEATS
 from web import session as sessions
@@ -179,6 +181,14 @@ def build_config(settings: dict | None = None):
     and a rules engine driven by unvalidated client input is a rules engine with no rules.
     """
     settings = settings or {}
+    if settings.get("mode") == "coiffeur":
+        # Coiffeur ends with the sheet, not at a target, and its multipliers are the rows':
+        # dealt at random from the game seed (`docs/rules-config.md`, "Coiffeur"). The extra
+        # rows are the ones ticked, all three unless the form said otherwise.
+        rows = settings.get("rows")
+        if rows is None:
+            return COIFFEUR
+        return COIFFEUR.variant(coiffeur_extra_rows=tuple(r for r in EXTRA_ROWS if r in rows))
     # Sidi Barrani is the default game (owner, 2026-09-19), played to 2000.
     sidi = settings.get("mode", "sidi") == "sidi"
     target = settings.get("target")
@@ -218,10 +228,13 @@ def build_bots(human_seat: int, cfg) -> dict[int, Agent]:
     """
     seats = [s for s in range(NUM_SEATS) if s != human_seat]
     if BOT_URLS:
-        return {
+        bots = {
             seat: RemoteAgent(url=BOT_URLS[i % len(BOT_URLS)], seat=seat, label=f"bot-{seat}")
             for i, seat in enumerate(seats)
         }
+        for bot in bots.values():
+            bot.cfg = cfg       # the mode travels with every request; the bots are stateless
+        return bots
     return {
         seat: DmctsAgent(
             determinizations=BOT_DETERMINIZATIONS,
@@ -275,13 +288,20 @@ def create_app() -> FastAPI:
                     "target": cfg.target_score,
                     # A Sidi game has no Weis and no multipliers; the form still offers the
                     # Schieber's, so it shows the Schieber's defaults rather than the Sidi's x1.
-                    "weis": cfg.weis_enabled or cfg.sidi,
+                    "weis": cfg.weis_enabled or cfg.sidi or cfg.coiffeur,
+                    "coiffeur_rows": list(cfg.coiffeur_extra_rows),
                     "multipliers": {
-                        c.name.lower(): (DEFAULT_MULTIPLIERS[c] if cfg.sidi else cfg.multiplier(c))
+                        c.name.lower(): (
+                            DEFAULT_MULTIPLIERS[c] if cfg.mode != "schieber" else cfg.multiplier(c)
+                        )
                         for c in Contract
                     },
                 },
                 "targets": TARGET_SCORES,
+                "coiffeur_rows": [
+                    ("TUTTI", "Tutti"), ("SLALOM", "Slalom"), ("GUSCHTI", "Guschti"), ("TRIO", "3×3"),
+                    ("MISERE", "Misère"),
+                ],
                 "multiplier_range": MULTIPLIER_RANGE,
                 "contracts": [(c.name, c.name.lower()) for c in Contract],
                 "build_sha": BUILD_SHA,
@@ -309,10 +329,12 @@ def create_app() -> FastAPI:
         mult_clubs: int = Form(2),
         mult_obenabe: int = Form(3),
         mult_undenufe: int = Form(4),
+        coiffeur_rows: list[str] | None = Form(None),
+        coiffeur_rows_sent: str = Form(""),
     ):
         table = new_table(
             settings={
-                "mode": "sidi" if mode == "sidi" else "schieber",
+                "mode": mode if mode in ("sidi", "coiffeur") else "schieber",
                 "target": target,
                 "weis": weis not in ("off", "false", "0", ""),
                 "mult_diamonds": mult_diamonds,
@@ -321,6 +343,9 @@ def create_app() -> FastAPI:
                 "mult_clubs": mult_clubs,
                 "mult_obenabe": mult_obenabe,
                 "mult_undenufe": mult_undenufe,
+                # An unticked checkbox sends nothing, so "none ticked" is told apart from "the
+                # form did not ask" by the hidden field beside them.
+                "rows": coiffeur_rows or [] if coiffeur_rows_sent else None,
             }
         )
         data = {"game_id": table.game.game_id, "seat": table.human_seat}
@@ -472,11 +497,18 @@ def view(table: Table, seat: int) -> dict:
             trick.append({"seat": (game.round.leader + i) % NUM_SEATS, "card": format_card(card)})
         shown, shown_leader = list(game.round.trick), game.round.leader
 
+    # The contract the trick on the table is played in. One per round, except in the Coiffeur's
+    # extra rows, where it changes trick by trick (`krass_jass/schedule.py`).
+    playing = game.contract
+    if game.round is not None and game.round.schedule is not None:
+        index = len(game.round.tricks_played) - (1 if complete else 0)
+        playing = game.round.schedule[max(0, min(index, 8))]
+
     # Which way the cards on the table are going, and how much trump is left to come. Both
     # public — see krass_jass/awareness.py.
     taker = None
-    if game.round is not None and game.contract is not None:
-        taker = trick_taker(shown, shown_leader, game.contract)
+    if game.round is not None and playing is not None:
+        taker = trick_taker(shown, shown_leader, playing)
 
     return {
         "type": "view",
@@ -491,9 +523,14 @@ def view(table: Table, seat: int) -> dict:
         # Who the cards on the table go to as it stands, and nothing else about the cards:
         # counting the points and the trump is the player's own work.
         "trick_taker": taker,
-        # `is not None`: Contract.DIAMONDS == 0 is falsy
-        "contract": game.contract.name if game.contract is not None else None,
-        "multiplier": game.cfg.multiplier(game.contract) if game.contract is not None else None,
+        # `is not None`: Contract.DIAMONDS == 0 is falsy. The trick's own contract, which is the
+        # round's except in a Coiffeur extra row.
+        "contract": playing.name if playing is not None else None,
+        "multiplier": (
+            (game.row_multipliers[game.row] if game.cfg.coiffeur else game.cfg.multiplier(game.contract))
+            if game.contract is not None
+            else None
+        ),
         # How many cards each seat still holds. Public — everyone at a real table watches a
         # fan shrink — and a count, never a hand. The information boundary is unmoved.
         "hand_sizes": (
@@ -506,7 +543,7 @@ def view(table: Table, seat: int) -> dict:
         "round": game.round_index,
         "can_shove": (
             game.phase is Phase.BIDDING
-            and not game.cfg.sidi
+            and game.cfg.mode == "schieber"
             and seat == game.forehand
             and not game.shoved
         ),
@@ -523,6 +560,9 @@ def view(table: Table, seat: int) -> dict:
         "doubled": game.doubled,
         "double_pending": game.phase is Phase.DOUBLING and game.to_act == seat,
         "knock": table.knock_offer(),
+        # Coiffeur. The sheet is public — it is on the table for everyone to read — and the
+        # choices on offer are the engine's, as legal cards are.
+        "coiffeur": coiffeur_view(table, seat),
         # Test mode (off by default): the probabilities a bot on this seat would be reasoning
         # from. Derived from this seat's own hand and the public history — it reveals nothing
         # hidden, it only shows what the bot's own belief pool says.
@@ -532,8 +572,8 @@ def view(table: Table, seat: int) -> dict:
         "advice": table.advice if table.advice_key == advice_key(table, seat) else [],
         # The trump Jack decides most tricks it appears in; the engine names it so the client
         # does not have to work out what trump means.
-        "puur": format_card(game.contract.trump_suit * 9 + 3)
-        if game.contract is not None and game.contract.is_trump
+        "puur": format_card(playing.trump_suit * 9 + 3)
+        if playing is not None and playing.is_trump
         else None,
         "tricks_won": list(game.round.tricks_won) if game.round else [0, 0],
         "target": game.cfg.target_score,
@@ -552,6 +592,47 @@ def view(table: Table, seat: int) -> dict:
         "scorecard": game.last_score
         if game.phase in (Phase.ROUND_OVER, Phase.GAME_OVER) and not table.awaiting_ack()
         else None,
+    }
+
+
+def coiffeur_view(table: Table, seat: int) -> dict | None:
+    game = table.game
+    if not game.cfg.coiffeur:
+        return None
+    choosing = game.phase is Phase.BIDDING
+    rows = game.sheet.rows      # only the rows this game plays, in sheet order
+    return {
+        "rows": [ROW_NAMES[r] for r in rows],
+        "multipliers": [game.row_multipliers[r] for r in rows],
+        # Per team, per row: what was written (tens, or points), `None` while open.
+        "sheet": [[column[r] for r in rows] for column in game.sheet.written],
+        "row": ROW_NAMES[game.row] if game.row >= 0 and not choosing else None,
+        # An extra row's game: its name, and the contract each trick is played in.
+        "schedule": (
+            {
+                "name": game.schedule.name,
+                # None for a 3x3 block not named yet: nobody knows it.
+                "tricks": [c.name if c is not None else None for c in game.round.schedule]
+                if game.round is not None
+                else [c.name if c is not None else None for c in game.schedule.tricks],
+                "misere": game.schedule.misere,
+                # Which of the nine is on the table — the finished one until it is acknowledged.
+                "at": len(game.round.tricks_played) - (1 if table.awaiting_ack() else 0)
+                if game.round is not None
+                else 0,
+            }
+            if game.schedule is not None and not choosing
+            else None
+        ),
+        "legal": [str(c) for c in game.legal_choices()] if choosing and game.to_act == seat else [],
+        "shoves": game.choosing.shoves if choosing and game.choosing is not None else 0,
+        # 3x3: the blocks this seat may name now, when it leads trick 4 or 7.
+        "blocks": [c.name for c in game.legal_blocks()] if game.to_act == seat else [],
+        "tens": game.cfg.coiffeur_tens,
+        # Match strokes per team, the sheet's own category, and what one is worth (`None`: the
+        # match bonus is in the row instead).
+        "strokes": list(game.sheet.strokes),
+        "stroke": game.cfg.coiffeur_match_stroke,
     }
 
 
@@ -612,6 +693,8 @@ async def handle(table: Table, seat: int, message: dict, socket: WebSocket) -> N
     try:
         if kind == "bid":
             game.bid(seat, message.get("action", ""))
+        elif kind == "block":
+            game.choose_block(seat, str(message.get("contract", "")))
         elif kind == "play":
             game.play(seat, parse_card(str(message.get("card", ""))))
         elif kind == "double":
@@ -676,7 +759,7 @@ async def drive(table: Table, seat: int, socket: WebSocket, flush) -> None:
     """Let the bots act until it is the human's turn again."""
     game = table.game
     async with table.lock:
-        while game.phase in (Phase.BIDDING, Phase.DOUBLING, Phase.WEIS, Phase.PLAYING):
+        while game.phase in (Phase.BIDDING, Phase.DOUBLING, Phase.WEIS, Phase.PLAYING, Phase.BLOCK):
             if table.awaiting_ack():
                 return  # the player is still looking at the last trick
             if table.knock_offer() is not None:
@@ -719,6 +802,32 @@ async def think(table: Table, actor: int) -> None:
         answer = await loop.run_in_executor(None, bot.sidi_double, observation)
         await pace(2)
         game.double(actor, bool(answer))
+        return
+
+    if game.phase is Phase.BLOCK:
+        # Coiffeur 3x3: this seat leads trick 4 or 7 and names the next block.
+        hand, options = game.hand_of(actor), game.legal_blocks()
+        started = loop.time()
+        name = await loop.run_in_executor(None, bot.coiffeur_block, hand, options)
+        await pace(2, loop.time() - started)
+        try:
+            game.choose_block(actor, name)
+        except IllegalMove:
+            game.choose_block(actor, options[0])   # re-validated like everything a bot says
+        return
+
+    if game.phase is Phase.BIDDING and game.cfg.coiffeur:
+        hand, legal = game.hand_of(actor), game.legal_choices()
+        started = loop.time()
+        choice = await loop.run_in_executor(
+            None, bot.coiffeur_choice, hand, legal, game.row_multipliers
+        )
+        await pace(2, loop.time() - started)
+        try:
+            game.bid(actor, choice)
+        except IllegalMove:
+            # Re-validated like its cards: an illegal choice becomes the first open one.
+            game.bid(actor, str(next(c for c in legal if str(c) != "SHOVE")))
         return
 
     if game.phase is Phase.BIDDING:

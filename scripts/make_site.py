@@ -183,8 +183,12 @@ def build_index() -> None:
     )
     # The game picker: the offline build plays both, and opens on Sidi Barrani to 2000 — the
     # default game, as on the server.
-    html = html.replace('{% if settings.mode != "sidi" %}checked{% endif %}', "")
+    html = html.replace('{% if settings.mode == "schieber" %}checked{% endif %}', "")
     html = html.replace('{% if settings.mode == "sidi" %}checked{% endif %}', "checked")
+    # Coiffeur is server-only until the row choice is in Rust (`docs/coiffeur-plan.md`).
+    html = re.sub(
+        r"[ \t]*<!-- server-only.*?<!-- /server-only -->\n", "", html, flags=re.S
+    )
     html = html.replace("{% if settings.weis %}checked{% endif %}", "checked")
     html = html.replace("{% if not settings.weis %}checked{% endif %}", "")
 

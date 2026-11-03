@@ -227,16 +227,25 @@ fn rs_claim_sequence(
 }
 
 #[pyfunction]
-#[pyo3(signature = (tricks, current_trick, current_leader, trump, puur_exempt=true))]
+#[pyo3(signature = (tricks, current_trick, current_leader, trump, puur_exempt=true, trumps=None))]
 fn rs_infer_forbidden(
     tricks: Vec<(usize, Vec<usize>)>,
     current_trick: Vec<usize>,
     current_leader: usize,
     trump: i32,
     puur_exempt: bool,
+    trumps: Option<Vec<i32>>,
 ) -> Vec<u64> {
     let rules = Rules { puur_exempt, ..Rules::default() };
-    infer_forbidden(&tricks, &current_trick, current_leader, trump, &rules).to_vec()
+    match trumps {
+        Some(t) => {
+            let mut per = [trump; 9];
+            per.iter_mut().zip(&t).for_each(|(a, b)| *a = *b);
+            crate::voids::infer_forbidden_per_trick(&tricks, &current_trick, current_leader, &per, &rules)
+                .to_vec()
+        }
+        None => infer_forbidden(&tricks, &current_trick, current_leader, trump, &rules).to_vec(),
+    }
 }
 
 /// The table read that feeds the display. Public information only — see awareness.rs.
@@ -462,7 +471,8 @@ fn rs_belief_pool(
 #[pyfunction]
 #[pyo3(signature = (seat, hand, unseen, trick, trick_leader, contract, forbidden, declarer, history,
     pool=4096, seed=1, belief_alpha=1.0, bid_alpha=1.0, policy_temperature=1.0, bid_temperature=3.0,
-    weis_called=None, weis_played=None, sidi_auction=None, sidi_alpha=0.0, model_json=None))]
+    weis_called=None, weis_played=None, sidi_auction=None, sidi_alpha=0.0, model_json=None,
+    schedule=None))]
 #[allow(clippy::too_many_arguments)]
 fn rs_belief_marginals(
     py: Python<'_>,
@@ -486,12 +496,13 @@ fn rs_belief_marginals(
     sidi_auction: Option<Vec<(usize, usize, i32)>>,
     sidi_alpha: f32,
     model_json: Option<String>,
-) -> (Vec<(usize, f32, f32, f32)>, f64) {
+    schedule: Option<Vec<i64>>,
+) -> PyResult<(Vec<(usize, f32, f32, f32)>, f64)> {
     use crate::announce::Announcements;
     use crate::belief::{PlayInfo, Pool};
     use crate::objective::Stakes;
     let seat = seat & 3;
-    let k = Kernel::new(contract, true, true, 5, 0);
+    let k = Kernel::new(contract, true, true, 5, 0).with_schedule(crate::parse_schedule(schedule)?);
     // How many cards each seat still holds, counted from the round's public history — the view
     // may be asked for at any moment, not only when `seat` is on turn.
     let mut counts = [crate::scoring::TRICKS_PER_ROUND; 4];
@@ -543,7 +554,7 @@ fn rs_belief_marginals(
         announcements: ann,
         play: info,
     };
-    py.allow_threads(|| {
+    Ok(py.allow_threads(|| {
         let mut rng = Rng::new(seed | 1);
         let Some(built) = Pool::build(&position, &k, &counts, &mut rng) else {
             return (Vec::new(), 0.0);
@@ -562,7 +573,7 @@ fn rs_belief_marginals(
             ));
         }
         (out, built.ess)
-    })
+    }))
 }
 
 /// The play and bid log-likelihood of given worlds, under a chosen play model and temperatures.
@@ -768,6 +779,8 @@ fn rs_reward(
             sidi_bid,
             sidi_declarers,
             sidi_doubled,
+            misere: false,
+            misere_declarers: None,
         },
     )
 }
@@ -997,7 +1010,7 @@ pub struct PyGame {
 #[pymethods]
 impl PyGame {
     #[new]
-    #[pyo3(signature = (seed, target_score=1000, weis_enabled=true, weis_manual=false, stoeck_enabled=true, multipliers=None, sidi=false))]
+    #[pyo3(signature = (seed, target_score=1000, weis_enabled=true, weis_manual=false, stoeck_enabled=true, multipliers=None, sidi=false, coiffeur=false, coiffeur_multipliers=None, coiffeur_score_opponents=false, coiffeur_tens=true, coiffeur_extra_rows=None, coiffeur_guschti_45=false, coiffeur_chance_takes_extra=true, coiffeur_chance_multiplier=13, coiffeur_match_stroke=Some(10)))]
     fn new(
         seed: u64,
         target_score: i32,
@@ -1006,7 +1019,39 @@ impl PyGame {
         stoeck_enabled: bool,
         multipliers: Option<Vec<i32>>,
         sidi: bool,
+        coiffeur: bool,
+        coiffeur_multipliers: Option<Vec<i32>>,
+        coiffeur_score_opponents: bool,
+        coiffeur_tens: bool,
+        coiffeur_extra_rows: Option<Vec<String>>,
+        coiffeur_guschti_45: bool,
+        coiffeur_chance_takes_extra: bool,
+        coiffeur_chance_multiplier: i32,
+        coiffeur_match_stroke: Option<i32>,
     ) -> Self {
+        if coiffeur {
+            let mut rules = Rules {
+                coiffeur_score_opponents,
+                coiffeur_tens,
+                coiffeur_guschti_45,
+                coiffeur_chance_takes_extra,
+                coiffeur_chance_multiplier,
+                coiffeur_match_stroke,
+                ..Rules::coiffeur()
+            };
+            if let Some(extra) = coiffeur_extra_rows {
+                for (i, name) in crate::schedule::EXTRA_ROWS.iter().enumerate() {
+                    rules.coiffeur_extra_rows[i] = extra.iter().any(|e| e.eq_ignore_ascii_case(name));
+                }
+            }
+            if let Some(m) = coiffeur_multipliers {
+                rules.coiffeur_random_multipliers = false;
+                for (i, v) in m.iter().take(crate::coiffeur::ALL_ROWS).enumerate() {
+                    rules.coiffeur_multipliers[i] = *v;
+                }
+            }
+            return PyGame { inner: crate::game::Game::new(rules, seed) };
+        }
         let base = if sidi { Rules::sidi() } else { Rules::default() };
         let mut rules = Rules {
             target_score,
@@ -1069,6 +1114,54 @@ impl PyGame {
         let parsed = crate::auction::Call::parse(call)
             .ok_or_else(|| PyValueError::new_err(format!("unknown call {call:?}")))?;
         self.inner.call(seat, parsed).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    /// Coiffeur: a choice in its wire form (`HEARTS`, `HEARTS/JOKER1`) or `SHOVE`.
+    fn choose(&mut self, seat: usize, action: &str) -> PyResult<()> {
+        use pyo3::exceptions::PyValueError;
+        let choice = if action.trim().eq_ignore_ascii_case("SHOVE") {
+            None
+        } else {
+            Some(
+                crate::coiffeur::Choice::parse(action)
+                    .ok_or_else(|| PyValueError::new_err(format!("unknown choice {action:?}")))?,
+            )
+        };
+        self.inner.choose(seat, choice).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    /// Coiffeur 3x3: name the next block, by contract name.
+    fn choose_block(&mut self, seat: usize, contract: &str) -> PyResult<()> {
+        use pyo3::exceptions::PyValueError;
+        let c = (0..crate::tables::NUM_CONTRACTS)
+            .find(|&c| crate::tables::contract_name(c).eq_ignore_ascii_case(contract.trim()))
+            .ok_or_else(|| PyValueError::new_err(format!("unknown contract {contract:?}")))?;
+        self.inner.choose_block(seat, c).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    /// Coiffeur 3x3: what the leader may name for the next block, by contract name.
+    fn legal_blocks(&self) -> Vec<String> {
+        self.inner.legal_blocks().iter().map(|&c| crate::tables::contract_name(c).to_string()).collect()
+    }
+
+    /// Coiffeur: the choices open to the seat on turn, in wire form, `SHOVE` last if allowed.
+    fn legal_choices(&self) -> Vec<String> {
+        let (choices, may_shove) = self.inner.legal_choices();
+        let mut out: Vec<String> = choices.iter().map(|c| c.name()).collect();
+        if may_shove {
+            out.push("SHOVE".into());
+        }
+        out
+    }
+
+    #[getter]
+    fn row_multipliers(&self) -> Vec<i32> {
+        self.inner.row_multipliers.to_vec()
+    }
+
+    #[getter]
+    fn sheet(&self) -> Vec<Vec<Option<i32>>> {
+        self.inner.sheet.written.iter().map(|t| t.to_vec()).collect()
     }
 
     /// Sidi: the calls the seat may make now, in their wire form.

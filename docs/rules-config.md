@@ -328,3 +328,147 @@ A dead level score at or above the target (2021 : 2021) has no rule of its own: 
 **Dealer.** After a played hand the **declarer deals**, so the seat to their right — the next in
 play order — makes the first call (owner, 2026-09-20). After a hand thrown in, the deal simply
 passes on. The very first dealer is settled by the Ecken 10, as in the Schieber.
+
+---
+
+## Coiffeur — the third game mode
+
+`mode = "coiffeur"`, preset **`COIFFEUR`**. The trick-taking is the Schieber's, unchanged; the
+choosing, scoring and game end are the sheet's. Sources: pagat.com (Coiffeur-Schieber), Swisslos,
+jassverzeichnis.ch, lodige.com, and the Coiffeur-Partnerschieber regulation of Jassclub Wasserturm.
+They agree on the core and disagree on the details; every detail is a flag or listed as open below.
+Defaults taken 2026-10-30 when the mode was started and **confirmed by the owner 2026-10-31**, with
+one change: points are written in tens.
+
+**The sheet.** Each team has a column of **seven rows** — diamonds, hearts, spades, clubs, Obenabe,
+Undenufe and the **Chance** — plus the extra rows (next sections; all five by default, so twelve rows
+and a game of **24 rounds**). Each team plays every row exactly once. The Chance (owner, 2026-11-01:
+the two Jokers became one Chance) is free of choice: it takes any game, a contract or any extra row's
+— `coiffeur_chance_takes_extra`, **default `True`**; `False` limits it to the six contracts, as on
+Swisslos's Joker. A game whose own row is filled can only go into the Chance.
+
+**Multipliers.** Each row has one, the same for both teams. **The Chance is always ×13**
+(`coiffeur_chance_multiplier`, owner, 2026-11-01) and is never part of the draw.
+`coiffeur_random_multipliers` — **default `True`** (owner, 2026-10-30): the other rows get a
+permutation of 1..n over the n of them played — 1..11 with all five extra rows — drawn from the game
+seed (`krass_jass/coiffeur.py`, the deal's SplitMix64 → Fisher-Yates → Lemire on its own stream, so
+both implementations deal the same sheet). With `False`, `coiffeur_multipliers` — **default
+`4, 2, 3, 1, 5, 6, ·, 7, 8, 9, 10, 11`** in slot order (the Chance's slot is not read),
+jassverzeichnis.ch's sheet for the contracts: Eichel ×1, Rosen ×2, Schilten ×3, Schellen ×4, Obenabe
+×5, Undenufe ×6; the extra rows follow on. **Disagreement:** pagat's
+four-player table puts acorns/spades ×1, flowers/clubs ×2, shields/diamonds ×3, bells/hearts ×4 —
+the sources do not even agree which suit is cheapest, which is one reason random is a good default.
+
+**Choosing.** Forehand (the seat after the dealer) chooses a row or shoves. A shove goes to the
+**next seat in play order — an opponent**, not the partner. After four shoves the choice is back
+with forehand, who must choose ("im Loch", "im Fass"). Once one team has filled its column only the
+other team chooses: the first seat of that team from forehand chooses or shoves **to its partner**,
+who may shove back once; then it must choose. The dealer passes on as in the Schieber.
+
+**Play.** Whoever chooses **leads** the first trick. No Weis, no Stöck (every source agrees).
+
+**Scoring.** Only the choosing team writes: its card points (157 a round) into the row, times the
+row's multiplier.
+`coiffeur_tens` — **default `True`** (owner, 2026-10-31): the points are written in tens, rounded
+half up (84 → 8, 85 → 9), and the tens are multiplied. **Rounding is ours:** Wasserturm rounds up
+from 4; the owner asked for tens, not for a rounding rule. With `False` the points are written in full.
+
+**Match** (owner, 2026-11-03). `coiffeur_match_stroke` — **default `10`**. A match is not a bonus in
+the row: the row gets the 157 card points like any full hand (16 in tens), and the team earns a
+**stroke** ( | ) in the sheet's own **Match** category, worth 10 as written and **never multiplied**.
+The stroke goes to the team that took all nine tricks: the choosing team, or its opponents in a
+**counter-match**, where the choosing team writes 0. The choosing team in a Misère never earns one
+(next section). `match_bonus` stays 100 so the engine sees the match; the 100 itself is not written.
+`None` is the rule before: the match bonus counted into the row (257 → 26 × the multiplier).
+`coiffeur_score_opponents` — **default `False`**. When `True` the defenders are credited with their
+card points times the same multiplier (Jassclub Wasserturm's rule); their row stays open.
+
+**Game end.** When both columns are full. The higher total wins; a level total is a draw
+(`winner = -1`, `decided_by = "sheet"`). `target_score` is `None`.
+
+**Open, not implemented** (each needs a decision before it is built):
+
+- **The other extra rows** — Zick-Zack, Züri, Mezzo. Researched 2026-10-31, below; not built,
+  each waiting for the owner's definition. Tutti, Slalom, Guschti, 3×3 and Misère are (next section).
+- **A wrong choice** ("Fehlwahl") — the engine refuses a closed row, so it cannot arise.
+
+### Coiffeur — Tutti, Slalom, Guschti, 3×3 and Misère (built 2026-10-31 and 2026-11-01)
+
+The owner chose these five. `coiffeur_extra_rows` — **default all five** (owner, 2026-10-31, Tutti
+2026-11-01); `()` is the six contracts and the Chance. They sit after the Chance on the sheet (slots
+7–11: Tutti, Slalom, Guschti, 3×3, Misère), and with random multipliers the permutation grows to 1..11. `krass_jass/schedule.py` and `rust/src/schedule.rs`
+write each game out as the contract of each of its nine tricks.
+
+- **Counted in the first trick's contract**, as every source that says how agrees.
+- **Slalom**: the chooser picks Obenabe-first or Undenufe-first (`SLALOM_OBENABE`, `SLALOM_UNDENUFE`).
+- **Guschti**: five tricks one way, then four the other, the chooser picking which first (Swisslos).
+  `coiffeur_guschti_45` — **default `False`**; `True` also offers four then five (jasswiki,
+  swissjass.ch's Riesenslalom, Fässler).
+- **3×3** (owner, 2026-10-31): three blocks of three tricks. The chooser names the first block
+  (`TRIO_HEARTS`), **whoever leads trick 4 names the second, whoever leads trick 7 the third** —
+  whichever team they are on. Each may name any contract, and the suit may change from block to
+  block, but the three must include at least one trump suit and at least one Obenabe or Undenufe:
+  the third block is forced when the first two left one out. The game has a phase for it (`block`,
+  event `block_chosen`). The search does not know a block before it is named and draws it at random
+  from what may be named, once per iteration; the bots name a block by the rule selector's edge
+  (`coiffeur_select.choose_block`).
+- **Tutti** (owner, 2026-11-01, swissjass.ch's definition): **the suit led to each trick is trump for
+  that trick.** Every trick is therefore a trump lead: follow the suit led if you can, the Puur
+  exempt; nobody can trump in, because no other suit is trump; the highest card of the led suit in
+  trump order (Puur, Nell, Ace…) takes it. The round is **counted as if the first trick's suit were
+  trump all round** — its Puur 20 and Nell 14, the other Jacks 2 and nines 0 — so the chooser, who
+  leads, picks the counting suit with the first card. Until a trick is led its order is unknown
+  (`None` in the schedule, `-2` in the observation); until the first card the round's contract is a
+  placeholder, Obenabe, and the search treats the count as open until it sees the lead
+  (`Kernel::count_open`).
+- **Misère** (owner, 2026-10-31): the chooser picks Obenabe or Undenufe (`MISERE_OBENABE`), and the
+  aim is to take as few points as possible. The choosing team writes the points the **opponents**
+  took — 157 minus its own — so both teams play to avoid points, and the search's objective is
+  turned round for every seat (`Stakes::misere`). **It must take at least one trick** (owner,
+  2026-11-03): if the opponents take all nine it writes 0 and they earn a match stroke; the search
+  sees that edge (`Stakes::misere_declarers`, read off the points as the Sidi reads Match). Taking
+  all nine in its own Misère writes 0 and earns no stroke.
+- **The Chance** takes any of these games too (`coiffeur_chance_takes_extra`, above).
+
+### Coiffeur — the extra rows, researched (2026-10-31)
+
+Sources: Swisslos (the ten-row Coiffeur), swissjass.ch "Die neuen Trumpfvarianten im Coiffeurjass"
+(2003, the most exact), schweizerjass.ch's Fässler Coiffeur (14 rows), jasswiki.ch's taxonomy, and
+pagat (three-player Coiffeur). They agree on the names more than on the rules. Where they differ, the
+definitions are listed side by side; **the owner picks one per row before it is built.**
+
+**What every source agrees on.** Only the choosing team writes, at the row's multiplier. A row that
+mixes card orders **counts all nine tricks as the first trick's order** (swissjass.ch, Fässler): a
+Slalom begun in Obenabe is counted as an Obenabe, so the eights are worth 8 throughout.
+
+| Row | Definition | Who decides | Disagreement |
+|---|---|---|---|
+| **Slalom** (Zick-Zack in pagat) | Obenabe and Undenufe alternate trick by trick | The chooser, which order comes first (Swisslos, Fässler, pagat) | none |
+| **Guschti** (5/4, Riesenslalom) | A block of tricks in one order, then the rest in the other | The chooser, which first | **The split.** Swisslos: 5 then 4. jasswiki: 4 Obenabe then 5 Undenufe is "Guschti", the reverse is "Mary". swissjass.ch "Riesenslalom": the chooser picks any of 4/5, 5/4 either way round. Fässler: "5/4 – 4/5". |
+| **3×3** (Trio, "3 mal 3"; TUO in pagat) | Three tricks each of a trump suit, Obenabe and Undenufe; the trump suit stays the same | **Three readings.** swissjass.ch: whoever leads trick 1 picks the first block, whoever leads trick 4 the second, whoever leads trick 7 makes trump if it is still to come. Fässler: the chooser fixes the order, or "open": the winner of each block's last trick picks the next. pagat (TUO): fixed order — trump of the chooser's choice, then Undenufe, then Obenabe. | the order and who picks it |
+| **Zick-Zack** (Fässler only) | Trump, Obenabe, Undenufe in rotation trick by trick, the trump suit fixed | The chooser fixes the rotation, or open: the winner of the second trick picks | one source |
+| **Tutti** | **Three different games under one name.** swissjass.ch: the suit led to each trick is trump for that trick; counted as if trick 1's suit were trump all along (its Puur 20, its Nell 14, the other Puure 2, the other nines 0). jasswiki: Obenabe with Puur and Nell as the highest cards, or a changing trump. pagat: another name for Gustav, i.e. a Guschti. | — | the definition itself |
+| **Züri** (Fässler only) | Every card is trump: every Puur counts 20, every Nell 14 — 302 a round, 402 with a match | — | one source; the trick-taking is not spelled out |
+| **Misère** | Take as few points as possible | **Two readings.** swissjass.ch: always played Obenabe, and the *opponents'* points are what the choosing team writes. Fässler, jasswiki: any contract may be played as a Misère. | the contract, and what is written |
+| **Mezzo** (Mitte, Tännli) | A new card order: the ten is highest and the rest rank from the middle outwards | — | jasswiki only, one line; no full rule found |
+| **Frei** | A third or fourth Joker | the chooser | none |
+
+**Ten rows** is the established extension (Swisslos: the eight plus Slalom and Guschti 5/4). Fässler
+has fourteen, ×1 to ×14. With random multipliers the permutation simply grows to 1..n.
+
+**What it costs to build** (`docs/coiffeur-plan.md` takes the order):
+
+1. *Card order per trick* — Slalom, Guschti, 3×3, Zick-Zack. The contract becomes a sequence of nine
+   per-trick orders drawn from the existing six, plus a counting order (trick 1's). Legal moves,
+   trick winners, scoring, void inference and the Rust search kernel all have to read the order of
+   *this* trick instead of the round's. No new card order, so the legal-move table keeps its keys. The
+   "open" 3×3 also adds decisions in the middle of the round, which the event log and the observation
+   carry and the search must model as a choice node.
+2. *Trump per trick* — swissjass.ch's Tutti. Trump is unknown until the lead, so the leader's choice
+   of suit is also a choice of trump. Same machinery as step 1, with a different rule for the order.
+3. *A different objective* — Misère. The play is ordinary; the score is turned round, so the search's
+   objective and the selector's value flip sign. Cheapest to build, but the bots' play model was fitted
+   on players who want points.
+4. *A new card order* — Mezzo, Züri. A new ranking and new point values: new legal-move and
+   trick-winner tables in both implementations, and a rule nobody has written down in full.
+

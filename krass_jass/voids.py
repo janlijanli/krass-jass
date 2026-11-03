@@ -73,17 +73,26 @@ def infer_forbidden(
     current_leader: int,
     contract: Contract,
     cfg: RulesConfig,
+    schedule: tuple | None = None,
 ) -> list[int]:
     """Per-seat mask of cards each seat provably cannot hold.
 
     A constraint proven at any point stays true: a player who held none of a suit then
-    cannot have acquired one since.
+    cannot have acquired one since. With a `schedule` each trick is read under the contract
+    it was played in — a discard in an Obenabe trick proves a void that the same card in a
+    trump trick would not.
     """
-    trump = contract.trump_suit
+    def trump_of(i: int) -> int:
+        if not schedule:
+            return contract.trump_suit
+        named = schedule[min(i, 8)]
+        # A 3×3 block not named yet has had no card played in it, so it proves nothing either way.
+        return -1 if named is None or named < 0 else Contract(named).trump_suit
+
     forbidden = [0] * NUM_SEATS
-    for leader, cards in tricks_played:
-        _apply_trick(forbidden, leader, cards, trump, cfg)
-    _apply_trick(forbidden, current_leader, current_trick, trump, cfg)
+    for i, (leader, cards) in enumerate(tricks_played):
+        _apply_trick(forbidden, leader, cards, trump_of(i), cfg)
+    _apply_trick(forbidden, current_leader, current_trick, trump_of(len(tricks_played)), cfg)
     return forbidden
 
 
@@ -99,4 +108,5 @@ def infer_from_state(state, cfg: RulesConfig | None = None) -> list[int]:
         state.leader,
         state.contract,
         cfg or state.cfg,
+        state.schedule,
     )

@@ -21,6 +21,7 @@ pub mod belief;
 pub mod beliefnet;
 pub mod bidding;
 pub mod cards;
+pub mod coiffeur;
 pub mod config;
 pub mod convention;
 pub mod deal;
@@ -38,6 +39,7 @@ pub mod reading;
 pub mod rng;
 pub mod rollout;
 pub mod round;
+pub mod schedule;
 pub mod search;
 pub mod sidi_bidding;
 pub mod sidi_estimate;
@@ -81,6 +83,32 @@ fn make_kernel(
         last_trick_bonus,
         match_bonus,
     ))
+}
+
+#[cfg(feature = "python")]
+/// Nine contract indices, one per trick, or nothing.
+/// -1 for a 3x3 block not yet named (`schedule::UNNAMED`), -2 for a Tutti trick not yet led
+/// (`schedule::LED`; `TUTTI_UNLED` in `observation.py`).
+pub(crate) fn parse_schedule(schedule: Option<Vec<i64>>) -> PyResult<Option<[usize; 9]>> {
+    match schedule {
+        None => Ok(None),
+        Some(s)
+            if s.len() == 9
+                && (s[0] >= 0 || s[0] == -2)
+                && s.iter().all(|&c| c == -1 || c == -2 || (0..tables::NUM_CONTRACTS as i64).contains(&c)) =>
+        {
+            let mut out = [0usize; 9];
+            for (o, &c) in out.iter_mut().zip(&s) {
+                *o = match c {
+                    -1 => schedule::UNNAMED,
+                    -2 => schedule::LED,
+                    _ => c as usize,
+                };
+            }
+            Ok(Some(out))
+        }
+        Some(s) => Err(PyValueError::new_err(format!("bad schedule {s:?}"))),
+    }
 }
 
 #[cfg(feature = "python")]
@@ -177,7 +205,8 @@ fn play_out_many(
     declarer=4, history=None, belief_alpha=0.0, belief_pool=0, bid_alpha=0.0, bid_temperature=3.0,
     rollout_temperature=0.0, tree_policy=false, policy_temperature=1.0, belief_gamma=0.0, known=None, play_model_json=None,
     value_net=false, value_model_json=None,
-    sidi_bid=0, sidi_declarers=0, sidi_doubled=false, sidi_auction=None, sidi_alpha=0.0
+    sidi_bid=0, sidi_declarers=0, sidi_doubled=false, sidi_auction=None, sidi_alpha=0.0,
+    schedule=None, misere=false, misere_declarers=-1
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -246,6 +275,13 @@ fn dmcts(
     sidi_doubled: bool,
     sidi_auction: Option<Vec<(usize, usize, i32)>>,
     sidi_alpha: f32,
+    // Coiffeur's extra rows: the contract each trick is played in (`schedule.rs`); `contract`
+    // is then the one the round is counted in.
+    schedule: Option<Vec<i64>>,
+    // Coiffeur Misère: every seat plays to take as little as it can (`objective.rs`).
+    misere: bool,
+    // ...and the choosing team must take a trick (`coiffeur_match_stroke`); -1 when it need not.
+    misere_declarers: i64,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -275,7 +311,11 @@ fn dmcts(
         }
         rb.copy_from_slice(&rows);
     }
-    let k = make_kernel(contract, strict_undertrump, puur_exempt, 5, 0)?;
+    let schedule = parse_schedule(schedule)?;
+    let k = make_kernel(contract, strict_undertrump, puur_exempt, 5, 0)?.with_schedule(schedule);
+    // The exact endgame solver assumes one card order to the end of the round. It is off by
+    // default anyway (docs/measurements.md §3e); a schedule keeps it off rather than port it.
+    let endgame_cards = if schedule.is_some() { 0 } else { endgame_cards };
     let mut ann = announce::Announcements::none();
     if let Some(called) = weis_called {
         if called.len() != NUM_SEATS {
@@ -319,6 +359,8 @@ fn dmcts(
             sidi_bid,
             sidi_declarers: sidi_declarers & 1,
             sidi_doubled,
+            misere,
+            misere_declarers: (misere_declarers >= 0).then_some(misere_declarers as usize & 1),
         },
         adversarial,
         leaf_weights: leaf_weights.unwrap_or_default(),

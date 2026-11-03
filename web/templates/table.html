@@ -36,18 +36,41 @@
         <legend data-i18n="menu.mode">Game</legend>
         <div class="chips">
           <label class="chip">
-            <input type="radio" name="mode" value="schieber" {% if settings.mode != "sidi" %}checked{% endif %}>
+            <input type="radio" name="mode" value="schieber" {% if settings.mode == "schieber" %}checked{% endif %}>
             <span>Schieber</span>
           </label>
           <label class="chip">
             <input type="radio" name="mode" value="sidi" {% if settings.mode == "sidi" %}checked{% endif %}>
             <span>Sidi Barrani</span>
           </label>
+          <!-- server-only: the offline build cannot choose a Coiffeur row yet -->
+          <label class="chip">
+            <input type="radio" name="mode" value="coiffeur" {% if settings.mode == "coiffeur" %}checked{% endif %}>
+            <span>Coiffeur</span>
+          </label>
+          <!-- /server-only -->
         </div>
-        <p class="menu-note"><span data-i18n="menu.sidiNote">Sidi Barrani: bid for trump, every contract ×1, no Weis, no Stöck. Usually played to 2000.</span><button type="button" class="link-button" data-open-rules data-i18n="sidi.rules">Rules</button></p>
+        <p class="menu-note" data-coiffeur-only hidden><span data-i18n="menu.coiffeurNote">Coiffeur: every team plays each row once, the rows ×1 upwards dealt at random, the Chance always ×13. Points in tens, no Weis, no Stöck.</span><button type="button" class="link-button" data-open-rules="coiffeur" data-i18n="sidi.rules">Rules</button></p>
+        <p class="menu-note" data-not-coiffeur><span data-i18n="menu.sidiNote">Sidi Barrani: bid for trump, every contract ×1, no Weis, no Stöck. Usually played to 2000.</span><button type="button" class="link-button" data-open-rules data-i18n="sidi.rules">Rules</button></p>
       </fieldset>
 
-      <fieldset>
+      <!-- server-only: the Coiffeur's extra rows -->
+      <fieldset data-coiffeur-only hidden>
+        <legend data-i18n="menu.coiffeurRows">Extra rows</legend>
+        <input type="hidden" name="coiffeur_rows_sent" value="1">
+        <div class="chips">
+          {% for row, label in coiffeur_rows %}
+          <label class="chip">
+            <input type="checkbox" name="coiffeur_rows" value="{{ row }}" {% if row in settings.coiffeur_rows %}checked{% endif %}>
+            <span>{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <p class="menu-note" data-i18n="menu.coiffeurRowsNote">Tutti: the suit led is trump, trick by trick. Slalom: Obenabe and Undenufe trick by trick. Guschti: five tricks one way, four the other. 3×3: three blocks of three, the leaders of tricks 4 and 7 name the next. Misère: take as little as you can. Counted as the first trick. The Chance (×13) takes any game.</p>
+      </fieldset>
+      <!-- /server-only -->
+
+      <fieldset data-not-coiffeur>
         <legend data-i18n="menu.playTo">Play to</legend>
         <div class="chips">
           {% for value in targets %}
@@ -250,6 +273,23 @@
       <button class="bid double" id="double-yes"><span class="gesture knock" aria-hidden="true">👊</span><span data-i18n="sidi.double">Double</span></button>
       <button class="bid ghost" id="double-no" data-i18n="sidi.noDouble">No</button>
     </div>
+  </section>
+
+  <!-- Coiffeur. The sheet and the choices on offer come from the engine (`coiffeur.legal`):
+       the client never works out which row is open. -->
+  <section class="bidding coiffeur" id="coiffeur-bidding" hidden>
+    <p class="prompt"><span id="coiffeur-prompt"></span><button type="button" class="link-button" data-open-rules="coiffeur" data-i18n="sidi.rules">Rules</button></p>
+    <div class="coiffeur-sheet" id="coiffeur-sheet"></div>
+    <div class="bids" id="coiffeur-jokers" hidden></div>
+    <div class="bids">
+      <button class="bid shove" id="coiffeur-shove" data-i18n="bid.shove">Schieben</button>
+    </div>
+  </section>
+
+  <!-- Coiffeur 3×3: whoever leads trick 4 or 7 names the next block; the options are the engine's. -->
+  <section class="bidding coiffeur" id="coiffeur-block" hidden>
+    <p class="prompt" id="coiffeur-block-prompt"></p>
+    <div class="bids" id="coiffeur-block-buttons"></div>
   </section>
 
   <section class="bidding" id="bidding" hidden>

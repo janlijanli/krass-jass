@@ -34,6 +34,23 @@ under the same two-implementation rule as everything else, and so is the bidder
 (`krass_jass/sidi_bidding.py`, `rust/src/sidi_bidding.rs`): the offline build on GitHub Pages plays
 the Sidi with the same bots as the server, doubling on the same estimate.
 
+**Coiffeur is a third game mode** (`RulesConfig.mode = "coiffeur"`, preset `COIFFEUR`), started
+2026-10-30 on branch `coiffeur`. Seven rows a team plus the extra rows, row multipliers dealt at random from the game seed
+by default, points written in tens (owner, 2026-10-31); engine in both implementations, a rule-based row choice fitted by simulating whole sheets
+(+55 points a game over the untrained one, `docs/coiffeur-plan.md` steps 3–4).
+One **Chance** row (was two Jokers): any game, always ×13, out of the random draw (owner, 2026-11-01).
+Tutti, Slalom, Guschti, 3×3 and Misère are five more rows (on by default). The first four change the card
+order trick by trick, written out as a **schedule** (`krass_jass/schedule.py`, `rust/src/schedule.rs`). The search reads
+it through `Kernel::at` — card values from `k.count`, everything else from the kernel of the trick in
+play; for every other round both are the one contract, so nothing else changed. A 3×3's later blocks
+are named mid-round by the leaders of tricks 4 and 7 (a `block` phase); the search samples them. A
+Tutti's tricks are named by their lead card (the suit led is trump), so `Kernel::at` takes the trick's
+cards, and its count is open until the first card (`Kernel::on_card`).
+Misère turns the reward round for every seat, and the choosing team must take a trick in it.
+A match is a stroke in its own sheet category, worth 10 and never multiplied; the row gets 157 (owner,
+2026-11-03, `coiffeur_match_stroke`). Rules and open
+points in `docs/rules-config.md`, the bots and the training runs it needs in `docs/coiffeur-plan.md`.
+
 **The search is Rust** (`rust/`, exposed via `krass_jass.native`). Measured: 1.48M DMCTS
 iterations/sec single-core, 6.19M on all cores — 42x the Python search. The tuned 800k
 budget is 0.13s per move. Python remains the engine of record; only the search moved.

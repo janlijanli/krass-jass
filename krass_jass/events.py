@@ -29,6 +29,8 @@ class EventType(str, Enum):
     WEIS_DECLARED = "weis_declared"    #: winning team only, WITH cards
     WEIS_RESOLVED = "weis_resolved"
     STOECK = "stoeck"
+    #: Coiffeur 3×3: the leader of trick 4 or 7 names the next block.
+    BLOCK_CHOSEN = "block_chosen"
     CARD_PLAYED = "card_played"
     TRICK_WON = "trick_won"
     ROUND_SCORED = "round_scored"

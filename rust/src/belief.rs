@@ -156,11 +156,13 @@ pub fn play_log_likelihood(current: &[u64; NUM_SEATS], info: &PlayInfo, root: us
     let mut trick: Vec<usize> = Vec::with_capacity(4);
     let mut leader = 0usize;
     let mut acc = 0.0f32;
-    for &(s, c) in &info.history {
+    for (i, &(s, c)) in info.history.iter().enumerate() {
         if trick.is_empty() {
             leader = s;
         }
         if s != root {
+            // Each play read under the order its trick was played in (`schedule.rs`).
+            let k = &k.at_trick(i / NUM_SEATS);
             let led = trick.first().map_or(-1, |&x| card_suit(x) as i32);
             let legal = legal_moves(hands[s], k.trump, led, best_trump(&trick, k),
                                     k.strict_undertrump, k.puur_exempt);
@@ -252,7 +254,7 @@ impl Pool {
                 seat: pos.seat,
                 hand: pos.hand,
                 history: &info.history,
-                contract: k.contract,
+                contract: k.count,
                 declarer: info.declarer,
                 forehand: info.forehand(pos.trick_leader),
                 forbidden: pos.forbidden,
@@ -282,7 +284,7 @@ impl Pool {
             }
             if info.bid_alpha > 0.0 {
                 lw += info.bid_alpha
-                    * bid_log_likelihood(&dealt, info, pos.seat, pos.trick_leader, k.contract);
+                    * bid_log_likelihood(&dealt, info, pos.seat, pos.trick_leader, k.count);
             }
             if info.sidi_alpha > 0.0 && !info.sidi_auction.is_empty() {
                 // A bid is a statement about the nine cards dealt, so the world is put back

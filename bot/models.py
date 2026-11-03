@@ -76,6 +76,34 @@ class SidiDoubleResponse(BaseModel):
     double: bool
 
 
+class CoiffeurChoiceRequest(BaseModel):
+    """Coiffeur: a row to fill, or a shove. The sheet is public; `legal` is the engine's."""
+
+    hand: list[str]
+    #: Wire form: "HEARTS", "OBENABE/CHANCE", "TUTTI", "SHOVE".
+    legal: list[str]
+    #: The row multipliers, one per sheet slot (`krass_jass.coiffeur.ROW_NAMES`), 0 for a row
+    #: the game does not play.
+    multipliers: list[int] = Field(min_length=12, max_length=12)
+    seat: int = Field(ge=0, le=3)
+
+
+class CoiffeurChoiceResponse(BaseModel):
+    choice: str
+
+
+class CoiffeurBlockRequest(BaseModel):
+    """Coiffeur 3×3: this seat leads trick 4 or 7 and names the next block from `options`."""
+
+    hand: list[str]
+    options: list[str] = Field(min_length=1, max_length=6)
+    seat: int = Field(ge=0, le=3)
+
+
+class CoiffeurBlockResponse(BaseModel):
+    contract: str
+
+
 class PlayCardRequest(BaseModel):
     hand: list[str]
     #: Engine-computed and authoritative. A bot does not decide what is legal.
@@ -90,11 +118,17 @@ class PlayCardRequest(BaseModel):
     time_budget_ms: int = 1500
     decision_seed: int = 0
     trace: bool = False
-    #: "schieber" or "sidi". The bot is stateless, so the game mode comes with every request.
+    #: "schieber", "sidi" or "coiffeur". The bot is stateless, so the game mode comes with every
+    #: request.
     mode: str = "schieber"
     auction: list[AuctionCall] = []
     bid_value: int = 0
     doubled: bool = False
+    #: Coiffeur's extra rows: the contract each of the nine tricks is played in, as contract
+    #: indices; empty otherwise. `contract` is then the one the round is counted in.
+    schedule: list[int] = Field(default_factory=list, max_length=9)
+    #: Coiffeur Misère: each team is credited with what the other took.
+    misere: bool = False
 
 
 class PlayCardResponse(BaseModel):

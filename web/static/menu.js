@@ -332,22 +332,27 @@ export function initMenu({
     onLanguageChange?.();
   });
 
-  // The Sidi rules are one tap away from the table: the bidding panel and the settings note
-  // ask for them with this event rather than knowing how the menu is built.
-  document.addEventListener("kj:open-rules", async () => {
+  // The rules are one tap away from the table: the bidding panels and the settings notes ask
+  // for them with this event rather than knowing how the menu is built. `detail` is the panel:
+  // "rules" for the Sidi, "coiffeur" for the Coiffeur.
+  document.addEventListener("kj:open-rules", async (event) => {
     open();
     await showMode("about");
-    document.querySelector('.about-tab[data-panel="rules"]')?.click();
+    document.querySelector(`.about-tab[data-panel="${event.detail || "rules"}"]`)?.click();
   });
 
   // The game decides which settings exist. Sidi Barrani counts every contract once and has
-  // no Weis, so those two sections go while it is chosen, and its usual target is 2000.
+  // no Weis, so those two sections go while it is chosen, and its usual target is 2000. The
+  // Coiffeur has neither and no target either: the sheet decides when the game ends.
   const form = document.getElementById("mode-settings");
   const TARGET_FOR = { sidi: "2000", schieber: "1000" };
   const syncMode = (changed) => {
     const mode = form?.querySelector('input[name="mode"]:checked')?.value || "sidi";
-    form?.querySelectorAll("[data-schieber-only]").forEach((n) => { n.hidden = mode === "sidi"; });
-    if (changed) {
+    form?.querySelectorAll("[data-schieber-only]").forEach((n) => { n.hidden = mode !== "schieber"; });
+    // Coiffeur ends with the sheet: no target, and its own note in place of the Sidi's.
+    form?.querySelectorAll("[data-not-coiffeur]").forEach((n) => { n.hidden = mode === "coiffeur"; });
+    form?.querySelectorAll("[data-coiffeur-only]").forEach((n) => { n.hidden = mode !== "coiffeur"; });
+    if (changed && TARGET_FOR[mode]) {
       const target = form.querySelector(`input[name="target"][value="${TARGET_FOR[mode]}"]`);
       if (target) target.checked = true;
     }

@@ -19,6 +19,10 @@ import os
 from fastapi import FastAPI, HTTPException
 
 from bot.models import (
+    CoiffeurBlockRequest,
+    CoiffeurBlockResponse,
+    CoiffeurChoiceRequest,
+    CoiffeurChoiceResponse,
     Health,
     PlayCardRequest,
     PlayCardResponse,
@@ -35,7 +39,7 @@ from krass_jass.cards import format_card, parse_card, parse_hand
 from krass_jass.observation import Observation
 import copy
 
-from krass_jass.rules import HOUSE, SIDI_EVAL, Contract
+from krass_jass.rules import COIFFEUR, HOUSE, SHOVE, SIDI_EVAL, Contract
 
 AGENT_VERSION = "0.1.0"
 
@@ -71,9 +75,13 @@ def create_app() -> FastAPI:
     # the bot's business (stateless), so a single hand's rules are all it needs.
     sidi_agent = copy.copy(agent)
     sidi_agent.cfg = SIDI_EVAL
+    # And with the Coiffeur's: no Weis, no Stöck, the contract x1 because the row carries the
+    # multiplier, and no reading of the bid — a row choice says something else than a call.
+    coiffeur_agent = copy.copy(agent)
+    coiffeur_agent.cfg = COIFFEUR
 
     def for_mode(mode: str):
-        return sidi_agent if mode == "sidi" else agent
+        return {"sidi": sidi_agent, "coiffeur": coiffeur_agent}.get(mode, agent)
     kind = os.environ.get("AGENT_KIND", "dmcts").lower()
     seat_env = os.environ.get("SEAT")
     model_version = os.environ.get("MODEL_VERSION") or None
@@ -95,6 +103,33 @@ def create_app() -> FastAPI:
         action = agent.select_trump(hand, request.is_forehand)
         name = action.name if isinstance(action, Contract) else str(action)
         return SelectTrumpResponse(action=name)
+
+    @app.post("/coiffeur_choice", response_model=CoiffeurChoiceResponse)
+    async def coiffeur_choice(request: CoiffeurChoiceRequest) -> CoiffeurChoiceResponse:
+        from krass_jass.coiffeur import Choice
+
+        legal = []
+        for text in request.legal:
+            try:
+                legal.append(SHOVE if text.upper() == SHOVE else Choice.parse(text))
+            except ValueError:
+                raise HTTPException(422, f"unknown choice {text!r}") from None
+        if not [c for c in legal if c != SHOVE]:
+            raise HTTPException(422, "no choice supplied")
+        choice = coiffeur_agent.coiffeur_choice(
+            parse_hand(request.hand), legal, tuple(request.multipliers)
+        )
+        return CoiffeurChoiceResponse(choice=choice)
+
+    @app.post("/coiffeur_block", response_model=CoiffeurBlockResponse)
+    async def coiffeur_block(request: CoiffeurBlockRequest) -> CoiffeurBlockResponse:
+        try:
+            options = [Contract[o.upper()] for o in request.options]
+        except KeyError:
+            raise HTTPException(422, f"unknown contract in {request.options!r}") from None
+        return CoiffeurBlockResponse(
+            contract=coiffeur_agent.coiffeur_block(parse_hand(request.hand), options)
+        )
 
     @app.post("/sidi_call", response_model=SidiCallResponse)
     async def sidi_call(request: SidiCallRequest) -> SidiCallResponse:
@@ -130,6 +165,12 @@ def create_app() -> FastAPI:
         legal = parse_hand(request.legal_moves)
         if not legal:
             raise HTTPException(422, "no legal moves supplied")
+        if request.schedule and (
+            len(request.schedule) != 9
+            or request.schedule[0] < 0
+            or any(not -1 <= c < len(Contract) for c in request.schedule)
+        ):
+            raise HTTPException(422, f"bad schedule {request.schedule!r}")
 
         observation = Observation(
             seat=request.seat,
@@ -148,6 +189,8 @@ def create_app() -> FastAPI:
             auction=tuple((c.seat, c.call) for c in request.auction),
             bid_value=request.bid_value,
             doubled=request.doubled,
+            schedule=tuple(request.schedule),
+            misere=request.misere,
         )
 
         card = for_mode(request.mode).decide(observation)
