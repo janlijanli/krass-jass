@@ -22,6 +22,8 @@ SITE = ROOT / "site"
 
 CONTRACTS = {"DIAMONDS": 1, "HEARTS": 2, "SPADES": 1, "CLUBS": 2, "OBENABE": 3, "UNDENUFE": 4}
 TARGETS = (1000, 2000, 2500)
+# The Coiffeur's extra rows and their labels, as `web/app.py` offers them.
+COIFFEUR_ROWS = (("TUTTI", "Tutti"), ("SLALOM", "Slalom"), ("GUSCHTI", "Guschti"), ("TRIO", "3×3"), ("MISERE", "Misère"))
 ICONS = {"icon-192.png": 192, "icon-512.png": 512, "apple-touch-icon.png": 180}
 REPO_URL = "https://github.com/janlijanli/krass-jass"
 
@@ -185,10 +187,17 @@ def build_index() -> None:
     # default game, as on the server.
     html = html.replace('{% if settings.mode == "schieber" %}checked{% endif %}', "")
     html = html.replace('{% if settings.mode == "sidi" %}checked{% endif %}', "checked")
-    # Coiffeur is server-only until the row choice is in Rust (`docs/coiffeur-plan.md`).
-    html = re.sub(
-        r"[ \t]*<!-- server-only.*?<!-- /server-only -->\n", "", html, flags=re.S
+    # The Coiffeur and its extra rows, every one ticked as on the server.
+    html = html.replace('{% if settings.mode == "coiffeur" %}checked{% endif %}', "")
+    rows_loop = re.search(r"[ \t]*\{% for row, label in coiffeur_rows %\}\n(.*?)[ \t]*\{% endfor %\}\n", html, re.S)
+    chips = "".join(
+        rows_loop.group(1)
+        .replace("{{ row }}", row)
+        .replace("{{ label }}", label)
+        .replace("{% if row in settings.coiffeur_rows %}checked{% endif %}", "checked")
+        for row, label in COIFFEUR_ROWS
     )
+    html = html[: rows_loop.start()] + chips + html[rows_loop.end() :]
     html = html.replace("{% if settings.weis %}checked{% endif %}", "checked")
     html = html.replace("{% if not settings.weis %}checked{% endif %}", "")
 

@@ -88,7 +88,8 @@ def value_choices(
     for choice in choices:
         e = game_edge(edge, choice.contract, choice.schedule)
         if fitted:
-            a, b = w["value_map"]["value"][_game_name(choice)]
+            # A 4/5 Guschti is priced as the 5/4 one: only that was simulated.
+            a, b = w["value_map"]["value"][_game_name(choice).replace("GUSCHTI4_", "GUSCHTI_")]
             own = a + b * e
             keep = w["points_reserve"]["value"][ROW_NAMES[choice.row]]
             if lift:
