@@ -58,7 +58,7 @@ In order; each is measured before the next.
 | 6 | **Play model and beliefs from Coiffeur self-play** (chooser leads; who chose what into which row is a signal, like the Schieber bid's +1.3) | ≈ 2 h recording + fit | A/B, replicated |
 | 7 | Optional: late-game objective (needs X points to win) | — | A/B |
 
-**Steps 1, 2 and 5 are done (2026-10-31 – 2026-11-01).**
+**Steps 1, 2 and 5 are done (2026-10-31 – 2026-11-01); 3 and 4 on 2026-11-03.**
 
 *Step 1.* `arena/coiffeur_contracts.py` priced all 18 games a chooser can name — six contracts, two
 Slaloms, two Guschtis, six 3×3 openings, two Misères — on 1,500 hands × 2 deals at 2,400 iterations
@@ -96,6 +96,32 @@ as trump: no one can trump in, and every later trick is trumped in whatever suit
 **86** (was 103), Chance 119 (unchanged; Tutti was never a random hand's best game). The chooser takes
 Tutti first on 2.9% of fresh hands, as before: the reserve fell with the line, so the row is no cheaper
 to fill. The A/B in step 5 predates both rows.
+
+**Steps 3 and 4: option value and shove threshold, fitted by simulating sheets (2026-11-03).**
+`arena/coiffeur_sheet_sim.py` plays whole Coiffeur games at the choosing level only, no search: hands
+from the real deal (`deal(seed, round)`), valued by step 2's lines; what a game actually writes is the
+line plus a residual drawn from the overnight table, a match kept as a match (and scored with the
+stroke rule). Choosing, shoving and the end of the sheet go through the engine's own `Sheet` and
+`Choosing`. Checked against 48 real games at 2,400 iterations on the same seeds: a team writes 852
+(sd 77) a game in the simulator, 837 (sd 96) for real; shoves 0.12 against 0.13 a round.
+
+Two terms were fitted on it by cross-entropy search (12 generations × 24 candidates × 4,000 paired
+games, common random numbers):
+
+- *Option value.* A kept row's reserve rises by `lift × spread[row]`, `lift = 1.38 × share^0.65`,
+  where `share` is the share of the team's own column still open (1 with all twelve rows, 0 with the
+  last) and `spread` is the row's residual spread. With the column full, a row is held for a hand
+  ~25–30 points better than average; at the last row it takes what comes.
+- *Shove threshold* `27.3 + 15.3 × share` (was 0): shove unless the best row beats its kept value
+  by that much. Shoves rise from 12% to 41% of decisions.
+
+Simulated, on 40,000 fresh pairs: +108.6 ± 0.8 points a game, 66.4% of games. Optimistic by
+construction — the policy is judged by the same value lines it decides by. **Whole games
+(step 5 re-run): 400 pairs at 2,400 iterations, seed 7001, fitted vs the 2026-11-02 weights:
++55.1 points a game, t = 13.46, p < 0.001; 66.4% of games won.** Half the simulated gain survives
+the search playing the cards; the win share matches. Shipped (`option_value` and `shove_threshold`
+in `coiffeur_weights.json`). Not yet fitted: the rows the *other* team still has, the score
+(step 7), and the shove to the partner as a separate threshold.
 
 **Match strokes (2026-11-03) are not priced.** A match now writes 157 into the row and a stroke worth 10
 on the sheet, never multiplied, and a Misère given away entirely writes 0 (`docs/rules-config.md`).

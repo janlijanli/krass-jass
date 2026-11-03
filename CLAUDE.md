@@ -36,7 +36,8 @@ the Sidi with the same bots as the server, doubling on the same estimate.
 
 **Coiffeur is a third game mode** (`RulesConfig.mode = "coiffeur"`, preset `COIFFEUR`), started
 2026-10-30 on branch `coiffeur`. Seven rows a team plus the extra rows, row multipliers dealt at random from the game seed
-by default, points written in tens (owner, 2026-10-31); engine in both implementations, an **untrained** rule-based row choice.
+by default, points written in tens (owner, 2026-10-31); engine in both implementations, a rule-based row choice fitted by simulating whole sheets
+(+55 points a game over the untrained one, `docs/coiffeur-plan.md` steps 3–4).
 One **Chance** row (was two Jokers): any game, always ×13, out of the random draw (owner, 2026-11-01).
 Tutti, Slalom, Guschti, 3×3 and Misère are five more rows (on by default). The first four change the card
 order trick by trick, written out as a **schedule** (`krass_jass/schedule.py`, `rust/src/schedule.rs`). The search reads

@@ -26,8 +26,8 @@
     ]
   },
   "shove_threshold": {
-    "_comment": "Shove when the best choice is worth less than this. In Coiffeur a shove hands the choice to an OPPONENT, who gets to fill a row with a hand you have not seen. 0 = shove only when nothing beats keeping the row for an average hand.",
-    "value": 0.0
+    "_comment": "Shove when the best choice is worth less than this, in multiplier x points; plus option_value.tau_n x the share of the column still open. Fitted with option_value (arena/coiffeur_sheet_sim.py, 2026-11-03); was 0, a guess.",
+    "value": 27.31
   },
   "value_map": {
     "_comment": "Per game, expected points written = a + b x edge, where edge is the selector's (see value_choices). Fitted on half of coiffeur_games.npz (3000 deals), 2026-11-01, arena/fit_coiffeur.py.",
@@ -125,6 +125,28 @@
       "GUSCHTI": 96.71,
       "TRIO": 115.38,
       "MISERE": 84.85
+    }
+  },
+  "option_value": {
+    "_comment": "Keeping a row open is worth more than a random hand in it: a later hand may fill it better. keep = points_reserve + a x share**b x spread[row], share = (own open rows - 1)/11. Fitted by the cross-entropy method on simulated whole sheets, 2026-11-03 (arena/coiffeur_sheet_sim.py; +108.6 +- 0.8 points a paired game, 66.4% of games in the simulator, 40,000 pairs). Real-game A/B: arena/coiffeur_ab.py.",
+    "value": {
+      "a": 1.3846,
+      "b": 0.6544,
+      "tau_n": 15.27,
+      "spread": {
+        "DIAMONDS": 21.65,
+        "HEARTS": 21.69,
+        "SPADES": 21.73,
+        "CLUBS": 21.63,
+        "OBENABE": 18.82,
+        "UNDENUFE": 19.34,
+        "CHANCE": 16.53,
+        "TUTTI": 16.91,
+        "SLALOM": 21.28,
+        "GUSCHTI": 20.07,
+        "TRIO": 16.03,
+        "MISERE": 7.08
+      }
     }
   }
 }

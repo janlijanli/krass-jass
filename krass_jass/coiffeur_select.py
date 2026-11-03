@@ -24,10 +24,10 @@ The 3×3's later blocks are named by whoever leads tricks 4 and 7 (`choose_block
 their remaining cards are best at, whichever team they are on — a defender who takes tricks takes
 them from the declarers.
 
-**Untrained.** The reserves are measured averages and the shove threshold is a guess
-(`krass_jass/data/coiffeur_weights.json`). What a row is worth to keep also shrinks as the
-sheet fills — with two rows left there is little left to wait for — and that is not modelled.
-Fitting both is the training run in `docs/coiffeur-plan.md`.
+**Fitted.** Each game's value is a line in points on the edge, and a row's reserve is what a
+random hand writes there (`arena/fit_coiffeur.py`). Keeping a row is worth more while the column is
+still full — more hands are still to come — and the shove threshold rises with it; both were fitted
+by simulating whole sheets (`arena/coiffeur_sheet_sim.py`). Results in `docs/coiffeur-plan.md`.
 """
 
 from __future__ import annotations
@@ -83,6 +83,7 @@ def value_choices(
     # Contract multipliers are ones in the Coiffeur, so this is the bare edge per contract.
     edge = score_all(hand, cfg.variant(multipliers={c: 1 for c in Contract}), trump_weights or load_weights())
     fitted = "value_map" in w
+    lift = _option_lift(choices, w)
     out = {}
     for choice in choices:
         e = game_edge(edge, choice.contract, choice.schedule)
@@ -90,6 +91,8 @@ def value_choices(
             a, b = w["value_map"]["value"][_game_name(choice)]
             own = a + b * e
             keep = w["points_reserve"]["value"][ROW_NAMES[choice.row]]
+            if lift:
+                keep += lift * w["option_value"]["value"]["spread"][ROW_NAMES[choice.row]]
         else:
             own = e
             if choice.row == CHANCE_ROW:
@@ -100,6 +103,30 @@ def value_choices(
                 keep = w["reserve"]["value"][int(choice.contract)]
         out[choice] = multipliers[choice.row] * (own - keep)
     return out
+
+
+def _open_share(choices: list[Choice]) -> float:
+    """How full the team's column still is, from its own choices: 0 with one row open, 1 with
+    every row. Each open row offers at least one choice, so the legal list is enough."""
+    n = len({c.row for c in choices})
+    return (n - 1) / 11
+
+
+def _option_lift(choices: list[Choice], w: dict) -> float:
+    """What keeping a row open adds to its reserve, in units of the row's spread: a later hand
+    may fill it better, and the more rows are still open, the more hands are still to come
+    (`arena/coiffeur_sheet_sim.py`). Nothing without a fitted `option_value`."""
+    ov = w.get("option_value", {}).get("value")
+    if not ov:
+        return 0.0
+    share = _open_share(choices)
+    return ov["a"] * share ** ov["b"] if share > 0 else 0.0
+
+
+def _shove_threshold(choices: list[Choice], w: dict) -> float:
+    ov = w.get("option_value", {}).get("value")
+    tau = w["shove_threshold"]["value"]
+    return tau + (ov["tau_n"] * _open_share(choices) if ov else 0.0)
 
 
 def choose(
@@ -115,7 +142,7 @@ def choose(
     values = value_choices(hand, choices, multipliers, cfg, w)
     # Ties go to the lower row, then the lower contract: deterministic, as everything is.
     best = max(choices, key=lambda c: (values[c], -c.row, -int(c.contract)))
-    if SHOVE in legal and len(choices) > 1 and values[best] < w["shove_threshold"]["value"]:
+    if SHOVE in legal and len(choices) > 1 and values[best] < _shove_threshold(choices, w):
         return SHOVE
     return best
 
