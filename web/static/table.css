@@ -267,6 +267,9 @@ body {
 .coiffeur-table td.open { opacity: .35; }
 .coiffeur-table tr.current td { background: rgba(220,184,98,.12); }
 .coiffeur-table tr.total td { font-weight: 700; border-top: 1px solid rgba(255,255,255,.3); }
+/* Match strokes: tally marks, the sheet's own category, never multiplied. */
+.coiffeur-table tr.strokes td { letter-spacing: .15em; font-weight: 700; }
+.coiffeur-table tr.strokes td.mult { letter-spacing: 0; font-size: 12px; white-space: nowrap; }
 .coiffeur-table tr.choosable { cursor: pointer; }
 .coiffeur-table tr.choosable td:first-child { font-weight: 600; }
 .coiffeur-table tr.choosable td:first-child::after { content: "›"; margin-left: auto; opacity: .55; }

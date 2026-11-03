@@ -170,6 +170,7 @@ def test_a_game_is_two_rounds_a_row_and_ends_with_the_sheet(extra, rounds):
     assert game.sheet.complete
     total = [
         sum(p * m for p, m in zip(game.sheet.written[t], game.row_multipliers) if p is not None)
+        + game.sheet.strokes[t] * FIXED.coiffeur_match_stroke
         for t in (0, 1)
     ]
     assert total == game.scores
@@ -510,3 +511,76 @@ def test_the_chance_is_x13_and_takes_any_game():
     assert game.sheet.written[team][CHANCE_ROW] == tens
     assert game.sheet.written[team][ROW_NAMES.index("GUSCHTI")] is None
     assert game.last_score["written"][team] == tens * 13
+
+
+# --- Match strokes (owner, 2026-11-03) ----------------------------------------
+
+from krass_jass.scoring import RoundScore  # noqa: E402
+
+
+def scored(game, choice, trick_points, last_trick, match):
+    """Choose `choice` for whoever is on turn, play the round out, and score it as given."""
+    seat = game.to_act
+    game.bid(seat, choice)
+    rs = RoundScore(tuple(trick_points), tuple(last_trick), tuple(match), (0, 0), (0, 0), 1)
+    game.round.score = lambda **_: rs
+    play_out(game, random.Random(0))
+    return seat % 2
+
+
+def test_a_match_writes_the_cards_into_the_row_and_a_stroke_beside_it():
+    game = Game(cfg=FIXED, seed=11)
+    t = game.to_act % 2
+    pts, last, match = [0, 0], [0, 0], [0, 0]
+    pts[t], last[t], match[t] = 152, 5, 100
+    scored(game, "HEARTS", pts, last, match)
+    # Hearts is x2 in the fixed table: 157 -> 16 tens, x2, and a stroke worth 10, not multiplied.
+    assert game.sheet.written[t][Contract.HEARTS] == 16
+    assert game.sheet.strokes[t] == 1 and game.sheet.strokes[1 - t] == 0
+    assert game.last_score["strokes"][t] == 1
+    assert game.last_score["written"][t] == 16 * 2 + 10
+    assert game.scores[t] == 42
+
+
+def test_a_counter_match_writes_the_chooser_0_and_the_opponents_a_stroke():
+    game = Game(cfg=FIXED, seed=11)
+    t = game.to_act % 2
+    pts, last, match = [0, 0], [0, 0], [0, 0]
+    pts[1 - t], last[1 - t], match[1 - t] = 152, 5, 100
+    scored(game, "HEARTS", pts, last, match)
+    assert game.sheet.written[t][Contract.HEARTS] == 0
+    assert game.sheet.strokes[1 - t] == 1 and game.sheet.strokes[t] == 0
+    assert game.last_score["written"] == ([0, 10] if t == 0 else [10, 0])
+
+
+def test_a_misere_given_away_entirely_writes_0_and_the_opponents_a_stroke():
+    game = Game(cfg=FIXED, seed=6)
+    t = game.to_act % 2
+    pts, last, match = [0, 0], [0, 0], [0, 0]
+    pts[1 - t], last[1 - t], match[1 - t] = 152, 5, 100
+    scored(game, "MISERE_UNDENUFE", pts, last, match)
+    assert game.sheet.written[t][ROW_NAMES.index("MISERE")] == 0
+    assert game.sheet.strokes[1 - t] == 1
+    assert game.last_score["written"][t] == 0
+    assert game.last_score["written"][1 - t] == 10
+
+
+def test_taking_every_trick_in_your_own_misere_earns_no_stroke():
+    game = Game(cfg=FIXED, seed=6)
+    t = game.to_act % 2
+    pts, last, match = [0, 0], [0, 0], [0, 0]
+    pts[t], last[t], match[t] = 152, 5, 100
+    scored(game, "MISERE_UNDENUFE", pts, last, match)
+    assert game.sheet.written[t][ROW_NAMES.index("MISERE")] == 0
+    assert game.sheet.strokes == [0, 0]
+    assert game.last_score["written"] == [0, 0]
+
+
+def test_without_strokes_the_match_bonus_counts_into_the_row_as_before():
+    game = Game(cfg=FIXED.variant(coiffeur_match_stroke=None), seed=11)
+    t = game.to_act % 2
+    pts, last, match = [0, 0], [0, 0], [0, 0]
+    pts[t], last[t], match[t] = 152, 5, 100
+    scored(game, "HEARTS", pts, last, match)
+    assert game.sheet.written[t][Contract.HEARTS] == 26
+    assert game.sheet.strokes == [0, 0]

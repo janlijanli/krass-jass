@@ -780,6 +780,7 @@ fn rs_reward(
             sidi_declarers,
             sidi_doubled,
             misere: false,
+            misere_declarers: None,
         },
     )
 }
@@ -1009,7 +1010,7 @@ pub struct PyGame {
 #[pymethods]
 impl PyGame {
     #[new]
-    #[pyo3(signature = (seed, target_score=1000, weis_enabled=true, weis_manual=false, stoeck_enabled=true, multipliers=None, sidi=false, coiffeur=false, coiffeur_multipliers=None, coiffeur_score_opponents=false, coiffeur_tens=true, coiffeur_extra_rows=None, coiffeur_guschti_45=false, coiffeur_chance_takes_extra=true, coiffeur_chance_multiplier=13))]
+    #[pyo3(signature = (seed, target_score=1000, weis_enabled=true, weis_manual=false, stoeck_enabled=true, multipliers=None, sidi=false, coiffeur=false, coiffeur_multipliers=None, coiffeur_score_opponents=false, coiffeur_tens=true, coiffeur_extra_rows=None, coiffeur_guschti_45=false, coiffeur_chance_takes_extra=true, coiffeur_chance_multiplier=13, coiffeur_match_stroke=Some(10)))]
     fn new(
         seed: u64,
         target_score: i32,
@@ -1026,6 +1027,7 @@ impl PyGame {
         coiffeur_guschti_45: bool,
         coiffeur_chance_takes_extra: bool,
         coiffeur_chance_multiplier: i32,
+        coiffeur_match_stroke: Option<i32>,
     ) -> Self {
         if coiffeur {
             let mut rules = Rules {
@@ -1034,6 +1036,7 @@ impl PyGame {
                 coiffeur_guschti_45,
                 coiffeur_chance_takes_extra,
                 coiffeur_chance_multiplier,
+                coiffeur_match_stroke,
                 ..Rules::coiffeur()
             };
             if let Some(extra) = coiffeur_extra_rows {

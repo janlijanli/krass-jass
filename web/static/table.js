@@ -619,6 +619,18 @@ function coiffeurSheet(view, pick = null) {
     }
     table.append(tr);
   });
+  // A match is a stroke in its own category, never multiplied (owner, 2026-11-03).
+  if (c.stroke) {
+    const tr = document.createElement("tr");
+    tr.className = "strokes";
+    const marks = (team) => {
+      totals[team] += c.strokes[team] * c.stroke;
+      return c.strokes[team] ? `<td>${"|".repeat(c.strokes[team])}</td>` : `<td class="open">·</td>`;
+    };
+    tr.innerHTML = `<td class="row"><span class="pip"></span><span>${t("score.match")}</span></td><td class="mult">| = ${c.stroke}</td>` +
+      marks(mine) + marks(1 - mine);
+    table.append(tr);
+  }
   const foot = document.createElement("tr");
   foot.className = "total";
   foot.innerHTML = `<td>${t("score.total")}</td><td></td><td>${totals[mine]}</td><td>${totals[1 - mine]}</td>`;
@@ -1003,11 +1015,11 @@ function renderCoiffeurScorecard(view, card, pick) {
     tr.innerHTML = `<td>${label}</td><td>${us}</td><td>${them}</td>`;
     el.scRows.appendChild(tr);
   };
-  for (const [label, pair] of [
-    [t("score.tricks"), card.trick_points],
-    [t("score.lastTrick"), card.last_trick],
-    [t("score.match"), card.match],
-  ]) {
+  // With strokes (`card.strokes`) a match is not a bonus in the points but a stroke of its own.
+  const stroke = card.strokes ? view.coiffeur?.stroke ?? 0 : 0;
+  const rows = [[t("score.tricks"), card.trick_points], [t("score.lastTrick"), card.last_trick]];
+  if (!card.strokes) rows.push([t("score.match"), card.match]);
+  for (const [label, pair] of rows) {
     const [us, them] = pick(pair);
     add(label, us || "—", them || "—", !us && !them ? "zero" : "");
   }
@@ -1017,11 +1029,19 @@ function renderCoiffeurScorecard(view, card, pick) {
   // What goes on the sheet, and the multiplication: "3 × 2" rather than a 6 from nowhere.
   const tens = view.coiffeur?.tens;
   const [wu, wt] = pick(card.written);
-  const sheetValue = (w) => (w ? `${w / card.multiplier} × ${card.multiplier}` : "—");
+  const [su, st] = card.strokes ? pick(card.strokes) : [0, 0];
+  const sheetValue = (w, s) => {
+    const row = w - s * stroke;
+    return row ? `${row / card.multiplier} × ${card.multiplier}` : "—";
+  };
   add(
     t(tens ? "coiffeur.writtenTens" : "coiffeur.written", { row: rowLabel(card.row), n: card.multiplier }),
-    sheetValue(wu), sheetValue(wt), "note"
+    sheetValue(wu, su), sheetValue(wt, st), "note"
   );
+  if (su || st) {
+    const mark = (s) => (s ? `| = ${s * stroke}` : "—");
+    add(t("score.match"), mark(su), mark(st), "note");
+  }
   const [tu, tt] = pick(card.scores);
   add(t("score.thisRound"), wu || "—", wt || "—", "subtotal");
   add(t("score.total"), tu, tt, "total");

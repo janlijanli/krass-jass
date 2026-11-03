@@ -310,13 +310,13 @@ def test_sidi_games_produce_identical_event_streams(seed):
 # --- Coiffeur ---------------------------------------------------------------
 
 
-def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True, extra=None, g45=False, chance=True):
+def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True, extra=None, g45=False, chance=True, stroke=10):
     """Both engines through the same Coiffeur game: random choices, shoves and cards."""
     from krass_jass.rules import COIFFEUR
 
     cfg = COIFFEUR.variant(
         coiffeur_score_opponents=opponents, coiffeur_tens=tens, coiffeur_guschti_45=g45,
-        coiffeur_chance_takes_extra=chance,
+        coiffeur_chance_takes_extra=chance, coiffeur_match_stroke=stroke,
     )
     if extra is not None:
         cfg = cfg.variant(coiffeur_extra_rows=tuple(extra))
@@ -332,6 +332,7 @@ def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True, extra=None
         coiffeur_extra_rows=None if extra is None else list(extra),
         coiffeur_guschti_45=g45,
         coiffeur_chance_takes_extra=chance,
+        coiffeur_match_stroke=stroke,
     )
     assert list(py.row_multipliers) == rs.row_multipliers
     rng = random.Random(seed)
@@ -414,3 +415,21 @@ def test_coiffeur_multipliers_agree_and_are_a_permutation():
         assert list(m) == core.RsGame(seed, coiffeur=True).row_multipliers
         seen.add(m)
     assert len(seen) > 150, "the multipliers are not being shuffled"
+
+
+@pytest.mark.parametrize("stroke", [10, None])
+def test_coiffeur_matches_and_counter_matches_are_written_alike(stroke):
+    """Random play matches about one round in seventy: sweep games until both a match and a
+    Misère have been compared, strokes on (owner, 2026-11-03) and off."""
+    if not hasattr(core.RsGame, "choose"):
+        pytest.skip("Rust core predates Coiffeur")
+    matches = 0
+    for seed in range(200, 260):
+        py, rs = drive_both_coiffeur(seed, stroke=stroke)
+        a, b = py_events(py), rs_events(rs)
+        assert a == b, f"seed {seed}: event streams differ"
+        assert py.scores == list(rs.scores)
+        matches += sum(1 for e in a if e["type"] == "round_scored" and any(e["match"]))
+        if matches >= 3:
+            break
+    assert matches >= 3

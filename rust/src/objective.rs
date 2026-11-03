@@ -40,6 +40,9 @@ pub struct Stakes {
     /// Coiffeur Misère: each team is credited with what the other took, so every seat plays
     /// to take as little as it can.
     pub misere: bool,
+    /// Coiffeur Misère under `coiffeur_match_stroke`: the choosing team, which must take a trick —
+    /// a hand it gives away entirely writes it 0 and the opponents a match stroke.
+    pub misere_declarers: Option<usize>,
 }
 
 /// The card points in a Sidi hand, and what Match makes of them.
@@ -93,7 +96,14 @@ pub fn reward(ours: i32, theirs: i32, team: usize, s: &Stakes) -> f64 {
 /// `reward` for expected points, which a value network produces. Identical for whole numbers.
 pub fn reward_f(ours: f64, theirs: f64, team: usize, s: &Stakes) -> f64 {
     if s.misere {
-        return reward_f(theirs, ours, team, &Stakes { misere: false, ..*s });
+        if let Some(declarers) = s.misere_declarers {
+            // Read off the points, as Match is in the Sidi: the choosing team took nothing.
+            let chooser = if team == declarers { ours } else { theirs };
+            if chooser <= 0.0 {
+                return if team == declarers { 0.0 } else { 1.0 };
+            }
+        }
+        return reward_f(theirs, ours, team, &Stakes { misere: false, misere_declarers: None, ..*s });
     }
     if s.sidi_bid > 0 {
         return sidi_reward(ours, theirs, team, s);

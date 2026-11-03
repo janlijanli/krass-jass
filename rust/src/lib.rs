@@ -206,7 +206,7 @@ fn play_out_many(
     rollout_temperature=0.0, tree_policy=false, policy_temperature=1.0, belief_gamma=0.0, known=None, play_model_json=None,
     value_net=false, value_model_json=None,
     sidi_bid=0, sidi_declarers=0, sidi_doubled=false, sidi_auction=None, sidi_alpha=0.0,
-    schedule=None, misere=false
+    schedule=None, misere=false, misere_declarers=-1
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -280,6 +280,8 @@ fn dmcts(
     schedule: Option<Vec<i64>>,
     // Coiffeur Misère: every seat plays to take as little as it can (`objective.rs`).
     misere: bool,
+    // ...and the choosing team must take a trick (`coiffeur_match_stroke`); -1 when it need not.
+    misere_declarers: i64,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -358,6 +360,7 @@ fn dmcts(
             sidi_declarers: sidi_declarers & 1,
             sidi_doubled,
             misere,
+            misere_declarers: (misere_declarers >= 0).then_some(misere_declarers as usize & 1),
         },
         adversarial,
         leaf_weights: leaf_weights.unwrap_or_default(),

@@ -95,6 +95,8 @@ pub struct CoiffeurDetail {
     pub multiplier: i32,
     /// Card points, before the multiplier.
     pub round_total: [i32; 2],
+    /// Match strokes earned this round; `written` includes what they are worth.
+    pub strokes: [i32; 2],
     /// What went onto each team's total.
     pub written: [i32; 2],
     pub scores: [i32; 2],
@@ -255,7 +257,7 @@ impl Event {
                 pair("scores", detail.scores),
             ),
             Payload::CoiffeurRoundScored { round, detail } => format!(
-                "\"round\":{round},{},{},{},\"team\":{},\"row\":\"{}\",\"multiplier\":{},{},{},{}",
+                "\"round\":{round},{},{},{},\"team\":{},\"row\":\"{}\",\"multiplier\":{},{},{},{},{}",
                 pair("trick_points", detail.trick_points),
                 pair("last_trick", detail.last_trick),
                 pair("match", detail.match_bonus),
@@ -263,6 +265,7 @@ impl Event {
                 crate::coiffeur::ROW_NAMES[detail.row],
                 detail.multiplier,
                 pair("round_total", detail.round_total),
+                pair("strokes", detail.strokes),
                 pair("written", detail.written),
                 pair("scores", detail.scores),
             ),

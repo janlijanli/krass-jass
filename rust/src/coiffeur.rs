@@ -122,6 +122,8 @@ impl Choice {
 pub struct Sheet {
     pub rows: [bool; ALL_ROWS],
     pub written: [[Option<i32>; ALL_ROWS]; 2],
+    /// Match strokes per team, the sheet's own category (`coiffeur_match_stroke`).
+    pub strokes: [i32; 2],
 }
 
 impl Default for Sheet {
@@ -129,7 +131,7 @@ impl Default for Sheet {
     fn default() -> Self {
         let mut rows = [false; ALL_ROWS];
         rows[..FIRST_EXTRA_ROW].fill(true);
-        Sheet { rows, written: [[None; ALL_ROWS]; 2] }
+        Sheet { rows, written: [[None; ALL_ROWS]; 2], strokes: [0; 2] }
     }
 }
 
@@ -139,7 +141,7 @@ impl Sheet {
         for row in active_rows(rules) {
             rows[row] = true;
         }
-        Sheet { rows, written: [[None; ALL_ROWS]; 2] }
+        Sheet { rows, written: [[None; ALL_ROWS]; 2], strokes: [0; 2] }
     }
 
     pub fn is_open(&self, team: usize, row: usize) -> bool {

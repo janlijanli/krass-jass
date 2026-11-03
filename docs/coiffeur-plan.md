@@ -97,6 +97,14 @@ as trump: no one can trump in, and every later trick is trumped in whatever suit
 Tutti first on 2.9% of fresh hands, as before: the reserve fell with the line, so the row is no cheaper
 to fill. The A/B in step 5 predates both rows.
 
+**Match strokes (2026-11-03) are not priced.** A match now writes 157 into the row and a stroke worth 10
+on the sheet, never multiplied, and a Misère given away entirely writes 0 (`docs/rules-config.md`).
+The prices above count a match as 257 card points (`arena/coiffeur_contracts.py`), so a match row is
+over-valued by the bonus divided by its multiplier. Random play matches about one round in seventy;
+the search matches more often, so this is a small bias, not a sign error. The search reads the
+Misère edge (`Stakes::misere_declarers`); in an ordinary row it still plays for the cards with the
+match bonus in them, as in the Schieber.
+
 **The extra rows (Slalom, Guschti, 3×3, Misère) need the same runs, and one of their own.** Their games are
 valued today as the mean edge of the contracts their tricks are played in, and kept at a random hand's
 best game in the row (`extra_reserve` in `coiffeur_weights.json`, untrained). Step 1 extends to them

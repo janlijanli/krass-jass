@@ -45,7 +45,9 @@ play; for every other round both are the one contract, so nothing else changed. 
 are named mid-round by the leaders of tricks 4 and 7 (a `block` phase); the search samples them. A
 Tutti's tricks are named by their lead card (the suit led is trump), so `Kernel::at` takes the trick's
 cards, and its count is open until the first card (`Kernel::on_card`).
-Misère turns the reward round for every seat. Rules and open
+Misère turns the reward round for every seat, and the choosing team must take a trick in it.
+A match is a stroke in its own sheet category, worth 10 and never multiplied; the row gets 157 (owner,
+2026-11-03, `coiffeur_match_stroke`). Rules and open
 points in `docs/rules-config.md`, the bots and the training runs it needs in `docs/coiffeur-plan.md`.
 
 **The search is Rust** (`rust/`, exposed via `krass_jass.native`). Measured: 1.48M DMCTS

@@ -120,9 +120,16 @@ class RulesConfig:
     #: Also credit the defenders with their card points, times the row's multiplier. Off:
     #: Swisslos, jassverzeichnis.ch and pagat write only the choosing team.
     coiffeur_score_opponents: bool = False
-    #: Write card points in tens, rounded half up (85 -> 9, a match's 257 -> 26), and multiply
-    #: those. On (owner, 2026-10-31); off writes the points in full.
+    #: Write card points in tens, rounded half up (85 -> 9), and multiply those. On (owner,
+    #: 2026-10-31); off writes the points in full.
     coiffeur_tens: bool = True
+    #: A match is a stroke in the sheet's own Match category, worth this much as written and never
+    #: multiplied; the row gets the 157 card points like any full hand (owner, 2026-11-03). The team
+    #: that takes all nine tricks earns it — the choosing team, or its opponents in a counter-match —
+    #: except the choosing team in a Misère, which must take a trick: if it takes none it writes 0
+    #: and the opponents earn the stroke. Needs `match_bonus` on to see a match. `None` is the rule
+    #: before: the match bonus counted into the row (257 -> 26 x the multiplier).
+    coiffeur_match_stroke: int | None = 10
     #: The rows played beyond the seven, from `krass_jass.schedule.EXTRA_ROWS`: "TUTTI", "SLALOM",
     #: "GUSCHTI", "TRIO" (3x3) and "MISERE". All five (owner, 2026-10-31 and 2026-11-01); `()` is
     #: the six contracts and the Chance.

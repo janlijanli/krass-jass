@@ -604,6 +604,10 @@ def coiffeur_view(table: Table, seat: int) -> dict | None:
         # 3x3: the blocks this seat may name now, when it leads trick 4 or 7.
         "blocks": [c.name for c in game.legal_blocks()] if game.to_act == seat else [],
         "tens": game.cfg.coiffeur_tens,
+        # Match strokes per team, the sheet's own category, and what one is worth (`None`: the
+        # match bonus is in the row instead).
+        "strokes": list(game.sheet.strokes),
+        "stroke": game.cfg.coiffeur_match_stroke,
     }
 
 

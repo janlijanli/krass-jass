@@ -367,12 +367,19 @@ who may shove back once; then it must choose. The dealer passes on as in the Sch
 
 **Play.** Whoever chooses **leads** the first trick. No Weis, no Stöck (every source agrees).
 
-**Scoring.** Only the choosing team writes: its card points (157 a round, 257 with Match:
-`match_bonus` stays 100) into the row, times the row's multiplier.
+**Scoring.** Only the choosing team writes: its card points (157 a round) into the row, times the
+row's multiplier.
 `coiffeur_tens` — **default `True`** (owner, 2026-10-31): the points are written in tens, rounded
-half up (84 → 8, 85 → 9, Match 257 → 26), and the tens are multiplied. **Rounding is ours:** the
-sources write Match as 25 or 16 and Wasserturm rounds up from 4; the owner asked for tens, not for a
-rounding rule. With `False` the points are written in full.
+half up (84 → 8, 85 → 9), and the tens are multiplied. **Rounding is ours:** Wasserturm rounds up
+from 4; the owner asked for tens, not for a rounding rule. With `False` the points are written in full.
+
+**Match** (owner, 2026-11-03). `coiffeur_match_stroke` — **default `10`**. A match is not a bonus in
+the row: the row gets the 157 card points like any full hand (16 in tens), and the team earns a
+**stroke** ( | ) in the sheet's own **Match** category, worth 10 as written and **never multiplied**.
+The stroke goes to the team that took all nine tricks: the choosing team, or its opponents in a
+**counter-match**, where the choosing team writes 0. The choosing team in a Misère never earns one
+(next section). `match_bonus` stays 100 so the engine sees the match; the 100 itself is not written.
+`None` is the rule before: the match bonus counted into the row (257 → 26 × the multiplier).
 `coiffeur_score_opponents` — **default `False`**. When `True` the defenders are credited with their
 card points times the same multiplier (Jassclub Wasserturm's rule); their row stays open.
 
@@ -383,8 +390,6 @@ card points times the same multiplier (Jassclub Wasserturm's rule); their row st
 
 - **The other extra rows** — Zick-Zack, Züri, Mezzo. Researched 2026-10-31, below; not built,
   each waiting for the owner's definition. Tutti, Slalom, Guschti, 3×3 and Misère are (next section).
-- **Counter-match** (the choosing team takes no trick). pagat scores it with sticks and potatoes in
-  the three-player game and gives no four-player rule; the sheet simply writes 0.
 - **A wrong choice** ("Fehlwahl") — the engine refuses a closed row, so it cannot arise.
 
 ### Coiffeur — Tutti, Slalom, Guschti, 3×3 and Misère (built 2026-10-31 and 2026-11-01)
@@ -418,8 +423,11 @@ write each game out as the contract of each of its nine tricks.
   (`Kernel::count_open`).
 - **Misère** (owner, 2026-10-31): the chooser picks Obenabe or Undenufe (`MISERE_OBENABE`), and the
   aim is to take as few points as possible. The choosing team writes the points the **opponents**
-  took — 157 minus its own, 257 if the opponents make a match — so both teams play to avoid points,
-  and the search's objective is turned round for every seat (`Stakes::misere`).
+  took — 157 minus its own — so both teams play to avoid points, and the search's objective is
+  turned round for every seat (`Stakes::misere`). **It must take at least one trick** (owner,
+  2026-11-03): if the opponents take all nine it writes 0 and they earn a match stroke; the search
+  sees that edge (`Stakes::misere_declarers`, read off the points as the Sidi reads Match). Taking
+  all nine in its own Misère writes 0 and earns no stroke.
 - **The Chance** takes any of these games too (`coiffeur_chance_takes_extra`, above).
 
 ### Coiffeur — the extra rows, researched (2026-10-31)

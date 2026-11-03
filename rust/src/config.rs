@@ -54,6 +54,9 @@ pub struct Rules {
     pub coiffeur_guschti_45: bool,
     /// The Chance may also take an extra row's game, not only one of the six contracts.
     pub coiffeur_chance_takes_extra: bool,
+    /// A match is a stroke in the sheet's Match category worth this much, never multiplied; the
+    /// row gets the card points. `None`: the match bonus counts into the row. See `rules.py`.
+    pub coiffeur_match_stroke: Option<i32>,
 }
 
 pub const SIDI_BIDS: usize = 14;
@@ -93,6 +96,7 @@ impl Default for Rules {
             coiffeur_extra_rows: [true; 5],
             coiffeur_guschti_45: false,
             coiffeur_chance_takes_extra: true,
+            coiffeur_match_stroke: Some(10),
         }
     }
 }

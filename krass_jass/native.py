@@ -90,6 +90,7 @@ def dmcts(
     sidi_alpha: float = 0.0,
     schedule: list[int] | None = None,
     misere: bool = False,
+    misere_declarers: int = -1,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -120,6 +121,9 @@ def dmcts(
         extra["schedule"] = [int(c) for c in schedule]
     if misere:
         extra["misere"] = True
+        if misere_declarers >= 0:
+            # The choosing team must take a trick (`coiffeur_match_stroke`).
+            extra["misere_declarers"] = misere_declarers
     if sidi_bid or sidi_auction:
         # Sidi Barrani: the hand's swing at the bid's threshold instead of a share of the cards
         # (`rust/src/objective.rs`), and the auction read into the imagined hands

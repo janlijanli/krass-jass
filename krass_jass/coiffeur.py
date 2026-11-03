@@ -129,6 +129,8 @@ class Sheet:
     written: list[list[int | None]] = field(
         default_factory=lambda: [[None] * ALL_ROWS for _ in range(2)]
     )
+    #: Match strokes per team, the sheet's own category (`coiffeur_match_stroke`).
+    strokes: list[int] = field(default_factory=lambda: [0, 0])
 
     @staticmethod
     def for_game(cfg: RulesConfig) -> "Sheet":

@@ -492,6 +492,10 @@ class DmctsAgent(Agent):
             "risk_lambda": self.risk_lambda,
             "leaf_weights": list(self.leaf_weights) if self.leaf_weights else None,
             "misere": obs.misere,
+            # A Misère given away entirely writes the choosing team 0 (`coiffeur_match_stroke`).
+            "misere_declarers": obs.declarer_seat & 1
+            if obs.misere and self.cfg.coiffeur_match_stroke is not None
+            else -1,
             "ismcts": self.ismcts,
             "resample_every": self.resample_every,
             "order_moves": self.order_moves,

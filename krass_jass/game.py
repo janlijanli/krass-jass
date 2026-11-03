@@ -711,11 +711,25 @@ class Game:
         points = list(score.total)
         declarers = team_of(self.declarer)
         multiplier = self.row_multipliers[self.row]
+        misere = self.schedule is not None and self.schedule.misere
+        stroke = self.cfg.coiffeur_match_stroke
+        strokes = [0, 0]
+        if stroke is not None:
+            # A match is a stroke of its own, not a bonus in the row: the row gets the cards.
+            points = [score.trick_points[t] + score.last_trick[t] for t in range(NUM_TEAMS)]
+            matched = [bool(score.match[t]) for t in range(NUM_TEAMS)]
+            for team in range(NUM_TEAMS):
+                # Taking every trick in your own Misère is no achievement.
+                if matched[team] and not (misere and team == declarers):
+                    strokes[team] = 1
         credit = points
-        if self.schedule is not None and self.schedule.misere:
+        if misere:
             # Misère: each team is credited with what the other took — the fewer points a
             # team takes itself, the more it writes.
             credit = [points[1], points[0]]
+            if stroke is not None and matched[1 - declarers]:
+                # The choosing team must take a trick: given away entirely, it writes 0.
+                credit[declarers] = 0
         values = [row_value(p, self.cfg) for p in credit]
         self.sheet.written[declarers][self.row] = values[declarers]
         written = [0, 0]
@@ -723,6 +737,8 @@ class Game:
         if self.cfg.coiffeur_score_opponents:
             written[1 - declarers] = values[1 - declarers] * multiplier
         for team in range(NUM_TEAMS):
+            self.sheet.strokes[team] += strokes[team]
+            written[team] += strokes[team] * (stroke or 0)
             self.scores[team] += written[team]
 
         detail = {
@@ -734,6 +750,8 @@ class Game:
             "row": ROW_NAMES[self.row],
             "multiplier": multiplier,
             "round_total": points,
+            # Match strokes earned this round; `written` includes what they are worth.
+            "strokes": strokes,
             "written": written,
             "scores": list(self.scores),
         }

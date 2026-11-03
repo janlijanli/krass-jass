@@ -727,12 +727,30 @@ impl Game {
     fn score_coiffeur(&mut self) {
         let round = self.round.as_ref().expect("round");
         let score = round.score([0, 0], [0, 0]);
-        let points = score.total();
+        let mut points = score.total();
         let declarers = team_of(self.declarer);
         let row = self.row.expect("row chosen");
         let multiplier = self.row_multipliers[row];
+        let misere = self.schedule.is_some_and(|s| s.misere());
+        let stroke = self.rules.coiffeur_match_stroke;
+        let matched = score.match_bonus.map(|m| m != 0);
+        let mut strokes = [0i32; 2];
+        if stroke.is_some() {
+            // A match is a stroke of its own, not a bonus in the row: the row gets the cards.
+            points = [0, 1].map(|t| score.trick_points[t] + score.last_trick[t]);
+            for team in 0..2 {
+                // Taking every trick in your own Misère is no achievement.
+                if matched[team] && !(misere && team == declarers) {
+                    strokes[team] = 1;
+                }
+            }
+        }
         // Misère: each team is credited with what the other took.
-        let credit = if self.schedule.is_some_and(|s| s.misere()) { [points[1], points[0]] } else { points };
+        let mut credit = if misere { [points[1], points[0]] } else { points };
+        if misere && stroke.is_some() && matched[1 - declarers] {
+            // The choosing team must take a trick: given away entirely, it writes 0.
+            credit[declarers] = 0;
+        }
         let values = credit.map(|p| crate::coiffeur::row_value(p, &self.rules));
         self.sheet.written[declarers][row] = Some(values[declarers]);
         let mut written = [0i32; 2];
@@ -741,6 +759,8 @@ impl Game {
             written[1 - declarers] = values[1 - declarers] * multiplier;
         }
         for team in 0..2 {
+            self.sheet.strokes[team] += strokes[team];
+            written[team] += strokes[team] * stroke.unwrap_or(0);
             self.scores[team] += written[team];
         }
         let detail = CoiffeurDetail {
@@ -751,6 +771,7 @@ impl Game {
             row,
             multiplier,
             round_total: points,
+            strokes,
             written,
             scores: self.scores,
         };
