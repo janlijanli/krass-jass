@@ -1735,6 +1735,42 @@ a replication on a fresh seed, queued, in `docs/sidi-plan.md`.
 
 ---
 
+## 5x. Four re-takes: the ceiling, the convention model, trump, the tree policy at equal time
+
+*2026-10-30/31.* All `HOUSE` without the target, 153,600 iterations, double rounds on one seed per
+pair. Runs and logs in `arena/runs/2026-10-30/`.
+
+| | share | deals | p |
+|---|---|---|---|
+| cheating (sees all hands, no endgame solver) vs the shipped bot | **57.86% ± 7.27** | 800 | ~0 |
+| play model refit on 6,000 rounds of convention self-play vs the shipped one (§5w) | 50.00% ± 5.32 | 1,000 | 0.99 |
+| tree policy at 14,400 vs no tree policy at 153,600 (equal time) | 50.31% ± 6.47 | 1,000 | 0.14 |
+
+**The ceiling has not moved.** §3f measured 57.35% before the trump fit, the beliefs, the tree policy
+and the convention model; today it is 57.86% (SE 0.26). Each of those measured +0.45 to +1.7 against
+the bot before it, and the distance to perfect information is still ~8 points. Part of that is
+structural — the cheating agent bids with the same tuned selector and gains from it too — but the
+plain reading stands: the gains so far moved the bot, not the gap.
+
+**The convention model is reproducible, not improvable by this route.** Half §5w's corpus (155,550
+decisions, seed 17) gives a model at 63.1% top-1 against §5w's 65.2%, and in play it is
+indistinguishable from the shipped one. That is a reproduction of §5w's model, not a test of its
+gain; the gain itself stands on §5w's two seeds.
+
+**Trump refit: negative held out.** Re-labelled with a card player reading the table (1,000 hands × 8
+deals, 2,400 iterations, play likelihood on), the refit gains on the half it fits and loses
+**−0.79 ± 1.83** game points a round on the other half — against §5r's +3.2 ± 1.6 on different labels.
+Both within two standard errors of nothing; the in-play match was not run. The weights are where
+these features and this data leave them, as §5r concluded. (`arena/fit_trump.py`'s consistency
+check now skips hands sitting exactly on the shove threshold, where summation order decides.)
+
+**The tree policy at equal time leans again and does not resolve.** +0.31 (p = 0.14), after §5p's
++0.39. Two leans the same way at ~1/11 of the iterations: plausibly real at about a third of a point,
+not shown. This is the question for the browser build, where the tree policy is off: at its cost
+there it would match the native search without it, and probably not beat it by much.
+
+---
+
 ## 6. Open
 
 - **Nothing measured against a human.** Every figure is bots against bots, and two of the largest
@@ -1742,6 +1778,6 @@ a replication on a fresh seed, queued, in `docs/sidi-plan.md`.
 - The tuned trump selector calls Obenabe or Undenufe about half the time. Whether that is a fact
   about Schieber or about how our bots defend no-trump contracts cannot be seen bot against bot.
 - The belief network at weight 1 is in a match as this is written (§5q).
-- The tree policy keeps a +0.39 lean at equal time (§5p); it is where a larger move budget would go
-  first, and has not been measured at the full budget.
-- The cheating-agent gap (§3f, 57.35%) predates the trump fit and the beliefs; re-take it.
+- The tree policy leans +0.39 and +0.31 at equal time (§5p, §5x), neither significant; pooled it
+  would take ~3,000 more deals to resolve a third of a point.
+- The cheating-agent gap is ~8 points and did not narrow with the last four gains (§5x).
