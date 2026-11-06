@@ -1338,6 +1338,9 @@ function render(view) {
   renderHand(view);
   renderTrick(view);
   renderSeats(view);
+  // While trump or a row is being chosen the felt is empty, and on a phone the nameplates and
+  // the other hands' backs only sit over the choice. They come back with the first card.
+  document.body.classList.toggle("choosing", view.phase === "bidding");
   renderWeis(view);
   renderScorecard(view);
 
