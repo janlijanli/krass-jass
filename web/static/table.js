@@ -733,6 +733,8 @@ let dealtRound = null;
 function renderHand(view) {
   const legal = new Set(view.legal);
   const myTurn = view.to_act === view.seat && view.phase === "playing";
+  // The other seats say "on turn" with a lit nameplate; you have none, so the fan says it.
+  el.hand.parentElement.classList.toggle("my-turn", myTurn && !view.trick_complete);
   el.hand.replaceChildren();
   const deal = view.hand.length === 9 && dealtRound !== view.round;
   if (deal) dealtRound = view.round;
@@ -1351,6 +1353,8 @@ function render(view) {
   if (askingWeis) el.weisPoints.textContent = t("weis.prompt.amount", { n: view.weis_offer });
   el.shove.hidden = !view.can_shove;
   el.status.textContent = statusText(view);
+  el.status.classList.toggle("yours", (view.to_act === view.seat || !!view.knock || !!view.double_pending)
+    && !view.trick_complete && view.phase !== "round_over" && view.phase !== "game_over");
 
   // The scorecard is the round-end surface now; the banner only covers the moment between
   // the last card and the scorecard appearing.
