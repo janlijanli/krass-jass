@@ -789,6 +789,12 @@ function renderHand(view) {
  */
 let talkTimer = null;
 
+function hideTalk() {
+  clearTimeout(talkTimer);
+  document.querySelectorAll(".speech").forEach((n) => n.remove());
+  document.querySelectorAll(".seat-marker.talking").forEach((n) => n.classList.remove("talking"));
+}
+
 function showTalk(view, remark) {
   const rel = (remark.seat - view.seat + 4) % 4;
   // Onto the felt, not onto the seat pill. The pills carry a `translate(-50%)` to centre
@@ -1323,6 +1329,8 @@ function poundAt(view, seat) {
 function render(view) {
   const doubler = newDouble(lastView, view);
   lastView = view;
+  // A remark never stays up over the human's own turn: it is atmosphere, not an interruption.
+  if (view.to_act === view.seat && !view.trick_complete) hideTalk();
   if (doubler !== null && doubler !== undefined) poundAt(view, doubler);
   recordRound(view);
   if (view.target) board.target = view.target;
@@ -1441,16 +1449,20 @@ function connect() {
 
   socket.onmessage = (message) => {
     const event = JSON.parse(message.data);
-    if (event.type === "view") { render(event); return; }
+    if (event.type === "view") {
+      render(event);
+      // A remark belongs to the pause after a trick, when nobody is waiting on you. Read from
+      // the view of the finished trick (the `trick_won` event arrives before it), and said
+      // once per trick however often that view is repainted — `maybeSay` keeps count.
+      if (talkOn()) speak(maybeSay(event, BOT_SEATS));
+      return;
+    }
     if (event.type === "rejected") { el.status.textContent = event.message; return; }
     if (event.type === "error") { el.status.textContent = event.message; return; }
     if (event.type === "trick_won") {
       const rel = (event.seat - mySeat + 4) % 4;
       el.status.textContent =
         rel === 0 ? t("status.youTake") : rel === 2 ? t("status.partnerTakes") : t("status.theyTake");
-      // A remark belongs to the pause after a trick, when nobody is waiting on you. From the
-      // event, not from a redraw, so it is said once rather than on every repaint.
-      if (talkOn()) speak(maybeSay(event.trick, BOT_SEATS));
     }
     if (event.type === "round_started") resetTalk();   // a new deal starts the talk fresh
   };

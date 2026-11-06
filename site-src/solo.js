@@ -246,7 +246,7 @@ async function drive() {
       if (v.trick_complete) {
         // A remark belongs to the pause after a trick, when nobody is waiting on you.
         // Driven from here rather than from render(), because a redraw must not repeat it.
-        if (talkOn()) speak(maybeSay(acked, BOT_SEATS));
+        if (talkOn()) speak(maybeSay(v, BOT_SEATS));
         break;                                // waiting on a tap
       }
       if (v.to_act === null || v.to_act === HUMAN_SEAT) break;
