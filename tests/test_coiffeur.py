@@ -108,7 +108,7 @@ def test_a_played_row_is_closed_but_its_contract_can_still_go_to_the_chance():
 
 
 def test_the_chooser_leads_and_only_the_choosing_team_writes():
-    game = Game(cfg=FIXED, seed=11)
+    game = Game(cfg=FIXED.variant(ecken_ten_muss=False), seed=11)
     chooser = game.to_act
     game.bid(chooser, SHOVE)
     second = game.to_act

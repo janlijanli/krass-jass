@@ -96,7 +96,7 @@ pub extern "C" fn bench_game(seed: u32) -> u32 {
             }
             Phase::Bidding => {
                 let seat = game.to_act().unwrap();
-                let action = select_trump(game.hand_of(seat), seat == game.forehand, &rules);
+                let action = select_trump(game.hand_of(seat), game.may_shove(seat), &rules);
                 let _ = game.bid(seat, action);
             }
             Phase::Weis => {

@@ -1105,6 +1105,9 @@ impl PyGame {
     fn scores(&self) -> (i32, i32) {
         (self.inner.scores[0], self.inner.scores[1])
     }
+    fn may_shove(&self, seat: usize) -> bool {
+        self.inner.may_shove(seat)
+    }
     #[getter]
     fn forehand(&self) -> usize {
         self.inner.forehand

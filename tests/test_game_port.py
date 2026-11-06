@@ -100,7 +100,8 @@ def drive_both(seed, target=1000, weis_manual=False, decide=None):
         assert py.hand_of(seat) == rs.hand_of(seat), "hands diverged"
 
         if py.phase is Phase.BIDDING:
-            action = agent.select_trump(py.hand_of(seat), seat == py.forehand)
+            assert py.may_shove(seat) == rs.may_shove(seat), "may_shove diverged"
+            action = agent.select_trump(py.hand_of(seat), py.may_shove(seat))
             py.bid(seat, action)
             rs.bid(seat, -1 if action == SHOVE else int(action))
         elif py.phase is Phase.WEIS:

@@ -541,12 +541,9 @@ def view(table: Table, seat: int) -> dict:
         "declarer": game.declarer,
         "scores": list(game.scores),
         "round": game.round_index,
-        "can_shove": (
-            game.phase is Phase.BIDDING
-            and game.cfg.mode == "schieber"
-            and seat == game.forehand
-            and not game.shoved
-        ),
+        "can_shove": game.cfg.mode == "schieber" and game.may_shove(seat),
+        # The first round's Müessi: the Ecken 10 chooses and nobody shoves (`ecken_ten_muss`).
+        "muessi": game.phase is Phase.BIDDING and game.muss,
         # Sidi Barrani. The auction is public — every call was said aloud — and the calls this
         # seat may make now are the engine's, as legal cards are: the client never decides.
         "mode": game.cfg.mode,
@@ -834,7 +831,7 @@ async def think(table: Table, actor: int) -> None:
         hand = game.hand_of(actor)
         started = loop.time()
         action = await loop.run_in_executor(
-            None, bot.select_trump, hand, actor == game.forehand
+            None, bot.select_trump, hand, game.may_shove(actor)
         )
         await pace(1, loop.time() - started)
         game.bid(actor, action)

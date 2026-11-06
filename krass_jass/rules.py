@@ -65,6 +65,10 @@ class RulesConfig:
     # -- bidding
     multipliers: dict[Contract, int] = field(default_factory=lambda: dict(DEFAULT_MULTIPLIERS))
     allow_zurueckschieben: bool = False
+    #: "Müessi": whoever was dealt the Ecken 10 opens the first round of a game and must choose
+    #: trump (or, in the Coiffeur, a row) without shoving. Later rounds shove as usual. On for the
+    #: Schieber and the Coiffeur (owner, 2026-11-06); the Sidi has no shove.
+    ecken_ten_muss: bool = True
 
     # -- trick-taking
     strict_undertrump: bool = True
@@ -163,6 +167,9 @@ HOUSE = RulesConfig()
 #: Bot-vs-bot measurement. Weis, Stöck and the match bonus are off because they dominate
 #: scoring variance and would drown any real difference between two agents (PLAN.md §4).
 EVAL = HOUSE.variant(
+    # Off for measurement: the arena's deals are each a game's first round, and a forced choice
+    # on every one of them would change what every earlier measurement was taken under.
+    ecken_ten_muss=False,
     weis_enabled=False,
     stoeck_enabled=False,
     match_bonus=0,

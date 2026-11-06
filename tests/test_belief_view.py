@@ -31,7 +31,7 @@ def mid_round(cfg, seed: int, plays: int):
         if cfg.sidi:
             game.bid(seat, agent.sidi_call(game.hand_of(seat), game.public_auction(), seat))
         else:
-            game.bid(seat, agent.select_trump(game.hand_of(seat), seat == game.forehand))
+            game.bid(seat, agent.select_trump(game.hand_of(seat), game.may_shove(seat)))
     rng = random.Random(seed)
     for _ in range(plays):
         if game.phase is Phase.DOUBLING:

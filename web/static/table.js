@@ -649,7 +649,7 @@ function renderCoiffeur(view) {
   const canShove = c.legal.includes("SHOVE");
   const open = coiffeurOpen;
   el.coiffeurPrompt.textContent = !open
-    ? (canShove ? t("coiffeur.prompt") : t("coiffeur.mustChoose"))
+    ? (canShove ? t("coiffeur.prompt") : t(view.muessi ? "coiffeur.muessi" : "coiffeur.mustChoose"))
     : open === "TRIO" ? t("coiffeur.pickFirstBlock")
     : open === "CHANCE" ? t("coiffeur.pickAny", { row: rowLabel(open) })
     : EXTRA_ROWS.includes(open) ? t("coiffeur.pickGame", { row: rowLabel(open) })
@@ -1273,11 +1273,12 @@ function statusText(view) {
   }
   if (view.coiffeur && view.phase === "bidding") {
     return view.to_act === view.seat
-      ? t("coiffeur.yourChoice")
+      ? t(view.muessi ? "status.muessi" : "coiffeur.yourChoice")
       : t("coiffeur.choosing", { who: seatName(view, view.to_act) });
   }
   if (view.to_act === view.seat) {
     if (view.phase === "bidding") {
+      if (view.muessi) return t("status.muessi");
       return view.declarer === view.seat && view.can_shove
         ? t("status.yourBid")
         : t("status.mustChoose");

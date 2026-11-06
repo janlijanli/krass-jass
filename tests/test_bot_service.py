@@ -122,7 +122,7 @@ def test_a_whole_round_plays_over_http():
         while game.phase is Phase.BIDDING:
             seat = game.to_act
             actor = bots.get(seat, human)
-            game.bid(seat, actor.select_trump(game.hand_of(seat), seat == game.forehand))
+            game.bid(seat, actor.select_trump(game.hand_of(seat), game.may_shove(seat)))
         while game.phase is Phase.PLAYING:
             seat = game.round.to_play
             actor = bots.get(seat, human)

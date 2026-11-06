@@ -355,7 +355,7 @@ pub extern "C" fn bot_bid(handle: u32, seat: u32) -> i32 {
         let Some(game) = games.get(&handle) else { return 0 };
         let action = select_trump(
             game.hand_of(seat as usize),
-            seat as usize == game.forehand,
+            game.may_shove(seat as usize),
             &game.rules,
         );
         if action == SHOVE { -1 } else { action as i32 }
@@ -837,8 +837,10 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
         let sidi = game.rules.sidi;
         out.push_str(&format!(
             ",\"can_shove\":{}",
-            !sidi && !game.rules.coiffeur && game.phase == Phase::Bidding && seat == game.forehand && !game.shoved
+            !sidi && !game.rules.coiffeur && game.may_shove(seat)
         ));
+        // The first round's Müessi, as `web/app.py::view`.
+        out.push_str(&format!(",\"muessi\":{}", game.phase == Phase::Bidding && game.muss()));
         // Sidi Barrani, in the shape `web/app.py::view` sends: the auction (public — every
         // call was said aloud), the calls this seat may make, the bid and the double.
         let mode = if sidi { "sidi" } else if game.rules.coiffeur { "coiffeur" } else { "schieber" };

@@ -11,6 +11,9 @@ pub struct Rules {
     /// Indexed by contract. Schilten + Schellen (spades + diamonds) are the cheap pair.
     pub multipliers: [i32; NUM_CONTRACTS],
     pub allow_zurueckschieben: bool,
+    /// "Müessi": the Ecken 10 opens a game's first round and must choose, no shove. Twin of
+    /// `ecken_ten_muss` in `rules.py`; off in the measurement preset only.
+    pub ecken_ten_muss: bool,
     pub strict_undertrump: bool,
     pub puur_exempt: bool,
     pub last_trick_bonus: i32,
@@ -71,6 +74,7 @@ impl Default for Rules {
             // DIAMONDS, HEARTS, SPADES, CLUBS, OBENABE, UNDENUFE
             multipliers: [1, 2, 1, 2, 3, 4],
             allow_zurueckschieben: false,
+            ecken_ten_muss: true,
             strict_undertrump: true,
             puur_exempt: true,
             last_trick_bonus: 5,

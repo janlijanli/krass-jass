@@ -344,7 +344,7 @@ def test_weis_off_means_no_weis_phase_and_no_weis_points():
         # unchanged rather than starting the round
         while game.phase is Phase.BIDDING:
             seat = game.to_act
-            game.bid(seat, agent.select_trump(game.hand_of(seat), seat == game.forehand))
+            game.bid(seat, agent.select_trump(game.hand_of(seat), game.may_shove(seat)))
         assert game.phase is not Phase.WEIS, "no prompt when Weis is switched off"
         while game.phase is Phase.PLAYING:
             seat = game.round.to_play
@@ -407,7 +407,8 @@ def test_coiffeur_is_a_mode_of_its_own_with_the_sheet_in_the_view():
     assert len(seven["rows"]) == len(seven["multipliers"]) == 7
     # The choices on offer are the engine's, in wire form, and only for the seat on turn.
     assert sheet["legal"] == [str(c) for c in game.legal_choices()]
-    assert "SHOVE" in sheet["legal"] and "HEARTS/CHANCE" in sheet["legal"]
+    # The first round is a Müessi: the Ecken 10 opens and may not shove.
+    assert "SHOVE" not in sheet["legal"] and "HEARTS/CHANCE" in sheet["legal"]
     assert view(table, (game.to_act + 1) % 4)["coiffeur"]["legal"] == []
     # The Schieber's shove button and bidding panel are not this game's.
     assert frame["can_shove"] is False
