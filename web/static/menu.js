@@ -131,6 +131,50 @@ function buildLanguagePicker(onChange) {
   }
 }
 
+/* Add to Home Screen, from the menu.
+ *
+ * Chromium hands the page an install prompt (`beforeinstallprompt`) it may show on a tap.
+ * iOS has no such API at all: the only way is Safari's Share sheet, so there the button
+ * says where to tap instead. Captured at module load, because the event can fire before
+ * the menu is built. */
+let installPrompt = null;
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();          // keep the browser's own mini-bar out of the game
+  installPrompt = event;
+});
+
+function setupInstall() {
+  const host = document.getElementById("install-app");
+  if (!host) return;
+  const standalone =
+    window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const hasManifest = !!document.querySelector('link[rel="manifest"]');
+  const phone = window.matchMedia("(pointer: coarse)").matches;
+  const ios =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);   // iPadOS says Mac
+  // Already installed, or a build that cannot be installed: no control rather than a dead one.
+  if (standalone || !hasManifest || !phone) return;
+  // Shown on every phone: browsers that never send the prompt (Firefox, some Samsung builds)
+  // still install from their own menu, and the button says where.
+  host.hidden = false;
+
+  const note = document.getElementById("install-note");
+  document.getElementById("install-button").addEventListener("click", async () => {
+    if (installPrompt) {
+      const prompt = installPrompt;
+      installPrompt = null;          // a prompt can be shown once
+      prompt.prompt();
+      const { outcome } = await prompt.userChoice;
+      if (outcome === "accepted") host.hidden = true;
+      return;
+    }
+    note.dataset.i18n = ios ? "menu.installIos" : "menu.installOther";
+    note.textContent = t(note.dataset.i18n);
+  });
+  window.addEventListener("appinstalled", () => { host.hidden = true; });
+}
+
 export function initMenu({
   measurementsUrl,
   onNewGame = null,
@@ -327,27 +371,34 @@ export function initMenu({
     });
   });
 
+  setupInstall();
+
   buildLanguagePicker(() => {
     relocalise();
     onLanguageChange?.();
   });
 
-  // The Sidi rules are one tap away from the table: the bidding panel and the settings note
-  // ask for them with this event rather than knowing how the menu is built.
-  document.addEventListener("kj:open-rules", async () => {
+  // The rules are one tap away from the table: the bidding panels and the settings notes ask
+  // for them with this event rather than knowing how the menu is built. `detail` is the panel:
+  // "rules" for the Sidi, "coiffeur" for the Coiffeur.
+  document.addEventListener("kj:open-rules", async (event) => {
     open();
     await showMode("about");
-    document.querySelector('.about-tab[data-panel="rules"]')?.click();
+    document.querySelector(`.about-tab[data-panel="${event.detail || "rules"}"]`)?.click();
   });
 
   // The game decides which settings exist. Sidi Barrani counts every contract once and has
-  // no Weis, so those two sections go while it is chosen, and its usual target is 2000.
+  // no Weis, so those two sections go while it is chosen, and its usual target is 2000. The
+  // Coiffeur has neither and no target either: the sheet decides when the game ends.
   const form = document.getElementById("mode-settings");
   const TARGET_FOR = { sidi: "2000", schieber: "1000" };
   const syncMode = (changed) => {
     const mode = form?.querySelector('input[name="mode"]:checked')?.value || "sidi";
-    form?.querySelectorAll("[data-schieber-only]").forEach((n) => { n.hidden = mode === "sidi"; });
-    if (changed) {
+    form?.querySelectorAll("[data-schieber-only]").forEach((n) => { n.hidden = mode !== "schieber"; });
+    // Coiffeur ends with the sheet: no target, and its own note in place of the Sidi's.
+    form?.querySelectorAll("[data-not-coiffeur]").forEach((n) => { n.hidden = mode === "coiffeur"; });
+    form?.querySelectorAll("[data-coiffeur-only]").forEach((n) => { n.hidden = mode !== "coiffeur"; });
+    if (changed && TARGET_FOR[mode]) {
       const target = form.querySelector(`input[name="target"][value="${TARGET_FOR[mode]}"]`);
       if (target) target.checked = true;
     }

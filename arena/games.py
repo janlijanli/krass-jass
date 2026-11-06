@@ -75,7 +75,14 @@ def play_game(a: Agent, b: Agent, seed: int, cfg: RulesConfig) -> int:
         if seat is None:
             break
         agent = seats[seat]
-        if game.phase is Phase.BIDDING:
+        if game.phase is Phase.BIDDING and cfg.coiffeur:
+            game.bid(
+                seat,
+                agent.coiffeur_choice(game.hand_of(seat), game.legal_choices(), game.row_multipliers),
+            )
+        elif game.phase is Phase.BLOCK:
+            game.choose_block(seat, agent.coiffeur_block(game.hand_of(seat), game.legal_blocks()))
+        elif game.phase is Phase.BIDDING:
             game.bid(seat, agent.select_trump(game.hand_of(seat), seat == game.forehand))
         elif game.phase is Phase.WEIS:
             game.choose_weis(seat, True)

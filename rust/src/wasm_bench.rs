@@ -107,6 +107,12 @@ pub extern "C" fn bench_game(seed: u32) -> u32 {
                 let seat = game.to_act().unwrap();
                 let _ = game.double(seat, false);
             }
+            // The benchmark plays the Schieber; a Coiffeur 3x3 block never comes up.
+            Phase::Block => {
+                let seat = game.to_act().unwrap();
+                let first = game.legal_blocks()[0];
+                let _ = game.choose_block(seat, first);
+            }
             Phase::Playing => {
                 let seat = game.to_act().unwrap();
                 let legal = game.round.as_ref().unwrap().legal_moves(seat);

@@ -412,6 +412,37 @@ function rulesPanel(L) {
   return wrap;
 }
 
+/* ---------- Coiffeur: the sheet, the rows, the bots ---------------------- */
+
+function coiffeurRulesPanel(L) {
+  const wrap = html("div", "about-panel rules");
+  const p = (key) => html("p", null, about(L, key));
+  const h = (key) => html("h3", null, about(L, key));
+  const list = (keys) => {
+    const ul = html("ul", "rules-list");
+    for (const key of keys) ul.append(html("li", null, about(L, key)));
+    return ul;
+  };
+  wrap.append(p("coif.intro"), h("coif.sheet.h"), p("coif.sheet.p"), p("coif.chance.p"),
+    h("coif.choose.h"), p("coif.choose.p"), h("coif.score.h"), p("coif.score.p"));
+
+  // As for the Sidi: the arithmetic is the point, so it is shown worked.
+  const table = html("table", "rules-examples");
+  const [a, b, c] = about(L, "coif.ex.head").split("|");
+  table.append(html("thead", null, `<tr><th>${a}</th><th>${b}</th><th>${c}</th></tr>`));
+  const body = html("tbody");
+  for (const key of ["coif.ex.1", "coif.ex.2", "coif.ex.3", "coif.ex.4"]) {
+    const cells = about(L, key).split("|").map((x) => `<td>${x}</td>`).join("");
+    body.append(html("tr", null, cells));
+  }
+  table.append(body);
+  wrap.append(table, h("coif.extra.h"), p("coif.extra.p"),
+    list(["coif.extra.tutti", "coif.extra.slalom", "coif.extra.guschti", "coif.extra.trio", "coif.extra.misere"]),
+    p("coif.extra.header"), h("coif.end.h"), p("coif.end.p"), h("coif.bots.h"), p("coif.bots.p"),
+    html("p", "warn", about(L, "coif.bots.warn")));
+  return wrap;
+}
+
 export function buildAbout(data, initial = "play") {
   // Read once per build: menu.js rebuilds the whole panel when the language changes, so a
   // half-translated panel is not reachable.
@@ -422,6 +453,7 @@ export function buildAbout(data, initial = "play") {
     internals: () => internalsPanel(data, L),
     walk: () => walkthroughPanel(data, L),
     rules: () => rulesPanel(L),
+    coiffeur: () => coiffeurRulesPanel(L),
   };
   const built = {};
   const body = html("div", "about-body");
@@ -433,6 +465,7 @@ export function buildAbout(data, initial = "play") {
     ["internals", about(L, "tab.internals")],
     ["walk", about(L, "tab.walk")],
     ["rules", about(L, "tab.rules")],
+    ["coiffeur", about(L, "tab.coiffeur")],
   ];
   let active = initial in panels ? initial : "play";
 

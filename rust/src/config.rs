@@ -34,6 +34,29 @@ pub struct Rules {
     pub sidi_double_after_lead: bool,
     /// A double during the auction ends it.
     pub sidi_double_ends_auction: bool,
+    /// Coiffeur instead of the Schieber: the sheet, its rows and multipliers, the game end.
+    /// `docs/rules-config.md`, "Coiffeur"; `coiffeur.rs`.
+    pub coiffeur: bool,
+    /// Deal the row multipliers out at random from the game seed (default) or use the table.
+    pub coiffeur_random_multipliers: bool,
+    /// Slot order: diamonds, hearts, spades, clubs, Obenabe, Undenufe, Chance, Tutti, Slalom,
+    /// Guschti, 3x3, Misère. A slot not played is not read, nor the Chance's.
+    pub coiffeur_multipliers: [i32; 12],
+    /// The Chance row's multiplier, random or not.
+    pub coiffeur_chance_multiplier: i32,
+    /// Also credit the defenders with their card points, times the row's multiplier.
+    pub coiffeur_score_opponents: bool,
+    /// Write card points in tens, rounded half up, and multiply those.
+    pub coiffeur_tens: bool,
+    /// The extra rows played: Tutti, Slalom, Guschti, 3x3, Misère (`schedule.rs`).
+    pub coiffeur_extra_rows: [bool; 5],
+    /// Guschti also as four tricks then five.
+    pub coiffeur_guschti_45: bool,
+    /// The Chance may also take an extra row's game, not only one of the six contracts.
+    pub coiffeur_chance_takes_extra: bool,
+    /// A match is a stroke in the sheet's Match category worth this much, never multiplied; the
+    /// row gets the card points. `None`: the match bonus counts into the row. See `rules.py`.
+    pub coiffeur_match_stroke: Option<i32>,
 }
 
 pub const SIDI_BIDS: usize = 14;
@@ -64,6 +87,16 @@ impl Default for Rules {
             sidi_bids: [40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 157, 257],
             sidi_double_after_lead: true,
             sidi_double_ends_auction: true,
+            coiffeur: false,
+            coiffeur_random_multipliers: true,
+            coiffeur_multipliers: [4, 2, 3, 1, 5, 6, 0, 7, 8, 9, 10, 11],
+            coiffeur_chance_multiplier: 13,
+            coiffeur_score_opponents: false,
+            coiffeur_tens: true,
+            coiffeur_extra_rows: [true; 5],
+            coiffeur_guschti_45: false,
+            coiffeur_chance_takes_extra: true,
+            coiffeur_match_stroke: Some(10),
         }
     }
 }
@@ -78,6 +111,19 @@ impl Rules {
             weis_enabled: false,
             stoeck_enabled: false,
             target_score: 2000,
+            ..Rules::default()
+        }
+    }
+
+    /// Coiffeur: each team plays every row once, no Weis, no Stöck, no target. The contract
+    /// multipliers are ones because the row carries the multiplier. Twin of `COIFFEUR`.
+    pub fn coiffeur() -> Self {
+        Rules {
+            coiffeur: true,
+            multipliers: [1; NUM_CONTRACTS],
+            weis_enabled: false,
+            stoeck_enabled: false,
+            target_score: 0,
             ..Rules::default()
         }
     }

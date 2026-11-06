@@ -61,10 +61,23 @@ pub fn infer_forbidden(
     trump: i32,
     rules: &Rules,
 ) -> [u64; NUM_SEATS] {
+    infer_forbidden_per_trick(tricks, current_trick, current_leader, &[trump; 9], rules)
+}
+
+/// The same, with each trick read under the trump it was played in (Coiffeur's extra rows,
+/// `schedule.rs`): a discard in an Obenabe trick proves a void the same card in a trump trick
+/// would not.
+pub fn infer_forbidden_per_trick(
+    tricks: &[(usize, Vec<usize>)],
+    current_trick: &[usize],
+    current_leader: usize,
+    trumps: &[i32; 9],
+    rules: &Rules,
+) -> [u64; NUM_SEATS] {
     let mut forbidden = [0u64; NUM_SEATS];
-    for (leader, cards) in tricks {
-        apply_trick(&mut forbidden, *leader, cards, trump, rules);
+    for (i, (leader, cards)) in tricks.iter().enumerate() {
+        apply_trick(&mut forbidden, *leader, cards, trumps[i.min(8)], rules);
     }
-    apply_trick(&mut forbidden, current_leader, current_trick, trump, rules);
+    apply_trick(&mut forbidden, current_leader, current_trick, trumps[tricks.len().min(8)], rules);
     forbidden
 }

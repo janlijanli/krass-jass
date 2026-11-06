@@ -88,6 +88,9 @@ def dmcts(
     sidi_doubled: bool = False,
     sidi_auction: list[tuple[int, int, int]] | None = None,
     sidi_alpha: float = 0.0,
+    schedule: list[int] | None = None,
+    misere: bool = False,
+    misere_declarers: int = -1,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -112,6 +115,15 @@ def dmcts(
         extra["value_net"] = True
         if value_model_json:
             extra["value_model_json"] = value_model_json
+    if schedule:
+        # Coiffeur's extra rows: the contract each trick is played in (`krass_jass/schedule.py`);
+        # `contract` is the one the round is counted in.
+        extra["schedule"] = [int(c) for c in schedule]
+    if misere:
+        extra["misere"] = True
+        if misere_declarers >= 0:
+            # The choosing team must take a trick (`coiffeur_match_stroke`).
+            extra["misere_declarers"] = misere_declarers
     if sidi_bid or sidi_auction:
         # Sidi Barrani: the hand's swing at the bid's threshold instead of a share of the cards
         # (`rust/src/objective.rs`), and the auction read into the imagined hands
@@ -221,4 +233,5 @@ def belief_marginals(obs, agent, pool: int = 4096, seed: int = 1) -> tuple[list,
         play["belief_alpha"], play["bid_alpha"], play["policy_temperature"],
         play["bid_temperature"], weis.get("weis_called"), weis.get("weis_played"),
         play.get("sidi_auction"), play.get("sidi_alpha", 0.0),
+        **({"schedule": play["schedule"]} if play.get("schedule") else {}),
     )

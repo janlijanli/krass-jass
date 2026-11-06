@@ -28,7 +28,8 @@ use crate::rollout::Kernel;
 use crate::search::{dmcts, Candidate, Position};
 use crate::tables::{contract_name, CARD_VALUES};
 use crate::trump::{select_trump, SHOVE};
-use crate::voids::infer_forbidden;
+use crate::voids::{infer_forbidden, infer_forbidden_per_trick};
+use crate::coiffeur::{ROW_NAMES, ALL_ROWS};
 
 thread_local! {
     static GAMES: RefCell<HashMap<u32, Game>> = RefCell::new(HashMap::new());
@@ -60,12 +61,20 @@ pub extern "C" fn game_new(
     weis_enabled: u32,
     weis_manual: u32,
     m0: i32, m1: i32, m2: i32, m3: i32, m4: i32, m5: i32,
-    sidi: u32,
+    mode: u32,
+    extra_rows: u32,
 ) -> u32 {
-    // Sidi Barrani brings its own scoring — every contract x1, no Weis, no Stöck — so the
-    // Schieber's multipliers and Weis switch from the settings do not apply to it.
-    let rules = if sidi != 0 {
+    // Sidi Barrani (mode 1) brings its own scoring — every contract x1, no Weis, no Stöck — so
+    // the Schieber's multipliers and Weis switch from the settings do not apply to it. Nor to
+    // the Coiffeur (mode 2), which ends with the sheet; `extra_rows` has bit i set for each of
+    // `schedule::EXTRA_ROWS` played, as the server's form ticks them.
+    let rules = if mode == 1 {
         Rules { target_score, weis_manual: weis_manual != 0, ..Rules::sidi() }
+    } else if mode == 2 {
+        Rules {
+            coiffeur_extra_rows: std::array::from_fn(|i| extra_rows & (1 << i) != 0),
+            ..Rules::coiffeur()
+        }
     } else {
         Rules {
             target_score,
@@ -126,6 +135,71 @@ pub extern "C" fn game_next_round(handle: u32) -> u32 {
         let mut games = g.borrow_mut();
         let Some(game) = games.get_mut(&handle) else { return 1 };
         u32::from(game.next_round().is_err())
+    })
+}
+
+// -- Coiffeur -----------------------------------------------------------------------------------
+// A choice crosses as its index in `Game::legal_choices`, -1 for a shove; the view lists them by
+// name in the same order, so the page maps one onto the other. A 3x3 block crosses as its contract.
+
+/// Coiffeur: choose a row, or shove. 0 = ok, 1 = rejected.
+#[no_mangle]
+pub extern "C" fn game_choose(handle: u32, seat: u32, index: i32) -> u32 {
+    GAMES.with(|g| {
+        let mut games = g.borrow_mut();
+        let Some(game) = games.get_mut(&handle) else { return 1 };
+        let choice = if index < 0 {
+            None
+        } else {
+            match game.legal_choices().0.get(index as usize) {
+                Some(&c) => Some(c),
+                None => return 1,
+            }
+        };
+        u32::from(game.choose(seat as usize, choice).is_err())
+    })
+}
+
+/// Coiffeur 3x3: name the next block. 0 = ok, 1 = rejected.
+#[no_mangle]
+pub extern "C" fn game_block(handle: u32, seat: u32, contract: u32) -> u32 {
+    GAMES.with(|g| {
+        let mut games = g.borrow_mut();
+        let Some(game) = games.get_mut(&handle) else { return 1 };
+        u32::from(game.choose_block(seat as usize, contract as usize).is_err())
+    })
+}
+
+/// Coiffeur: the rule bot's row (`coiffeur_select.rs`), as for `game_choose`; -2 when there is
+/// nothing to choose.
+#[no_mangle]
+pub extern "C" fn bot_choose(handle: u32, seat: u32) -> i32 {
+    GAMES.with(|g| {
+        let games = g.borrow();
+        let Some(game) = games.get(&handle) else { return -2 };
+        let (choices, can_shove) = game.legal_choices();
+        if choices.is_empty() {
+            return -2;
+        }
+        let hand = game.hand_of(seat as usize);
+        match crate::coiffeur_select::choose(hand, &choices, can_shove, &game.row_multipliers) {
+            None => -1,
+            Some(c) => choices.iter().position(|&x| x == c).map_or(-2, |i| i as i32),
+        }
+    })
+}
+
+/// Coiffeur 3x3: the block the bot names; -1 when there is none to name.
+#[no_mangle]
+pub extern "C" fn bot_block(handle: u32, seat: u32) -> i32 {
+    GAMES.with(|g| {
+        let games = g.borrow();
+        let Some(game) = games.get(&handle) else { return -1 };
+        let options = game.legal_blocks();
+        if options.is_empty() {
+            return -1;
+        }
+        crate::coiffeur_select::choose_block(game.hand_of(seat as usize), &options) as i32
     })
 }
 
@@ -318,13 +392,15 @@ let contract = round.contract;
     }
     let unseen = ((1u64 << 36) - 1) & !round.hands[seat] & !seen;
 
-    let mut forbidden = infer_forbidden(
-        &round.tricks_played,
-        &round.trick,
-        round.leader,
-        round.trump,
-        &game.rules,
-    );
+    // A Coiffeur schedule reads each trick under the trump it was played in; a 3x3 block not
+    // named and a Tutti trick not led prove nothing (`infer_forbidden` in `voids.py`).
+    let mut forbidden = match round.schedule {
+        Some(s) => {
+            let trumps = s.map(|c| if c < 4 { c as i32 } else { -1 });
+            infer_forbidden_per_trick(&round.tricks_played, &round.trick, round.leader, &trumps, &game.rules)
+        }
+        None => infer_forbidden(&round.tricks_played, &round.trick, round.leader, round.trump, &game.rules),
+    };
 
     // What the Weis stage published, which the browser bot was throwing away entirely.
     // `measurements.md` §5l measured the shown half at +0.62 of a round's card points
@@ -372,7 +448,8 @@ let contract = round.contract;
         game.rules.puur_exempt,
         game.rules.last_trick_bonus,
         0,
-    );
+    )
+    .with_schedule(round.schedule);
     // What the discards suggest, alongside what they prove. Off, and the constant is
     // here rather than the code being deleted because the decision is a measurement —
     // `docs/measurements.md` §5c — and the next person to try it should re-run the match
@@ -390,8 +467,10 @@ let contract = round.contract;
     };
     // The Schieber's bid model reads choose-or-shove; a Sidi auction is another language,
     // read by `sidi_read.rs` into the belief pool below instead.
+    // Nor does a Coiffeur choice, which depends on the sheet as much as on the hand.
     let sidi = game.rules.sidi;
-    let (bid_suits, bid_ranks) = if sidi {
+    let coiffeur = game.rules.coiffeur;
+    let (bid_suits, bid_ranks) = if sidi || coiffeur {
         ([[0i8; 4]; NUM_SEATS], [0i8; NUM_SEATS])
     } else {
         infer_from_bid(game.forehand, game.declarer, contract, seat)
@@ -417,7 +496,19 @@ let contract = round.contract;
         // Weis is public once called; Stöck is not, and is left out. See objective.rs.
         // In the Sidi there is no game projection, as in `agent.py`; the bid objective is
         // behind SIDI_OBJECTIVE, off since it measured a loss.
-        stakes: if sidi && !SIDI_OBJECTIVE {
+        // The Coiffeur plays for the round's share, as `agent.py` does with no target; in a
+        // Misère the choosing team must take a trick (`coiffeur_match_stroke`).
+        stakes: if coiffeur {
+            let misere = game.schedule.is_some_and(|s| s.misere());
+            Stakes {
+                scores: [game.scores[0], game.scores[1]],
+                multiplier: 1,
+                misere,
+                misere_declarers: (misere && game.rules.coiffeur_match_stroke.is_some())
+                    .then_some(game.declarer & 1),
+                ..Default::default()
+            }
+        } else if sidi && !SIDI_OBJECTIVE {
             Stakes::default()
         } else if sidi {
             Stakes {
@@ -457,7 +548,7 @@ let contract = round.contract;
             info.history = history;
             if BELIEFS {
                 info.belief_alpha = 1.0;
-                info.bid_alpha = if sidi { 0.0 } else { 1.0 };
+                info.bid_alpha = if sidi || coiffeur { 0.0 } else { 1.0 };
                 info.belief_pool = 4096;
             }
             if sidi {
@@ -516,6 +607,14 @@ fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u
         let _ = dmcts;   // still reachable from the Python bridge, where the flag lives
         // The search has spoken; this only orders the moves it rated the same. See
         // krass_jass/convention.py for why that restriction is the whole design.
+        // A Coiffeur schedule changes the card order trick by trick; the conventions read this
+        // trick's, as in `agent.py`.
+        let (trump, contract) = if round.schedule.is_some() {
+            let c = round.trick_contract();
+            (if c < 4 { c as i32 } else { -1 }, c)
+        } else {
+            (round.trump, contract)
+        };
         let pick = convention::choose(
             &out,
             round.hands[seat],
@@ -523,12 +622,12 @@ fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u
             seen | round.hands[seat],
             &round.trick,
             seat,
-            round.trump,
+            trump,
             contract,
             &position.forbidden,
             (game.declarer & 1) == (seat & 1),
             convention::DEFAULT_SLACK,
-            convention::partner_discards(&round.tricks_played, &round.trick, round.leader, seat, round.trump),
+            convention::partner_discards(&round.tricks_played, &round.trick, round.leader, seat, trump),
         );
         match pick {
             Some(card) => Thought::Ranked(out, card),
@@ -696,10 +795,16 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
             awaiting
         ));
 
+        // The contract the trick on the table is played in. One per round, except in the
+        // Coiffeur's extra rows, where it changes trick by trick; `None` for a 3x3 block not
+        // named or a Tutti trick not led. As `playing` in `web/app.py::view`.
+        let playing = match game.round.as_ref().and_then(|r| r.schedule) {
+            Some(s) => Some(s[played.saturating_sub(usize::from(awaiting)).min(8)]).filter(|&c| c < 6),
+            None => game.contract,
+        };
         // Which way the cards on the table are going, and what the other three still hold in
         // trump. Public both ways — see krass_jass/awareness.py and its Rust mirror.
-        let contract = game.contract.unwrap_or(0);
-        match game.round.as_ref().and_then(|_| trick_taker(&shown, shown_leader, contract)) {
+        match game.round.as_ref().zip(playing).and_then(|(_, c)| trick_taker(&shown, shown_leader, c)) {
             Some(s) => out.push_str(&format!(",\"trick_taker\":{s}")),
             None => out.push_str(",\"trick_taker\":null"),
         }
@@ -707,9 +812,12 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
 
         match game.contract {
             Some(c) => out.push_str(&format!(
-                ",\"contract\":\"{}\",\"multiplier\":{}",
-                contract_name(c),
-                game.rules.multiplier(c)
+                ",\"contract\":{},\"multiplier\":{}",
+                playing.map_or("null".to_string(), |p| format!("\"{}\"", contract_name(p))),
+                match game.row {
+                    Some(row) if game.rules.coiffeur => game.row_multipliers[row],
+                    _ => game.rules.multiplier(c),
+                }
             )),
             None => out.push_str(",\"contract\":null,\"multiplier\":null"),
         }
@@ -729,11 +837,14 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
         let sidi = game.rules.sidi;
         out.push_str(&format!(
             ",\"can_shove\":{}",
-            !sidi && game.phase == Phase::Bidding && seat == game.forehand && !game.shoved
+            !sidi && !game.rules.coiffeur && game.phase == Phase::Bidding && seat == game.forehand && !game.shoved
         ));
         // Sidi Barrani, in the shape `web/app.py::view` sends: the auction (public — every
         // call was said aloud), the calls this seat may make, the bid and the double.
-        out.push_str(&format!(",\"mode\":\"{}\"", if sidi { "sidi" } else { "schieber" }));
+        let mode = if sidi { "sidi" } else if game.rules.coiffeur { "coiffeur" } else { "schieber" };
+        out.push_str(&format!(",\"mode\":\"{mode}\""));
+        out.push_str(",\"coiffeur\":");
+        out.push_str(&coiffeur_json(game, seat, played, awaiting));
         let calls: Vec<String> = game.auction.as_ref().map_or(Vec::new(), |a| {
             a.calls
                 .iter()
@@ -764,7 +875,7 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
         out.push_str(&format!(",\"tricks_won\":[{},{}]", won[0], won[1]));
 
         // The trump Jack, so the page does not have to work out what trump means.
-        match game.contract {
+        match playing {
             Some(c) if c < 4 => {
                 out.push_str(&format!(",\"puur\":\"{}\"", format_card(c * 9 + 3)))
             }
@@ -808,6 +919,28 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
             out.push('}');
             return publish(out);
         }
+        if game.rules.coiffeur {
+            match (game.last_coiffeur, game.phase) {
+                (Some(d), Phase::RoundOver | Phase::GameOver) if !awaiting => out.push_str(&format!(
+                    "{{\"contract\":\"{}\",\"round\":{},\"trick_points\":[{},{}],\"last_trick\":[{},{}],\
+                     \"match\":[{},{}],\"team\":{},\"row\":\"{}\",\"multiplier\":{},\
+                     \"round_total\":[{},{}],\"strokes\":[{},{}],\"written\":[{},{}],\"scores\":[{},{}]}}",
+                    game.contract.map(contract_name).unwrap_or(""),
+                    game.round_index,
+                    d.trick_points[0], d.trick_points[1],
+                    d.last_trick[0], d.last_trick[1],
+                    d.match_bonus[0], d.match_bonus[1],
+                    d.team, ROW_NAMES[d.row], d.multiplier,
+                    d.round_total[0], d.round_total[1],
+                    d.strokes[0], d.strokes[1],
+                    d.written[0], d.written[1],
+                    d.scores[0], d.scores[1],
+                )),
+                _ => out.push_str("null"),
+            }
+            out.push('}');
+            return publish(out);
+        }
         match (game.last_score, game.phase) {
             (Some(d), Phase::RoundOver | Phase::GameOver) if !awaiting => out.push_str(&format!(
                 "{{\"round\":{},\"contract\":\"{}\",\"multiplier\":{},\"trick_points\":[{},{}],\
@@ -829,6 +962,69 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
         out.push('}');
         publish(out)
     })
+}
+
+/// The Coiffeur sheet and what the seat may choose, in the shape `coiffeur_view` in `web/app.py`
+/// sends; `null` in the other games. The sheet is public, and the choices are the engine's.
+fn coiffeur_json(game: &Game, seat: usize, played: usize, awaiting: bool) -> String {
+    if !game.rules.coiffeur {
+        return "null".into();
+    }
+    let choosing = game.phase == Phase::Bidding;
+    let rows: Vec<usize> = (0..ALL_ROWS).filter(|&r| game.sheet.rows[r]).collect();
+    let quoted = |s: &str| format!("\"{s}\"");
+    let list = |items: Vec<String>| format!("[{}]", items.join(","));
+    let slot = |c: usize| if c < 6 { quoted(contract_name(c)) } else { "null".into() };
+    let column = |team: usize| {
+        list(rows.iter().map(|&r| game.sheet.written[team][r].map_or("null".into(), |v| v.to_string())).collect())
+    };
+    let schedule = match game.schedule {
+        Some(s) if !choosing => {
+            let tricks = game.round.as_ref().and_then(|r| r.schedule).unwrap_or(s.tricks());
+            let at = if game.round.is_some() { played - usize::from(awaiting) } else { 0 };
+            format!(
+                "{{\"name\":\"{}\",\"tricks\":{},\"misere\":{},\"at\":{at}}}",
+                s.name(),
+                list(tricks.iter().map(|&c| slot(c)).collect()),
+                s.misere()
+            )
+        }
+        _ => "null".into(),
+    };
+    let legal = if choosing && game.to_act() == Some(seat) {
+        let (choices, can_shove) = game.legal_choices();
+        let mut names: Vec<String> = choices.iter().map(|c| quoted(&c.name())).collect();
+        if can_shove {
+            names.push(quoted("SHOVE"));
+        }
+        names
+    } else {
+        Vec::new()
+    };
+    let blocks = if game.to_act() == Some(seat) {
+        game.legal_blocks().into_iter().map(|c| quoted(contract_name(c))).collect()
+    } else {
+        Vec::new()
+    };
+    format!(
+        "{{\"rows\":{},\"multipliers\":{},\"sheet\":[{},{}],\"row\":{},\"schedule\":{schedule},\
+         \"legal\":{},\"shoves\":{},\"blocks\":{},\"tens\":{},\"strokes\":[{},{}],\"stroke\":{}}}",
+        list(rows.iter().map(|&r| quoted(ROW_NAMES[r])).collect()),
+        list(rows.iter().map(|&r| game.row_multipliers[r].to_string()).collect()),
+        column(0),
+        column(1),
+        match game.row {
+            Some(r) if !choosing => quoted(ROW_NAMES[r]),
+            _ => "null".into(),
+        },
+        list(legal),
+        if choosing { game.shoves } else { 0 },
+        list(blocks),
+        game.rules.coiffeur_tens,
+        game.sheet.strokes[0],
+        game.sheet.strokes[1],
+        game.rules.coiffeur_match_stroke.map_or("null".into(), |v| v.to_string()),
+    )
 }
 
 /// Kreuz, Ecken, Schaufel, Herz, left to right, so black and red alternate. Indexed by suit

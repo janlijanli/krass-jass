@@ -67,7 +67,15 @@ impl Position {
         }
     }
 
+    /// The kernel for the trick this position is in: every card not yet played is in a hand,
+    /// this seat's or one it cannot see.
+    pub fn kernel_now(&self, k: &Kernel) -> Kernel {
+        let held = (self.hand | self.unseen).count_ones() as usize;
+        k.at_trick_led((NUM_CARDS - held - self.trick.len()) / NUM_SEATS, self.trick.first().copied())
+    }
+
     fn best_trump(&self, k: &Kernel) -> i32 {
+        let k = &self.kernel_now(k);
         if k.trump < 0 || self.trick.is_empty() {
             return -1;
         }
@@ -85,6 +93,7 @@ impl Position {
     }
 
     pub fn legal(&self, k: &Kernel) -> u64 {
+        let k = &self.kernel_now(k);
         legal_moves(
             self.hand,
             k.trump,
@@ -152,16 +161,17 @@ impl Tree {
     }
 
     fn legal_at(&self, w: &Walk) -> u64 {
+        let k = self.k.at(&w.hands, &w.trick);
         let led = if w.trick.is_empty() {
             -1
         } else {
             card_suit(w.trick[0]) as i32
         };
         let mut best_trump = -1;
-        if self.k.trump >= 0 && !w.trick.is_empty() {
-            let strength = &STRENGTH[self.k.contract][led as usize];
+        if k.trump >= 0 && !w.trick.is_empty() {
+            let strength = &STRENGTH[k.contract][led as usize];
             for &c in &w.trick {
-                if card_suit(c) as i32 == self.k.trump {
+                if card_suit(c) as i32 == k.trump {
                     let ts = strength[c] - 100;
                     if ts > best_trump {
                         best_trump = ts;
@@ -171,22 +181,24 @@ impl Tree {
         }
         legal_moves(
             w.hands[w.to_play],
-            self.k.trump,
+            k.trump,
             led,
             best_trump,
-            self.k.strict_undertrump,
-            self.k.puur_exempt,
+            k.strict_undertrump,
+            k.puur_exempt,
         )
     }
 
     /// Apply a card and resolve the trick if it completes.
-    fn advance(&self, w: &mut Walk, card: usize) {
-        let values = &CARD_VALUES[self.k.contract];
+    fn advance(&mut self, w: &mut Walk, card: usize) {
+        // A Tutti's count is fixed by the round's first card; `tree.k` is reset every iteration.
+        self.k.on_card(card, w.trick.is_empty());
+        let values = &CARD_VALUES[self.k.count];
         w.hands[w.to_play] ^= 1u64 << card;
         w.trick.push(card);
         if w.trick.len() == NUM_SEATS {
             let led = card_suit(w.trick[0]);
-            let strength = &STRENGTH[self.k.contract][led];
+            let strength = &STRENGTH[self.k.at(&w.hands, &w.trick).contract][led];
             let mut bi = 0;
             let mut bs = strength[w.trick[0]];
             let mut pts = 0;
@@ -404,7 +416,7 @@ pub fn dmcts(
 
             // solve_root returns team-0 points; convert to the searching team's share of
             // everything still on the table.
-            let values = &CARD_VALUES[k.contract];
+            let values = &CARD_VALUES[k.count];
             let mut remaining = k.last_trick_bonus;
             for &h in hands.iter() {
                 let mut m = h;
@@ -441,6 +453,8 @@ pub fn dmcts(
             Tree::new(*k, exploration, root_legal, pos.stakes, pos.adversarial,
                       pos.leaf_weights.clone());
         for _ in 0..iterations {
+            // Coiffeur 3x3: the blocks still to be named, drawn afresh each iteration.
+            tree.k = k.sample_open(&mut rng);
             let mut w = Walk {
                 hands,
                 trick: pos.trick.clone(),

@@ -10,7 +10,7 @@
  * with no server; it is why multiplayer stays server-side.
  */
 
-import { loadEngine, CARD_INDEX } from "./engine.js";
+import { loadEngine, CARD_INDEX, CONTRACT_NAMES } from "./engine.js";
 import {
   render, setSender, speak, setBeliefDisplay, rollNames, tableIdentity, restoreIdentity,
 } from "./render.js";
@@ -39,8 +39,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const settings = () => {
   const form = document.getElementById("mode-settings");
   const value = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value;
+  const mode = value("mode");
   return {
-    mode: value("mode") === "schieber" ? "schieber" : "sidi",
+    mode: ["schieber", "coiffeur"].includes(mode) ? mode : "sidi",
+    // The Coiffeur's extra rows, the ones ticked.
+    rows: [...form.querySelectorAll('input[name="coiffeur_rows"]:checked')].map((i) => i.value),
     target: Number(value("target") || 1000),
     weis: value("weis") !== "off",
     multipliers: ["diamonds", "hearts", "spades", "clubs", "obenabe", "undenufe"].map(
@@ -68,7 +71,7 @@ let busy = false;
 const SAVE_KEY = "kj_game";
 let journal = null;
 
-const MUTATORS = ["bid", "chooseWeis", "play", "nextRound", "call", "double"];
+const MUTATORS = ["bid", "chooseWeis", "play", "nextRound", "call", "double", "choose", "block"];
 for (const name of MUTATORS) {
   const apply = engine[name];
   engine[name] = (h, ...args) => {
@@ -243,7 +246,7 @@ async function drive() {
       if (v.trick_complete) {
         // A remark belongs to the pause after a trick, when nobody is waiting on you.
         // Driven from here rather than from render(), because a redraw must not repeat it.
-        if (talkOn()) speak(maybeSay(acked, BOT_SEATS));
+        if (talkOn()) speak(maybeSay(v, BOT_SEATS));
         break;                                // waiting on a tap
       }
       if (v.to_act === null || v.to_act === HUMAN_SEAT) break;
@@ -252,7 +255,14 @@ async function drive() {
       const seat = v.to_act;
       const trick = Math.max(0, v.round);
 
-      if (v.phase === "bidding" && v.mode === "sidi") {
+      if (v.phase === "bidding" && v.mode === "coiffeur") {
+        await sleep(500 + Math.random() * 600);
+        // Re-validated like its cards: a rejected choice falls back to the first row on offer.
+        if (!engine.choose(handle, seat, engine.botChoose(handle, seat))) engine.choose(handle, seat, 0);
+      } else if (v.phase === "block") {
+        await sleep(400 + Math.random() * 400);
+        engine.block(handle, seat, engine.botBlock(handle, seat));
+      } else if (v.phase === "bidding" && v.mode === "sidi") {
         await sleep(500 + Math.random() * 600);
         // A bot's call is validated like its cards; a pass is always legal.
         if (!engine.call(handle, seat, engine.botCall(handle, seat))) engine.call(handle, seat, "PASS");
@@ -293,9 +303,21 @@ async function drive() {
 setSender((message) => {
   if (handle === null) return;
   switch (message.type) {
-    case "bid":
-      if (view().mode === "sidi") engine.call(handle, HUMAN_SEAT, message.action);
+    case "bid": {
+      const v = view();
+      if (v.mode === "coiffeur") {
+        // `legal` ends with "SHOVE" when a shove is allowed; the engine takes the shove as -1.
+        const index = v.coiffeur?.legal.indexOf(message.action) ?? -1;
+        if (index < 0) break;                       // stale or unknown: nothing to choose
+        engine.choose(handle, HUMAN_SEAT, message.action === "SHOVE" ? -1 : index);
+        break;
+      }
+      if (v.mode === "sidi") engine.call(handle, HUMAN_SEAT, message.action);
       else engine.bid(handle, HUMAN_SEAT, message.action === "SHOVE" ? -1 : CONTRACTS[message.action]);
+      break;
+    }
+    case "block":
+      engine.block(handle, HUMAN_SEAT, CONTRACT_NAMES.indexOf(message.contract));
       break;
     case "double": {
       const v = view();

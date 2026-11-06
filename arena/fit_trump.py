@@ -136,7 +136,12 @@ def main() -> None:
 
     # The vectorised selector must be the selector, or everything below tunes something else.
     c0 = choices(t0, F_fore, F_part)
+    # A hand whose best call sits on the shove threshold is decided by summation order, which a
+    # matrix product and the scalar selector do not share. Those ties are not disagreements.
+    margin = np.abs(((F_fore @ t0[:49] - t0[BASELINE]) * MULT).max(axis=1) - t0[SHOVE_T])
     for i in range(0, len(hands), max(1, len(hands) // 500)):
+        if margin[i] < 1e-9:
+            continue
         a = select_trump(int(hands[i, 0]), True, LABEL_CFG)
         expect = int(select_trump(int(hands[i, 2]), False, LABEL_CFG)) if a == SHOVE else int(a)
         assert c0[i] == expect, (i, c0[i], expect)

@@ -6,10 +6,11 @@
 //! a web service, a test, or a browser with no server behind it.
 
 use crate::auction::{bonus as sidi_bonus, Auction, AuctionError, Call};
+use crate::coiffeur::{self, Choice, ChooseError, Sheet};
 use crate::cards::{card_list, NUM_SEATS, RANK_J, STOECK_MASK};
 use crate::config::{team_of, Rules};
 use crate::deal::deal;
-use crate::events::{EventLog, Payload, RoundDetail, SidiDetail};
+use crate::events::{CoiffeurDetail, EventLog, Payload, RoundDetail, SidiDetail};
 use crate::round::{PlayError, Round};
 use crate::scoring::claim_sequence;
 use crate::tables::NUM_CONTRACTS;
@@ -23,6 +24,8 @@ pub enum Phase {
     Doubling,
     Weis,
     Playing,
+    /// Coiffeur 3x3: between blocks, the leader names the next one.
+    Block,
     RoundOver,
     GameOver,
 }
@@ -34,6 +37,7 @@ impl Phase {
             Phase::Doubling => "doubling",
             Phase::Weis => "weis",
             Phase::Playing => "playing",
+            Phase::Block => "block",
             Phase::RoundOver => "round_over",
             Phase::GameOver => "game_over",
         }
@@ -49,6 +53,7 @@ pub enum GameError {
     NoWeisToAnnounce(usize),
     Play(PlayError),
     Auction(AuctionError),
+    Choose(ChooseError),
 }
 
 /// Ecken 10 — the card that decides who opens the first round of a game.
@@ -83,6 +88,14 @@ pub struct Game {
     pub bid_value: i32,
     pub doubled: bool,
     double_queue: Vec<usize>,
+    /// Coiffeur: the sheet, its row multipliers, this round's shoves and the row chosen.
+    pub sheet: Sheet,
+    pub row_multipliers: [i32; coiffeur::ALL_ROWS],
+    pub shoves: u32,
+    pub row: Option<usize>,
+    /// The chosen extra row's game, when it is one (`schedule.rs`).
+    pub schedule: Option<crate::schedule::Schedule>,
+    pub last_coiffeur: Option<CoiffeurDetail>,
 
     dealt: [u64; NUM_SEATS],
     weis_points: [i32; 2],
@@ -117,6 +130,12 @@ impl Game {
             bid_value: 0,
             doubled: false,
             double_queue: Vec::new(),
+            sheet: Sheet::for_game(&rules),
+            row_multipliers: coiffeur::multipliers(seed, &rules),
+            shoves: 0,
+            row: None,
+            schedule: None,
+            last_coiffeur: None,
             dealt: [0; NUM_SEATS],
             weis_points: [0, 0],
             stoeck_points: [0, 0],
@@ -131,7 +150,10 @@ impl Game {
             first_across: -1,
         };
         game.log.emit(
-            Payload::GameStarted { target_score: rules.target_score },
+            Payload::GameStarted {
+                target_score: rules.target_score,
+                multipliers: if rules.coiffeur { Some(game.row_multipliers) } else { None },
+            },
             None,
         );
         game.start_round();
@@ -160,6 +182,12 @@ impl Game {
         self.bid_value = 0;
         self.doubled = false;
         self.double_queue.clear();
+        self.shoves = 0;
+        self.row = None;
+        self.schedule = None;
+        if self.rules.coiffeur {
+            self.declarer = coiffeur::first_chooser(self.forehand, &self.sheet);
+        }
         self.contract = None;
         self.round = None;
         self.phase = Phase::Bidding;
@@ -206,7 +234,7 @@ impl Game {
                 None => Some(self.declarer),
             },
             Phase::Doubling => self.double_queue.first().copied(),
-            Phase::Playing => self.round.as_ref().map(|r| r.to_play()),
+            Phase::Playing | Phase::Block => self.round.as_ref().map(|r| r.to_play()),
             _ => None,
         }
     }
@@ -248,6 +276,74 @@ impl Game {
         );
         self.begin_play();
         Ok(())
+    }
+
+    /// Coiffeur: choose a contract into a row, or shove (`None`). See `coiffeur.rs`.
+    pub fn choose(&mut self, seat: usize, choice: Option<Choice>) -> Result<(), GameError> {
+        if self.phase != Phase::Bidding || !self.rules.coiffeur {
+            return Err(GameError::WrongPhase("not choosing"));
+        }
+        if seat != self.declarer {
+            return Err(GameError::Choose(ChooseError::NotYourTurn));
+        }
+        let choice = match choice {
+            None => {
+                if self.shoves >= coiffeur::max_shoves(&self.sheet) {
+                    return Err(GameError::Choose(ChooseError::MustChoose));
+                }
+                self.shoves += 1;
+                self.declarer = (seat + coiffeur::shove_step(&self.sheet)) % NUM_SEATS;
+                self.log.emit(Payload::Bid { seat, action: "SHOVE".into() }, None);
+                return Ok(());
+            }
+            Some(c) => c,
+        };
+        if !self.sheet.choices(team_of(seat), &self.rules).contains(&choice) {
+            return Err(GameError::Choose(ChooseError::RowNotOpen));
+        }
+        self.contract = Some(choice.contract);
+        self.row = Some(choice.row);
+        self.schedule = choice.schedule;
+        self.log.emit(Payload::Bid { seat, action: choice.name() }, None);
+        self.begin_play();
+        Ok(())
+    }
+
+    /// Coiffeur 3x3: the leader of trick 4 or 7 names the next block.
+    pub fn choose_block(&mut self, seat: usize, contract: usize) -> Result<(), GameError> {
+        if self.phase != Phase::Block {
+            return Err(GameError::WrongPhase("no block to name"));
+        }
+        let round = self.round.as_mut().ok_or(GameError::WrongPhase("no round"))?;
+        if seat != round.to_play() {
+            return Err(GameError::NotYourTurn(seat));
+        }
+        if !round.set_block(contract) {
+            return Err(GameError::Choose(ChooseError::RowNotOpen));
+        }
+        let trick = round.tricks_played.len() + 1;
+        self.log.emit(Payload::BlockChosen { seat, trick, contract }, None);
+        self.phase = Phase::Playing;
+        Ok(())
+    }
+
+    /// Coiffeur 3x3: what the leader may name for the next block.
+    pub fn legal_blocks(&self) -> Vec<usize> {
+        match (&self.round, self.phase) {
+            (Some(r), Phase::Block) => r.block_options(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Coiffeur: the choices open to the seat on turn, and whether it may still shove.
+    pub fn legal_choices(&self) -> (Vec<Choice>, bool) {
+        if self.phase != Phase::Bidding || !self.rules.coiffeur {
+            return (Vec::new(), false);
+        }
+        (
+            self.sheet.choices(team_of(self.declarer), &self.rules),
+            self.shoves < coiffeur::max_shoves(&self.sheet),
+        )
     }
 
     /// Sidi: one call in the auction. See `auction.rs`.
@@ -301,16 +397,27 @@ impl Game {
 
     fn begin_play(&mut self) {
         let contract = self.contract.expect("contract set");
-        // In the Sidi the highest bidder leads; in the Schieber, forehand.
-        let leader = if self.rules.sidi { self.declarer } else { self.forehand };
-        self.round = Some(Round::new(contract, self.dealt, leader, self.rules));
+        // In the Sidi the highest bidder leads, in the Coiffeur whoever chose; in the
+        // Schieber, forehand.
+        let leader =
+            if self.rules.sidi || self.rules.coiffeur { self.declarer } else { self.forehand };
+        let multiplier = match self.row {
+            Some(row) if self.rules.coiffeur => self.row_multipliers[row],
+            _ => self.rules.multiplier(contract),
+        };
+        self.round = Some(
+            Round::new(contract, self.dealt, leader, self.rules)
+                .with_schedule(self.schedule.map(|s| s.tricks())),
+        );
         self.log.emit(
             Payload::ContractSet {
                 contract,
                 declarer: self.declarer,
-                multiplier: self.rules.multiplier(contract),
+                multiplier,
                 leader,
                 sidi: if self.rules.sidi { Some((self.bid_value, self.doubled)) } else { None },
+                row: if self.rules.coiffeur { self.row } else { None },
+                schedule: self.schedule,
             },
             None,
         );
@@ -515,6 +622,8 @@ impl Game {
             .unwrap()
             .play(card)
             .map_err(GameError::Play)?;
+        // Tutti: the first card made its suit what the round is counted in.
+        self.contract = Some(self.round.as_ref().unwrap().contract);
         self.log.emit(Payload::CardPlayed { seat, card }, None);
         self.check_stoeck(seat, tricks_before);
 
@@ -524,6 +633,9 @@ impl Game {
             let winner = round.last_trick_winner as usize;
             let index = round.tricks_played.len();
             self.log.emit(Payload::TrickWon { seat: winner, trick: index, cards }, None);
+            if self.round.as_ref().unwrap().block_pending() {
+                self.phase = Phase::Block;
+            }
         }
         let round = self.round.as_ref().unwrap();
         if self.rules.sidi
@@ -610,9 +722,82 @@ impl Game {
         }
     }
 
+    /// The choosing team's card points into its row, times the row's multiplier. The game
+    /// ends with the sheet. Mirror of `_score_coiffeur` in `game.py`.
+    fn score_coiffeur(&mut self) {
+        let round = self.round.as_ref().expect("round");
+        let score = round.score([0, 0], [0, 0]);
+        let mut points = score.total();
+        let declarers = team_of(self.declarer);
+        let row = self.row.expect("row chosen");
+        let multiplier = self.row_multipliers[row];
+        let misere = self.schedule.is_some_and(|s| s.misere());
+        let stroke = self.rules.coiffeur_match_stroke;
+        let matched = score.match_bonus.map(|m| m != 0);
+        let mut strokes = [0i32; 2];
+        if stroke.is_some() {
+            // A match is a stroke of its own, not a bonus in the row: the row gets the cards.
+            points = [0, 1].map(|t| score.trick_points[t] + score.last_trick[t]);
+            for team in 0..2 {
+                // Taking every trick in your own Misère is no achievement.
+                if matched[team] && !(misere && team == declarers) {
+                    strokes[team] = 1;
+                }
+            }
+        }
+        // Misère: each team is credited with what the other took.
+        let mut credit = if misere { [points[1], points[0]] } else { points };
+        if misere && stroke.is_some() && matched[1 - declarers] {
+            // The choosing team must take a trick: given away entirely, it writes 0.
+            credit[declarers] = 0;
+        }
+        let values = credit.map(|p| crate::coiffeur::row_value(p, &self.rules));
+        self.sheet.written[declarers][row] = Some(values[declarers]);
+        let mut written = [0i32; 2];
+        written[declarers] = values[declarers] * multiplier;
+        if self.rules.coiffeur_score_opponents {
+            written[1 - declarers] = values[1 - declarers] * multiplier;
+        }
+        for team in 0..2 {
+            self.sheet.strokes[team] += strokes[team];
+            written[team] += strokes[team] * stroke.unwrap_or(0);
+            self.scores[team] += written[team];
+        }
+        let detail = CoiffeurDetail {
+            trick_points: score.trick_points,
+            last_trick: score.last_trick,
+            match_bonus: score.match_bonus,
+            team: declarers,
+            row,
+            multiplier,
+            round_total: points,
+            strokes,
+            written,
+            scores: self.scores,
+        };
+        self.last_coiffeur = Some(detail);
+        self.log.emit(Payload::CoiffeurRoundScored { round: self.round_index, detail }, None);
+
+        if self.sheet.complete() {
+            self.phase = Phase::GameOver;
+            let winner = match self.scores[0].cmp(&self.scores[1]) {
+                std::cmp::Ordering::Equal => -1,
+                std::cmp::Ordering::Greater => 0,
+                std::cmp::Ordering::Less => 1,
+            };
+            self.log.emit(Payload::CoiffeurGameOver { winner, scores: self.scores }, None);
+        } else {
+            self.phase = Phase::RoundOver;
+        }
+    }
+
     fn score_round(&mut self) {
         if self.rules.sidi {
             self.score_sidi();
+            return;
+        }
+        if self.rules.coiffeur {
+            self.score_coiffeur();
             return;
         }
         let round = self.round.as_ref().expect("round");
