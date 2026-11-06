@@ -2,8 +2,8 @@
 
 `arena/contracts.py` prices the Schieber's six calls; this prices every game a Coiffeur chooser
 can name: the six contracts, the Tutti, the two Slaloms, the two Guschtis, the six 3×3 openings and
-the two Misères. (The 2026-10-31 run predates the Tutti; `arena/fit_coiffeur.py` reads the games a file
-holds by name.) Same method: hold the chooser's hand, deal the other 27 cards at random several times,
+the two Misères, the Mitte. (The 2026-10-31 run predates the Tutti, the 2026-11-01 run the Mitte;
+`arena/fit_coiffeur.py` reads the games a file holds by name, and `--games` prices a new row alone.) Same method: hold the chooser's hand, deal the other 27 cards at random several times,
 play each game out with the real card-play bot, and store what the choosing team writes.
 
 **The label** is what goes on the sheet before the row's multiplier — the choosing team's card
@@ -44,7 +44,7 @@ from krass_jass.state import RoundState  # noqa: E402
 #: Every game a chooser can name with a fresh sheet, in a fixed order: the six contracts (as
 #: `None`), then each extra row's games.
 GAMES: list[tuple[str, Contract, Schedule | None]] = [(c.name, c, None) for c in Contract] + [
-    (s.name, s.count, s) for row in ("TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE") for s in for_row(row, COIFFEUR)
+    (s.name, s.count, s) for row in ("TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE", "MITTE") for s in for_row(row, COIFFEUR)
 ]
 
 #: The Coiffeur as played — no Weis, no Stöck, the match bonus on — scored in full points.
@@ -104,7 +104,8 @@ def _deal(seed: int, hand_index: int, deals: int) -> tuple[int, list[list[int]]]
 
 
 def _label_chunk(args) -> list[tuple[int, int, list[int], list[int]]]:
-    seed, indices, deals, iterations = args
+    seed, indices, deals, iterations, names = args
+    games = [g for g in GAMES if g[0] in names]
     agent = label_agent(iterations)
     rows = []
     for h in indices:
@@ -112,17 +113,22 @@ def _label_chunk(args) -> list[tuple[int, int, list[int], list[int]]]:
         for k, hands in enumerate(completions):
             # Common random numbers: every game on this deal shares the decision seeds.
             game_seed = seed * 1_000_003 + h * 64 + k
-            rows.append((h, k, hands, [play_game(hands, g, agent, game_seed) for g in GAMES]))
+            rows.append((h, k, hands, [play_game(hands, g, agent, game_seed) for g in games]))
     return rows
 
 
-def generate(hands: int, deals: int, seed: int, iterations: int, workers: int, out: Path) -> None:
+def generate(
+    hands: int, deals: int, seed: int, iterations: int, workers: int, out: Path, names: list[str] | None = None
+) -> None:
+    """`names`: price only these games (all by default) — a new row is priced on its own."""
+    names = names or [g[0] for g in GAMES]
+    games = [g for g in GAMES if g[0] in names]
     workers = max(1, min(workers, hands))
     chunks = [list(range(i, hands, workers)) for i in range(workers)]
     started = time.time()
     rows = []
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        for part in pool.map(_label_chunk, [(seed, c, deals, iterations) for c in chunks if c]):
+        for part in pool.map(_label_chunk, [(seed, c, deals, iterations, names) for c in chunks if c]):
             rows.extend(part)
     rows.sort(key=lambda r: (r[0], r[1]))
     np.savez_compressed(
@@ -130,11 +136,11 @@ def generate(hands: int, deals: int, seed: int, iterations: int, workers: int, o
         hand_index=np.array([r[0] for r in rows], dtype=np.int32),
         hands=np.array([r[2] for r in rows], dtype=np.uint64),
         values=np.array([r[3] for r in rows], dtype=np.float64),
-        games=np.array([g[0] for g in GAMES]),
+        games=np.array([g[0] for g in games]),
         seed=seed,
         iterations=iterations,
     )
-    print(f"wrote {len(rows)} deals ({hands} hands x {deals}) x {len(GAMES)} games to {out} "
+    print(f"wrote {len(rows)} deals ({hands} hands x {deals}) x {len(games)} games to {out} "
           f"in {time.time() - started:.0f}s")
 
 
@@ -159,11 +165,13 @@ def main() -> None:
     g.add_argument("--iterations", type=int, default=2400)
     g.add_argument("--workers", type=int, default=os.cpu_count() or 1)
     g.add_argument("--out", type=Path, required=True)
+    g.add_argument("--games", default="", help="comma-separated game names; all by default")
     s = sub.add_parser("summary")
     s.add_argument("path", type=Path)
     args = ap.parse_args()
     if args.cmd == "generate":
-        generate(args.hands, args.deals, args.seed, args.iterations, args.workers, args.out)
+        names = [n.strip().upper() for n in args.games.split(",") if n.strip()] or None
+        generate(args.hands, args.deals, args.seed, args.iterations, args.workers, args.out, names)
     else:
         summary(args.path)
 

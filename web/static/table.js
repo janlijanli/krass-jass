@@ -187,8 +187,8 @@ el.tafel.addEventListener("click", (e) => { if (e.target === el.tafel) closeTafe
 
 const CONTRACT_PIPS = { DIAMONDS: "♦", HEARTS: "♥", SPADES: "♠", CLUBS: "♣" };
 // The no-trump contracts by direction: Obenabe runs from the top down, Undenufe from the
-// bottom up.
-const CONTRACT_ARROWS = { OBENABE: "↓", UNDENUFE: "↑" };
+// bottom up, and the Coiffeur's Mitte from the ten outwards both ways.
+const CONTRACT_ARROWS = { OBENABE: "↓", UNDENUFE: "↑", MITTE: "↕" };
 
 /* ---------- test mode: what the bot believes -----------------------------
  *
@@ -538,8 +538,8 @@ function rowLabel(row) {
  * SLALOM_OBENABE, GUSCHTI4_UNDENUFE, TRIO_HEARTS, MISERE_UNDENUFE — and shown as the orders it
  * runs through: pips for trump, arrows for Obenabe (↓) and Undenufe (↑), "?" for a trick whose
  * order is not known yet (a 3×3 block not named, a Tutti trick not led). */
-const EXTRA_ROWS = ["TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE"];
-const isGame = (name) => /^((SLALOM|GUSCHTI4?|TRIO|MISERE)_|TUTTI$)/.test(name);
+const EXTRA_ROWS = ["TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE", "MITTE"];
+const isGame = (name) => /^((SLALOM|GUSCHTI4?|TRIO|MISERE)_|TUTTI$|MITTE$)/.test(name);
 const gameRow = (name) => name.split("_")[0].replace(/4$/, "");
 
 function orderSymbol(contract) {
@@ -551,6 +551,8 @@ function gameSymbols(name) {
   const flip = (c) => (c === "OBENABE" ? "UNDENUFE" : "OBENABE");
   // Tutti: whatever suit is led is trump, trick by trick.
   if (kind === "TUTTI") return `${orderSymbol(null)}<em>${t("coiffeur.row.TUTTI")}</em>`;
+  // Mitte: one order, from the ten outwards; counted as its first trick's first card says.
+  if (kind === "MITTE") return `${orderSymbol("MITTE")}<em>${t("coiffeur.row.MITTE")}</em>`;
   if (kind === "SLALOM") return `${orderSymbol(a)}${orderSymbol(flip(a))}${orderSymbol(a)}<em>…</em>`;
   if (kind === "GUSCHTI" || kind === "GUSCHTI4") {
     const first = kind === "GUSCHTI" ? 5 : 4;
@@ -655,7 +657,7 @@ function renderCoiffeur(view) {
     : EXTRA_ROWS.includes(open) ? t("coiffeur.pickGame", { row: rowLabel(open) })
     : t("coiffeur.pickContract", { row: rowLabel(open) });
   el.coiffeurSheet.replaceChildren(coiffeurSheet(view, (row) => {
-    if (row === "TUTTI") {
+    if (row === "TUTTI" || row === "MITTE") {
       send({ type: "bid", action: row });     // one game: nothing to pick
     } else if (row === "CHANCE" || EXTRA_ROWS.includes(row)) {
       coiffeurOpen = coiffeurOpen === row ? null : row;

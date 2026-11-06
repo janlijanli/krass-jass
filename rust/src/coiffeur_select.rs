@@ -24,7 +24,12 @@ pub struct Weights {
     lift_b: f64,
     tau: f64,
     tau_n: f64,
+    /// Mitte: a card's weight by its distance from the ten (`mitte_edge` in Python).
+    mitte: [f64; 5],
 }
+
+/// `mitte_edge` keys, by a card's distance from the ten: the ten, 9/Under, 8/Ober, 7/King, 6/Ace.
+const MITTE_CLASSES: [&str; 5] = ["T", "9J", "8Q", "7K", "6A"];
 
 /// The text of the object that follows `"key"`, braces balanced.
 fn object<'a>(text: &'a str, key: &str) -> &'a str {
@@ -83,6 +88,7 @@ pub fn weights() -> &'static Weights {
             lift_b: number(option, "b").unwrap(),
             tau: number(object(text, "shove_threshold"), "value").unwrap(),
             tau_n: number(option, "tau_n").unwrap(),
+            mitte: MITTE_CLASSES.map(|k| number(value("mitte_edge"), k).expect("mitte weight missing")),
         }
     })
 }
@@ -121,6 +127,19 @@ pub fn game_edge(edge: &[f64; NUM_CONTRACTS], contract: usize, schedule: Option<
     }
 }
 
+/// A hand's edge in a Mitte: its cards weighted by how far each sits from the ten.
+pub fn mitte_edge(hand: u64) -> f64 {
+    let w = weights();
+    let mut out = 0.0;
+    let mut h = hand;
+    while h != 0 {
+        let c = h.trailing_zeros() as usize;
+        h &= h - 1;
+        out += w.mitte[crate::cards::card_rank(c).abs_diff(crate::cards::RANK_T)];
+    }
+    out
+}
+
 fn game_name(choice: &Choice) -> String {
     match choice.schedule {
         Some(s) => s.name(),
@@ -128,13 +147,13 @@ fn game_name(choice: &Choice) -> String {
     }
 }
 
-/// How full the team's column still is: 0 with one row open, 1 with all twelve.
+/// How full the team's column still is: 0 with one row open, 1 with all thirteen.
 fn open_share(choices: &[Choice]) -> f64 {
     let mut rows = [false; ALL_ROWS];
     for c in choices {
         rows[c.row] = true;
     }
-    (rows.iter().filter(|&&r| r).count() as f64 - 1.0) / 11.0
+    (rows.iter().filter(|&&r| r).count() as f64 - 1.0) / (ALL_ROWS - 1) as f64
 }
 
 /// `multiplier x (own - keep)` for every choice, in order.
@@ -146,7 +165,10 @@ pub fn value_choices(hand: u64, choices: &[Choice], multipliers: &[i32; ALL_ROWS
     choices
         .iter()
         .map(|choice| {
-            let e = game_edge(&edge, choice.contract, choice.schedule);
+            let e = match choice.schedule {
+                Some(Schedule::Mitte) => mitte_edge(hand),
+                _ => game_edge(&edge, choice.contract, choice.schedule),
+            };
             let (a, b) = w.line(&game_name(choice));
             let own = a + b * e;
             let mut keep = w.points_reserve[choice.row];

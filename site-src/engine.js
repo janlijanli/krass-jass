@@ -58,7 +58,7 @@ export async function loadEngine(url = "krass_jass_core.wasm") {
 
 export const CONTRACT_NAMES = ["DIAMONDS", "HEARTS", "SPADES", "CLUBS", "OBENABE", "UNDENUFE"];
 /** `schedule::EXTRA_ROWS` in Rust, in its order. */
-export const EXTRA_ROWS = ["TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE"];
+export const EXTRA_ROWS = ["TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE", "MITTE"];
 
 /** "PASS" → -1, "DOUBLE" → -2, "HEARTS 100" → 1100. */
 export function callCode(text) {

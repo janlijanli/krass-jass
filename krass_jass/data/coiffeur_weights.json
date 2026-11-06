@@ -22,7 +22,8 @@
       -2.26,
       -2.26,
       1.58,
-      4.77
+      4.77,
+      0.0
     ]
   },
   "shove_threshold": {
@@ -107,6 +108,10 @@
       "MISERE_UNDENUFE": [
         68.655,
         4.0997
+      ],
+      "MITTE": [
+        80.0,
+        1.0
       ]
     }
   },
@@ -124,7 +129,8 @@
       "SLALOM": 97.86,
       "GUSCHTI": 96.71,
       "TRIO": 115.38,
-      "MISERE": 84.85
+      "MISERE": 84.85,
+      "MITTE": 98.0
     }
   },
   "option_value": {
@@ -145,8 +151,19 @@
         "SLALOM": 21.28,
         "GUSCHTI": 20.07,
         "TRIO": 16.03,
-        "MISERE": 7.08
+        "MISERE": 7.08,
+        "MITTE": 20.0
       }
+    }
+  },
+  "mitte_edge": {
+    "_comment": "PROVISIONAL",
+    "value": {
+      "T": 4.0,
+      "9J": 3.0,
+      "8Q": 2.0,
+      "7K": 1.0,
+      "6A": 0.0
     }
   }
 }

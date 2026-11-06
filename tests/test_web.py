@@ -398,11 +398,11 @@ def test_coiffeur_is_a_mode_of_its_own_with_the_sheet_in_the_view():
     game = table.game
     frame = view(table, game.to_act)
     sheet = frame["coiffeur"]
-    # The Chance is always x13; the other eleven rows are dealt 1..11.
+    # The Chance is always x13; the other twelve rows are dealt 1..12.
     assert sheet["multipliers"][6] == 13
-    assert sorted(sheet["multipliers"][:6] + sheet["multipliers"][7:]) == list(range(1, 12))
-    assert sheet["rows"][6:] == ["CHANCE", "TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE"]
-    assert sheet["sheet"] == [[None] * 12, [None] * 12]
+    assert sorted(sheet["multipliers"][:6] + sheet["multipliers"][7:]) == list(range(1, 13))
+    assert sheet["rows"][6:] == ["CHANCE", "TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE", "MITTE"]
+    assert sheet["sheet"] == [[None] * 13, [None] * 13]
     seven = view(new_table(settings={"mode": "coiffeur", "rows": []}), 0)["coiffeur"]
     assert len(seven["rows"]) == len(seven["multipliers"]) == 7
     # The choices on offer are the engine's, in wire form, and only for the seat on turn.

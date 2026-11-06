@@ -73,10 +73,11 @@ const STRINGS = {
     "coiffeur.row.SLALOM": "Slalom",
     "coiffeur.row.GUSCHTI": "Guschti",
     "coiffeur.row.TRIO": "3×3",
+    "coiffeur.row.MITTE": "Mitte",
     "coiffeur.pickGame": "{row}: which way round?",
     "coiffeur.pickTrump": "3×3: which trump?",
     "menu.coiffeurRows": "Extra rows",
-    "menu.coiffeurRowsNote": "Tutti: the suit led is trump, trick by trick. Slalom: Obenabe and Undenufe trick by trick. Guschti: five tricks one way, four the other. 3×3: three blocks of three, the leaders of tricks 4 and 7 name the next. Misère: take as little as you can. Counted as the first trick. The Chance (×13) takes any game.",
+    "menu.coiffeurRowsNote": "Tutti: the suit led is trump, trick by trick. Slalom: Obenabe and Undenufe trick by trick. Guschti: five tricks one way, four the other. 3×3: three blocks of three, the leaders of tricks 4 and 7 name the next. Misère: take as little as you can. Mitte: the ten highest, then 9/Under, 8/Ober, 7/King, 6/Ace — of a pair the first played wins; counted Obenabe or Undenufe by the first card that is not a ten. Counted as the first trick. The Chance (×13) takes any game.",
     "sidi.made": "Bid {bid}{x} made",
     "sidi.failed": "Bid {bid}{x} missed",
 
@@ -95,6 +96,7 @@ const STRINGS = {
     "contract.CLUBS": "Clubs",
     "contract.OBENABE": "Obenabe",
     "contract.UNDENUFE": "Undenufe",
+    "contract.MITTE": "Mitte",
 
     "bid.prompt": "Choose trump",
     "bid.shove": "Schieben",
@@ -289,10 +291,11 @@ const STRINGS = {
     "coiffeur.row.SLALOM": "Slalom",
     "coiffeur.row.GUSCHTI": "Guschti",
     "coiffeur.row.TRIO": "3×3",
+    "coiffeur.row.MITTE": "Mitte",
     "coiffeur.pickGame": "{row}: wie herum?",
     "coiffeur.pickTrump": "3×3: welcher Trumpf?",
     "menu.coiffeurRows": "Zusatzzeilen",
-    "menu.coiffeurRowsNote": "Tutti: die ausgespielte Farbe ist Trumpf, Stich um Stich. Slalom: Obenabe und Undenufe Stich um Stich. Guschti: fünf Stiche so, vier anders. 3×3: drei Blöcke à drei Stiche, wer Stich 4 und 7 ausspielt, bestimmt den nächsten. Misère: möglichst wenig machen. Gezählt wie der erste Stich. Die Chance (×13) nimmt jedes Spiel.",
+    "menu.coiffeurRowsNote": "Tutti: die ausgespielte Farbe ist Trumpf, Stich um Stich. Slalom: Obenabe und Undenufe Stich um Stich. Guschti: fünf Stiche so, vier anders. 3×3: drei Blöcke à drei Stiche, wer Stich 4 und 7 ausspielt, bestimmt den nächsten. Misère: möglichst wenig machen. Mitte: die Zehn zuoberst, dann 9/Under, 8/Ober, 7/König, 6/Ass — von einem Paar gewinnt, was zuerst lag; gezählt Obenabe oder Undenufe nach der ersten Karte, die keine Zehn ist. Gezählt wie der erste Stich. Die Chance (×13) nimmt jedes Spiel.",
     "sidi.made": "Gebot {bid}{x} erreicht",
     "sidi.failed": "Gebot {bid}{x} verfehlt",
 
@@ -311,6 +314,7 @@ const STRINGS = {
     "contract.CLUBS": "Kreuz",
     "contract.OBENABE": "Obenabe",
     "contract.UNDENUFE": "Undenufe",
+    "contract.MITTE": "Mitte",
 
     "bid.prompt": "Trumpf wählen",
     "bid.shove": "Schieben",
@@ -458,10 +462,11 @@ const STRINGS = {
     "coiffeur.row.SLALOM": "Slalom",
     "coiffeur.row.GUSCHTI": "Guschti",
     "coiffeur.row.TRIO": "3×3",
+    "coiffeur.row.MITTE": "Mitte",
     "coiffeur.pickGame": "{row} : dans quel sens ?",
     "coiffeur.pickTrump": "3×3 : quel atout ?",
     "menu.coiffeurRows": "Lignes en plus",
-    "menu.coiffeurRowsNote": "Tutti : la couleur entamée est atout, pli par pli. Slalom : Obenabe et Undenufe pli par pli. Guschti : cinq plis dans un sens, quatre dans l'autre. 3×3 : trois blocs de trois plis, qui entame les plis 4 et 7 nomme le suivant. Misère : faire le moins possible. Compté comme le premier pli. La Chance (×13) prend n\'importe quel jeu.",
+    "menu.coiffeurRowsNote": "Tutti : la couleur entamée est atout, pli par pli. Slalom : Obenabe et Undenufe pli par pli. Guschti : cinq plis dans un sens, quatre dans l'autre. 3×3 : trois blocs de trois plis, qui entame les plis 4 et 7 nomme le suivant. Misère : faire le moins possible. Mitte : le dix en haut, puis 9/Valet, 8/Dame, 7/Roi, 6/As — d'une paire, la première jouée l'emporte ; compté Obenabe ou Undenufe selon la première carte qui n'est pas un dix. Compté comme le premier pli. La Chance (×13) prend n\'importe quel jeu.",
     "sidi.made": "Mise {bid}{x} réussie",
     "sidi.failed": "Mise {bid}{x} manquée",
 
@@ -480,6 +485,7 @@ const STRINGS = {
     "contract.CLUBS": "Trèfle",
     "contract.OBENABE": "Obenabe",
     "contract.UNDENUFE": "Undenufe",
+    "contract.MITTE": "Mitte",
 
     "bid.prompt": "Choisis l'atout",
     "bid.shove": "Schieben",
@@ -674,10 +680,11 @@ const STRINGS = {
     "coiffeur.row.SLALOM": "Slalom",
     "coiffeur.row.GUSCHTI": "Guschti",
     "coiffeur.row.TRIO": "3×3",
+    "coiffeur.row.MITTE": "Mitte",
     "coiffeur.pickGame": "{row}: in che verso?",
     "coiffeur.pickTrump": "3×3: quale briscola?",
     "menu.coiffeurRows": "Righe in più",
-    "menu.coiffeurRowsNote": "Tutti: il seme di uscita è briscola, presa per presa. Slalom: Obenabe e Undenufe una presa per volta. Guschti: cinque prese in un verso, quattro nell'altro. 3×3: tre blocchi di tre prese, chi apre le prese 4 e 7 sceglie il prossimo. Misère: fare il meno possibile. Contato come la prima presa. La Chance (×13) accetta qualsiasi gioco.",
+    "menu.coiffeurRowsNote": "Tutti: il seme di uscita è briscola, presa per presa. Slalom: Obenabe e Undenufe una presa per volta. Guschti: cinque prese in un verso, quattro nell'altro. 3×3: tre blocchi di tre prese, chi apre le prese 4 e 7 sceglie il prossimo. Misère: fare il meno possibile. Mitte: il dieci in cima, poi 9/Fante, 8/Donna, 7/Re, 6/Asso — di una coppia vince la prima giocata; contato Obenabe o Undenufe secondo la prima carta che non è un dieci. Contato come la prima presa. La Chance (×13) accetta qualsiasi gioco.",
     "sidi.made": "Puntata {bid}{x} riuscita",
     "sidi.failed": "Puntata {bid}{x} mancata",
 
@@ -696,6 +703,7 @@ const STRINGS = {
     "contract.CLUBS": "Fiori",
     "contract.OBENABE": "Obenabe",
     "contract.UNDENUFE": "Undenufe",
+    "contract.MITTE": "Mitte",
 
     "bid.prompt": "Scegli la briscola",
     "bid.shove": "Schieben",

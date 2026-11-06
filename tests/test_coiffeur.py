@@ -36,13 +36,13 @@ def test_preset_has_no_weis_no_stoeck_no_target_and_unit_contract_multipliers():
 
 def test_multipliers_are_random_by_default_and_fixed_on_request():
     assert COIFFEUR.coiffeur_random_multipliers
-    assert multipliers(3, FIXED) == (4, 2, 3, 1, 5, 6, 13, 7, 8, 9, 10, 11)
+    assert multipliers(3, FIXED) == (4, 2, 3, 1, 5, 6, 13, 7, 8, 9, 10, 11, 12)
     seven = FIXED.variant(coiffeur_extra_rows=())
-    assert multipliers(3, seven) == (4, 2, 3, 1, 5, 6, 13, 0, 0, 0, 0, 0)
-    # The Chance is x13 and never drawn (owner, 2026-11-01); the other eleven rows are 1..11.
+    assert multipliers(3, seven) == (4, 2, 3, 1, 5, 6, 13, 0, 0, 0, 0, 0, 0)
+    # The Chance is x13 and never drawn (owner, 2026-11-01); the other twelve rows are 1..12.
     random_sheet = multipliers(3, COIFFEUR)
     assert random_sheet[CHANCE_ROW] == 13
-    assert sorted(m for i, m in enumerate(random_sheet) if m and i != CHANCE_ROW) == list(range(1, 12))
+    assert sorted(m for i, m in enumerate(random_sheet) if m and i != CHANCE_ROW) == list(range(1, 13))
     # Same seed, same sheet — replay depends on it.
     assert multipliers(3, COIFFEUR) == multipliers(3, COIFFEUR)
     assert multipliers(3, COIFFEUR) != multipliers(4, COIFFEUR) or multipliers(5, COIFFEUR) != multipliers(4, COIFFEUR)
@@ -62,13 +62,13 @@ def test_choice_wire_form_round_trips():
 
 def test_a_fresh_sheet_offers_every_row_and_the_chance_takes_any_game():
     assert len(Sheet().choices(0)) == 6 + 6
-    # The extra rows: a Tutti, two Slaloms, two Guschtis, six 3x3 openings, two Misères — 13
-    # games, each in its own row and in the Chance.
-    assert len(Sheet.for_game(COIFFEUR).choices(0, COIFFEUR)) == 6 + 13 + (6 + 13)
+    # The extra rows: a Tutti, two Slaloms, two Guschtis, six 3x3 openings, two Misères, a Mitte —
+    # 14 games, each in its own row and in the Chance.
+    assert len(Sheet.for_game(COIFFEUR).choices(0, COIFFEUR)) == 6 + 14 + (6 + 14)
     g45 = COIFFEUR.variant(coiffeur_guschti_45=True)
-    assert len(Sheet.for_game(g45).choices(0, g45)) == 6 + 15 + (6 + 15)
+    assert len(Sheet.for_game(g45).choices(0, g45)) == 6 + 16 + (6 + 16)
     six = COIFFEUR.variant(coiffeur_chance_takes_extra=False)
-    assert len(Sheet.for_game(six).choices(0, six)) == 6 + 13 + 6
+    assert len(Sheet.for_game(six).choices(0, six)) == 6 + 14 + 6
 
 
 def test_shoving_goes_round_the_table_and_forehand_ends_up_in_the_hole():
@@ -141,7 +141,7 @@ def test_score_opponents_credits_the_defenders_at_the_rows_multiplier():
     points = game.last_score["round_total"]
     assert game.scores == [(p + 5) // 10 for p in points]
     # ...but only the choosing team's row is filled.
-    assert game.sheet.written[1 - seat % 2] == [None] * 12
+    assert game.sheet.written[1 - seat % 2] == [None] * 13
 
 
 def test_illegal_choices_are_refused():
@@ -153,7 +153,7 @@ def test_illegal_choices_are_refused():
         game.bid(seat, "HEARTS/UNDENUFE")
 
 
-@pytest.mark.parametrize("extra,rounds", [((), 14), (("SLALOM", "GUSCHTI"), 18), (None, 24)])
+@pytest.mark.parametrize("extra,rounds", [((), 14), (("SLALOM", "GUSCHTI"), 18), (None, 26)])
 def test_a_game_is_two_rounds_a_row_and_ends_with_the_sheet(extra, rounds):
     rng = random.Random(9)
     cfg = COIFFEUR if extra is None else COIFFEUR.variant(coiffeur_extra_rows=extra)
@@ -181,7 +181,7 @@ def test_a_game_is_two_rounds_a_row_and_ends_with_the_sheet(extra, rounds):
 
 def test_row_names_cover_the_sheet():
     assert ROW_NAMES[:6] == tuple(c.name for c in Contract)
-    assert ROW_NAMES[6:] == ("CHANCE", "TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE")
+    assert ROW_NAMES[6:] == ("CHANCE", "TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE", "MITTE")
 
 
 # --- the extra rows: a card order per trick ---------------------------------

@@ -380,12 +380,15 @@ def drive_both_coiffeur(seed, fixed=None, opponents=False, tens=True, extra=None
         (1, None, False, True, None, False, True),
         (7, None, True, True, None, True, False),
         (42, None, False, False, (), False, True),          # the six contracts and the Chance
-        (1234, (4, 2, 3, 1, 5, 6, 0, 7, 8, 9, 10, 11), False, True, None, False, True),
+        (1234, (4, 2, 3, 1, 5, 6, 0, 7, 8, 9, 10, 11, 12), False, True, None, False, True),
         (99, None, False, True, ("TRIO",), False, True),
         (3, None, True, True, ("TRIO", "MISERE"), False, False),
         (5, None, False, True, ("SLALOM", "GUSCHTI"), True, False),
         (11, None, False, True, ("TUTTI",), False, True),
         (12, None, True, False, ("TUTTI",), False, False),
+        (13, None, False, True, ("MITTE",), False, True),
+        (14, None, True, False, ("MITTE", "TUTTI"), False, False),
+        (15, None, False, True, ("MITTE",), False, False),
     ],
 )
 def test_coiffeur_games_produce_identical_event_streams(seed, fixed, opponents, tens, extra, g45, chance):
@@ -409,7 +412,7 @@ def test_coiffeur_multipliers_agree_and_are_a_permutation():
     for seed in range(200):
         # The Chance is always x13 and out of the draw; the other rows are 1..n.
         m = multipliers(seed, COIFFEUR)
-        assert m[6] == 13 and sorted(x for i, x in enumerate(m) if x and i != 6) == list(range(1, 12))
+        assert m[6] == 13 and sorted(x for i, x in enumerate(m) if x and i != 6) == list(range(1, 13))
         seven = multipliers(seed, COIFFEUR.variant(coiffeur_extra_rows=()))
         assert seven[6] == 13 and sorted(x for i, x in enumerate(seven) if x and i != 6) == list(range(1, 7))
         assert list(seven) == core.RsGame(seed, coiffeur=True, coiffeur_extra_rows=[]).row_multipliers

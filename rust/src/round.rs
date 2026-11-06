@@ -182,10 +182,23 @@ impl Round {
         }
         self.hands[seat] ^= 1u64 << card;
         self.trick.push(card);
+        self.count_mitte();
         if self.trick.len() == NUM_SEATS {
             self.resolve_trick();
         }
         Ok(())
+    }
+
+    /// Mitte: the first card of trick 1 that is not a ten fixes what the round is counted in.
+    /// The trick's points are summed when it resolves, after this.
+    fn count_mitte(&mut self) {
+        let Some(s) = self.schedule else { return };
+        if s[0] != crate::tables::MITTE || !self.tricks_played.is_empty() {
+            return;
+        }
+        if let Some(c) = crate::schedule::mitte_count(&self.trick) {
+            self.contract = c;
+        }
     }
 
     /// Tutti: the suit led is this trick's trump; the first trick's is the round's count.

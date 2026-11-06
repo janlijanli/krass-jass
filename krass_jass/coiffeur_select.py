@@ -17,7 +17,9 @@ The extra rows play their tricks in more than one order. A Slalom or Guschti is 
 mean edge of the contracts its nine tricks are played in; a 3×3 at its first block's, the only one
 known when it is chosen; a Misère at minus the edge — a hand that is bad at Obenabe is good at
 Misère Obenabe; a Tutti at its best trump suit's, which the chooser makes the counting suit with
-the first card and can lead again whenever it has the lead. Keeping the row is worth a random
+the first card and can lead again whenever it has the lead. A Mitte is played in an order the
+trump weights know nothing of, so it has an edge of its own: each card weighted by how far it sits
+from the ten (`mitte_edge`), fitted on simulated Mitte rounds. Keeping the row is worth a random
 hand's best game in it.
 
 The 3×3's later blocks are named by whoever leads tricks 4 and 7 (`choose_block`): the contract
@@ -35,7 +37,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .coiffeur import CHANCE_ROW, ROW_NAMES, Choice
+from .cards import RANK_T, card_list, card_rank
+from .coiffeur import ALL_ROWS, CHANCE_ROW, ROW_NAMES, Choice
 from .schedule import EXTRA_ROWS
 from .rules import SHOVE, Contract, RulesConfig
 from .trump import load_weights, score_all
@@ -59,6 +62,16 @@ def game_edge(edge: dict, contract: Contract, schedule=None) -> float:
         named = [c for c in schedule.tricks if c is not None]
         return sum(edge[c] for c in named) / len(named)
     return edge[contract]
+
+
+#: `mitte_edge` keys, by a card's distance from the ten: the ten, 9/Under, 8/Ober, 7/King, 6/Ace.
+MITTE_CLASSES = ("T", "9J", "8Q", "7K", "6A")
+
+
+def mitte_edge(hand: int, w: dict) -> float:
+    """A hand's edge in a Mitte: its cards weighted by how far each sits from the ten."""
+    weight = w["mitte_edge"]["value"]
+    return sum(weight[MITTE_CLASSES[abs(card_rank(c) - RANK_T)]] for c in card_list(hand))
 
 
 def _game_name(choice: Choice) -> str:
@@ -86,7 +99,10 @@ def value_choices(
     lift = _option_lift(choices, w)
     out = {}
     for choice in choices:
-        e = game_edge(edge, choice.contract, choice.schedule)
+        if choice.schedule is not None and choice.schedule.mitte:
+            e = mitte_edge(hand, w)
+        else:
+            e = game_edge(edge, choice.contract, choice.schedule)
         if fitted:
             # A 4/5 Guschti is priced as the 5/4 one: only that was simulated.
             a, b = w["value_map"]["value"][_game_name(choice).replace("GUSCHTI4_", "GUSCHTI_")]
@@ -110,7 +126,7 @@ def _open_share(choices: list[Choice]) -> float:
     """How full the team's column still is, from its own choices: 0 with one row open, 1 with
     every row. Each open row offers at least one choice, so the legal list is enough."""
     n = len({c.row for c in choices})
-    return (n - 1) / 11
+    return (n - 1) / (ALL_ROWS - 1)
 
 
 def _option_lift(choices: list[Choice], w: dict) -> float:

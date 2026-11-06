@@ -449,7 +449,8 @@ let contract = round.contract;
         game.rules.last_trick_bonus,
         0,
     )
-    .with_schedule(round.schedule);
+    .with_schedule(round.schedule)
+    .mitte_at(contract, round.tricks_played.len() * NUM_SEATS + round.trick.len(), &round.trick);
     // What the discards suggest, alongside what they prove. Off, and the constant is
     // here rather than the code being deleted because the decision is a measurement —
     // `docs/measurements.md` §5c — and the next person to try it should re-run the match
@@ -799,7 +800,8 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
         // Coiffeur's extra rows, where it changes trick by trick; `None` for a 3x3 block not
         // named or a Tutti trick not led. As `playing` in `web/app.py::view`.
         let playing = match game.round.as_ref().and_then(|r| r.schedule) {
-            Some(s) => Some(s[played.saturating_sub(usize::from(awaiting)).min(8)]).filter(|&c| c < 6),
+            Some(s) => Some(s[played.saturating_sub(usize::from(awaiting)).min(8)])
+                .filter(|&c| c < crate::tables::NUM_ORDERS),
             None => game.contract,
         };
         // Which way the cards on the table are going, and what the other three still hold in
@@ -976,7 +978,7 @@ fn coiffeur_json(game: &Game, seat: usize, played: usize, awaiting: bool) -> Str
     let rows: Vec<usize> = (0..ALL_ROWS).filter(|&r| game.sheet.rows[r]).collect();
     let quoted = |s: &str| format!("\"{s}\"");
     let list = |items: Vec<String>| format!("[{}]", items.join(","));
-    let slot = |c: usize| if c < 6 { quoted(contract_name(c)) } else { "null".into() };
+    let slot = |c: usize| if c < crate::tables::NUM_ORDERS { quoted(contract_name(c)) } else { "null".into() };
     let column = |team: usize| {
         list(rows.iter().map(|&r| game.sheet.written[team][r].map_or("null".into(), |v| v.to_string())).collect())
     };

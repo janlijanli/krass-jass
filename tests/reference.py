@@ -17,6 +17,8 @@ RANKS = "AKQJT9876"
 PLAIN_ORDER = "AKQJT9876"
 TRUMP_ORDER = "J9AKQT876"
 UNDENUFE_ORDER = "6789TJQKA"
+#: Mitte (Coiffeur): the ten, then outwards from it in equal pairs, strongest group first.
+MITTE_GROUPS = ["T", "9J", "8Q", "7K", "6A"]
 
 VALUES_PLAIN = {"A": 11, "K": 4, "Q": 3, "J": 2, "T": 10, "9": 0, "8": 0, "7": 0, "6": 0}
 VALUES_TRUMP = {"A": 11, "K": 4, "Q": 3, "J": 20, "T": 10, "9": 14, "8": 0, "7": 0, "6": 0}
@@ -43,14 +45,14 @@ def legal(
     strict_undertrump: bool = True,
     puur_exempt: bool = True,
 ) -> set[str]:
-    """Legal cards, straight from the prose. ``contract`` is a suit letter, ``"OBENABE"``
-    or ``"UNDENUFE"``."""
+    """Legal cards, straight from the prose. ``contract`` is a suit letter, ``"OBENABE"``,
+    ``"UNDENUFE"`` or ``"MITTE"``."""
     if not trick:
         return set(hand)  # any card may be led
 
     led = trick[0][0]
 
-    if contract in ("OBENABE", "UNDENUFE"):
+    if contract in ("OBENABE", "UNDENUFE", "MITTE"):
         # ordinary follow-suit, no trumping
         follow = [c for c in hand if c[0] == led]
         return set(follow) if follow else set(hand)
@@ -83,6 +85,17 @@ def legal(
 def winner_index(trick: list[str], contract: str) -> int:
     """Index within ``trick`` of the winning card."""
     led = trick[0][0]
+    if contract == "MITTE":
+        # No trump. Of the led suit, the card nearest the ten; of an equal pair, the one played first.
+        best = 0
+        for i in range(1, len(trick)):
+            if trick[i][0] != led:
+                continue
+            group = [g for g in MITTE_GROUPS if trick[i][1] in g][0]
+            best_group = [g for g in MITTE_GROUPS if trick[best][1] in g][0]
+            if MITTE_GROUPS.index(group) < MITTE_GROUPS.index(best_group):
+                best = i
+        return best
     order = UNDENUFE_ORDER if contract == "UNDENUFE" else PLAIN_ORDER
     trump = contract if contract not in ("OBENABE", "UNDENUFE") else None
 
@@ -99,6 +112,18 @@ def winner_index(trick: list[str], contract: str) -> int:
         if key(trick[i]) > key(trick[best]):
             best = i
     return best
+
+
+def mitte_counted_as(first_trick: list[str]) -> str:
+    """What a Mitte round is counted as: the first card of the first trick that is not a ten —
+    Under, Ober, King or Ace (above the ten) Obenabe; 9, 8, 7 or 6 (below it) Undenufe. Four tens:
+    Obenabe."""
+    for card in first_trick:
+        if card[1] in "JQKA":
+            return "OBENABE"
+        if card[1] in "9876":
+            return "UNDENUFE"
+    return "OBENABE"
 
 
 # --- Weis ------------------------------------------------------------------

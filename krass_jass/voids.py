@@ -87,7 +87,8 @@ def infer_forbidden(
             return contract.trump_suit
         named = schedule[min(i, 8)]
         # A 3×3 block not named yet has had no card played in it, so it proves nothing either way.
-        return -1 if named is None or named < 0 else Contract(named).trump_suit
+        # Obenabe, Undenufe and the Mitte (6, `Order.MITTE`) have no trump.
+        return -1 if named is None or not 0 <= named < 4 else Contract(named).trump_suit
 
     forbidden = [0] * NUM_SEATS
     for i, (leader, cards) in enumerate(tricks_played):

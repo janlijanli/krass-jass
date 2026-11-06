@@ -23,7 +23,10 @@ SITE = ROOT / "site"
 CONTRACTS = {"DIAMONDS": 1, "HEARTS": 2, "SPADES": 1, "CLUBS": 2, "OBENABE": 3, "UNDENUFE": 4}
 TARGETS = (1000, 2000, 2500)
 # The Coiffeur's extra rows and their labels, as `web/app.py` offers them.
-COIFFEUR_ROWS = (("TUTTI", "Tutti"), ("SLALOM", "Slalom"), ("GUSCHTI", "Guschti"), ("TRIO", "3×3"), ("MISERE", "Misère"))
+COIFFEUR_ROWS = (
+    ("TUTTI", "Tutti"), ("SLALOM", "Slalom"), ("GUSCHTI", "Guschti"), ("TRIO", "3×3"), ("MISERE", "Misère"),
+    ("MITTE", "Mitte"),
+)
 ICONS = {"icon-192.png": 192, "icon-512.png": 512, "apple-touch-icon.png": 180}
 REPO_URL = "https://github.com/janlijanli/krass-jass"
 

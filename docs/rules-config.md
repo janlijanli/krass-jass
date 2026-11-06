@@ -348,8 +348,8 @@ Defaults taken 2026-10-30 when the mode was started and **confirmed by the owner
 one change: points are written in tens.
 
 **The sheet.** Each team has a column of **seven rows** — diamonds, hearts, spades, clubs, Obenabe,
-Undenufe and the **Chance** — plus the extra rows (next sections; all five by default, so twelve rows
-and a game of **24 rounds**). Each team plays every row exactly once. The Chance (owner, 2026-11-01:
+Undenufe and the **Chance** — plus the extra rows (next sections; all six by default, so thirteen rows
+and a game of **26 rounds**). Each team plays every row exactly once. The Chance (owner, 2026-11-01:
 the two Jokers became one Chance) is free of choice: it takes any game, a contract or any extra row's
 — `coiffeur_chance_takes_extra`, **default `True`**; `False` limits it to the six contracts, as on
 Swisslos's Joker. A game whose own row is filled can only go into the Chance.
@@ -357,10 +357,10 @@ Swisslos's Joker. A game whose own row is filled can only go into the Chance.
 **Multipliers.** Each row has one, the same for both teams. **The Chance is always ×13**
 (`coiffeur_chance_multiplier`, owner, 2026-11-01) and is never part of the draw.
 `coiffeur_random_multipliers` — **default `True`** (owner, 2026-10-30): the other rows get a
-permutation of 1..n over the n of them played — 1..11 with all five extra rows — drawn from the game
+permutation of 1..n over the n of them played — 1..12 with all six extra rows — drawn from the game
 seed (`krass_jass/coiffeur.py`, the deal's SplitMix64 → Fisher-Yates → Lemire on its own stream, so
 both implementations deal the same sheet). With `False`, `coiffeur_multipliers` — **default
-`4, 2, 3, 1, 5, 6, ·, 7, 8, 9, 10, 11`** in slot order (the Chance's slot is not read),
+`4, 2, 3, 1, 5, 6, ·, 7, 8, 9, 10, 11, 12`** in slot order (the Chance's slot is not read),
 jassverzeichnis.ch's sheet for the contracts: Eichel ×1, Rosen ×2, Schilten ×3, Schellen ×4, Obenabe
 ×5, Undenufe ×6; the extra rows follow on. **Disagreement:** pagat's
 four-player table puts acorns/spades ×1, flowers/clubs ×2, shields/diamonds ×3, bells/hearts ×4 —
@@ -396,15 +396,16 @@ card points times the same multiplier (Jassclub Wasserturm's rule); their row st
 
 **Open, not implemented** (each needs a decision before it is built):
 
-- **The other extra rows** — Zick-Zack, Züri, Mezzo. Researched 2026-10-31, below; not built,
-  each waiting for the owner's definition. Tutti, Slalom, Guschti, 3×3 and Misère are (next section).
+- **The other extra rows** — Zick-Zack, Züri. Researched 2026-10-31, below; not built, each
+  waiting for the owner's definition. Tutti, Slalom, Guschti, 3×3, Misère and Mitte are (next
+  sections).
 - **A wrong choice** ("Fehlwahl") — the engine refuses a closed row, so it cannot arise.
 
 ### Coiffeur — Tutti, Slalom, Guschti, 3×3 and Misère (built 2026-10-31 and 2026-11-01)
 
-The owner chose these five. `coiffeur_extra_rows` — **default all five** (owner, 2026-10-31, Tutti
+The owner chose these five, and the Mitte (next section). `coiffeur_extra_rows` — **default all six** (owner, 2026-10-31, Tutti
 2026-11-01); `()` is the six contracts and the Chance. They sit after the Chance on the sheet (slots
-7–11: Tutti, Slalom, Guschti, 3×3, Misère), and with random multipliers the permutation grows to 1..11. `krass_jass/schedule.py` and `rust/src/schedule.rs`
+7–12: Tutti, Slalom, Guschti, 3×3, Misère, Mitte), and with random multipliers the permutation grows to 1..12. `krass_jass/schedule.py` and `rust/src/schedule.rs`
 write each game out as the contract of each of its nine tricks.
 
 - **Counted in the first trick's contract**, as every source that says how agrees.
@@ -437,6 +438,27 @@ write each game out as the contract of each of its nine tricks.
   sees that edge (`Stakes::misere_declarers`, read off the points as the Sidi reads Match). Taking
   all nine in its own Misère writes 0 and earns no stroke.
 - **The Chance** takes any of these games too (`coiffeur_chance_takes_extra`, above).
+
+### Coiffeur — Mitte (built 2026-11-06)
+
+The owner's definition, 2026-11-06 (jasswiki's Mezzo/Mitte had one line and no full rule). It is
+the sixth extra row, `"MITTE"` in `coiffeur_extra_rows` (**on by default**, so thirteen rows, 26
+rounds, multipliers 1..12 and the Chance ×13), sheet slot 12, wire name `MITTE`.
+
+- **Card order** (`rules.Order.MITTE`, `tables::MITTE`): no trump. The **ten** is highest, then
+  outwards from it in pairs — **9 = Under**, **8 = Ober**, **7 = King**, **6 = Ace**. A pair ranks
+  equal, and **of an equal pair the card played first takes the trick** ("whichever lies first").
+  Follow suit as in Obenabe; a card not of the led suit never takes the trick.
+- **Counting** — by the first trick, like every extra row, but its first *card* does not always
+  decide: **the first card of trick 1 that is not a ten** does. Under, Ober, King or Ace (above the
+  ten) counts the round as **Obenabe**, a 9, 8, 7 or 6 (below it) as **Undenufe**. A ten led first
+  leaves it to the next card, and so on (owner: "next card decides"). Only tens can come before the
+  deciding card, and a ten is worth 10 either way, so no point is counted twice. **Ours:** four
+  tens in trick 1 leave it Obenabe — the owner's rule does not reach that case.
+- The Chance may take a Mitte (`coiffeur_chance_takes_extra`).
+
+How the bots value it is in `docs/coiffeur-plan.md`; the search plays it with the trick order per
+trick and counts it as above (`Kernel::on_card`, `Kernel::mitte_at`).
 
 ### Coiffeur — the extra rows, researched (2026-10-31)
 
