@@ -32,6 +32,14 @@
         <div class="chips" id="lang-chips"></div>
       </fieldset>
 
+      <!-- Add to Home Screen. Shown by menu.js only where it can work: a phone, a page with a
+           manifest (the offline build), not already opened from the home screen. -->
+      <fieldset id="install-app" hidden>
+        <legend data-i18n="menu.install">App</legend>
+        <button type="button" class="bid word" id="install-button" data-i18n="menu.installButton">Add to Home Screen</button>
+        <p class="menu-note" id="install-note" data-i18n="menu.installNote">Plays offline, full screen, like an app.</p>
+      </fieldset>
+
       <fieldset>
         <legend data-i18n="menu.mode">Game</legend>
         <div class="chips">

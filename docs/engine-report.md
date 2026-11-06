@@ -49,8 +49,9 @@ Where the two disagree, the record is the source and this report is wrong.
 
 ### How far from perfect information
 
-A bot that sees all four hands beats the shipped-before-this-week search **57.35% ± 6.46** over 800
-deals (§3f) — about 7 points of a round's share. Strategy fusion accounts for ~0.7 of that (§5h).
+A bot that sees all four hands beats the shipped search **57.86% ± 7.27** over 800 deals (§5x) —
+about 8 points of a round's share, no narrower than the 57.35% measured before the trump fit,
+beliefs, tree policy and convention model (§3f). Strategy fusion accounts for ~0.7 of that (§5h).
 Replacing a fraction *p* of the imagined deals with the truth recovers most of the rest along a
 concave curve (§5k), which is why belief work is where the recent gains came from.
 
@@ -698,8 +699,8 @@ strength over speed, a few seconds a move is acceptable.
 | belief network at γ = 1 | offline +0.03, in play 50.15% (p = 0.24) | ~6,000 deals to resolve +0.2; not worth it unless the network improves |
 | better beliefs of any kind | three routes, all null in play (§5r) | closed for now: the channel is saturated at the shipped setting |
 | no-trump share of the tuned selector | largest unexplained behaviour change | human games, or a stronger defensive bot to re-price contracts |
-| tree policy at the full budget | +0.39 lean at equal time | ~6–8 h for 1,000 deals at 153,600 |
-| re-take the cheating-agent gap | the ceiling predates the two big gains | ~800 deals |
+| tree policy at equal time | +0.39 and +0.31 leans, neither significant (§5x) | ~3,000 more deals for a third of a point; decides the browser build |
+| why the ceiling does not narrow | 57.86% today, 57.35% before four gains (§5x) | partner play and the 8 points beliefs cannot reach — neural-plan D, or human data |
 | any measurement against people | the only strength that matters to a player | an instrumented app, not an arena |
 | learning past the search | beliefs from learned models were the only learned gain | expert iteration on self-play, if a GPU is available |
 | more from convention self-play | one retrain on convention play was worth +0.45 (§5w); the corpus was 12,000 rounds | a larger corpus, or a model with more than 32 hidden units |

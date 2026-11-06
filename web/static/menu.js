@@ -131,6 +131,50 @@ function buildLanguagePicker(onChange) {
   }
 }
 
+/* Add to Home Screen, from the menu.
+ *
+ * Chromium hands the page an install prompt (`beforeinstallprompt`) it may show on a tap.
+ * iOS has no such API at all: the only way is Safari's Share sheet, so there the button
+ * says where to tap instead. Captured at module load, because the event can fire before
+ * the menu is built. */
+let installPrompt = null;
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();          // keep the browser's own mini-bar out of the game
+  installPrompt = event;
+});
+
+function setupInstall() {
+  const host = document.getElementById("install-app");
+  if (!host) return;
+  const standalone =
+    window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const hasManifest = !!document.querySelector('link[rel="manifest"]');
+  const phone = window.matchMedia("(pointer: coarse)").matches;
+  const ios =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);   // iPadOS says Mac
+  // Already installed, or a build that cannot be installed: no control rather than a dead one.
+  if (standalone || !hasManifest || !phone) return;
+  // Shown on every phone: browsers that never send the prompt (Firefox, some Samsung builds)
+  // still install from their own menu, and the button says where.
+  host.hidden = false;
+
+  const note = document.getElementById("install-note");
+  document.getElementById("install-button").addEventListener("click", async () => {
+    if (installPrompt) {
+      const prompt = installPrompt;
+      installPrompt = null;          // a prompt can be shown once
+      prompt.prompt();
+      const { outcome } = await prompt.userChoice;
+      if (outcome === "accepted") host.hidden = true;
+      return;
+    }
+    note.dataset.i18n = ios ? "menu.installIos" : "menu.installOther";
+    note.textContent = t(note.dataset.i18n);
+  });
+  window.addEventListener("appinstalled", () => { host.hidden = true; });
+}
+
 export function initMenu({
   measurementsUrl,
   onNewGame = null,
@@ -326,6 +370,8 @@ export function initMenu({
       }
     });
   });
+
+  setupInstall();
 
   buildLanguagePicker(() => {
     relocalise();
