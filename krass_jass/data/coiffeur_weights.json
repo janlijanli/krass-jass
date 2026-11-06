@@ -23,7 +23,7 @@
       -2.26,
       1.58,
       4.77,
-      0.0
+      84.59
     ]
   },
   "shove_threshold": {
@@ -110,7 +110,7 @@
         4.0997
       ],
       "MITTE": [
-        80.0,
+        0.0,
         1.0
       ]
     }
@@ -124,13 +124,13 @@
       "CLUBS": 79.33,
       "OBENABE": 81.71,
       "UNDENUFE": 80.36,
-      "CHANCE": 118.97,
+      "CHANCE": 120.71,
       "TUTTI": 85.81,
       "SLALOM": 97.86,
       "GUSCHTI": 96.71,
       "TRIO": 115.38,
       "MISERE": 84.85,
-      "MITTE": 98.0
+      "MITTE": 84.59
     }
   },
   "option_value": {
@@ -152,18 +152,18 @@
         "GUSCHTI": 20.07,
         "TRIO": 16.03,
         "MISERE": 7.08,
-        "MITTE": 20.0
+        "MITTE": 21.22
       }
     }
   },
   "mitte_edge": {
-    "_comment": "PROVISIONAL",
     "value": {
-      "T": 4.0,
-      "9J": 3.0,
-      "8Q": 2.0,
-      "7K": 1.0,
-      "6A": 0.0
-    }
+      "T": 31.262,
+      "9J": 10.788,
+      "8Q": 6.126,
+      "7K": 5.24,
+      "6A": 4.511
+    },
+    "_comment": "Mitte (owner, 2026-11-06): a card's weight by its distance from the ten, in points written — the five counts sum to 9, so they carry the intercept and value_map's MITTE line is 0 + 1 x edge. Ridge fit on half of mitte_games.npz (3000 deals at 2400 iterations), held-out R2 0.197; arena/fit_mitte.py."
   }
 }
