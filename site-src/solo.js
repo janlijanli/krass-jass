@@ -16,6 +16,7 @@ import {
 } from "./render.js";
 import { initMenu, adviceOn, talkOn, beliefsOn, overlayOn } from "./menu.js";
 import { maybeSay, resetTalk } from "./talk.js";
+import { showSplash, splashSeen } from "./splash.js";
 
 const HUMAN_SEAT = 0;
 //: Only the bots talk. Putting words in the player's mouth is a different feature.
@@ -361,7 +362,7 @@ function syncBeliefs() {
 }
 syncBeliefs();
 
-initMenu({
+const menu = initMenu({
   measurementsUrl: "measurements.json",
   onNewGame: newGame,
   // The chrome is static text, the table is not — redraw it in the new language too.
@@ -373,12 +374,23 @@ initMenu({
 });
 
 // Pick up where the last session left off; deal a new game only if there is nothing to resume.
-if (resume()) {
-  draw();
-  drive();
-} else {
-  newGame();
+// On a fresh start the splash asks first: the saved game is drawn underneath it, and the bots
+// wait for the answer.
+async function start() {
+  const resumed = resume();
+  if (resumed) draw();
+  if (!splashSeen()) {
+    const saved = resumed ? { mode: journal.settings.mode, round: view().round } : null;
+    const choice = await showSplash({ resume: saved });
+    if (choice !== "continue") {
+      menu.startMode(choice);            // a new game of that mode, the other settings kept
+      return;
+    }
+  }
+  if (resumed) drive();
+  else newGame();
 }
+start();
 
 // Offline play and "Add to Home Screen". Optional: a browser without service workers, or a
 // page opened from file://, simply plays online-only.

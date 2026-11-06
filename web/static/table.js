@@ -1430,6 +1430,7 @@ document.getElementById("weis-no").addEventListener("click", () =>
 applyStatic();
 
 import { initMenu, adviceOn, beliefsOn, overlayOn, talkOn } from "./menu.js";
+import { showSplash, splashSeen } from "./splash.js";
 
 /** Both belief displays read the same pool, so the server computes it if either is on. */
 function syncBeliefs() {
@@ -1437,7 +1438,7 @@ function syncBeliefs() {
   send({ type: "beliefs", on: beliefsOn() || overlayOn() });
 }
 
-initMenu({
+const menu = initMenu({
   measurementsUrl: MEASUREMENTS_URL,
   // The hosted build runs the fourth bot on the server — the same search, on your own hand.
   onAdviceChange: () => send({ type: "advice", on: adviceOn() }),
@@ -1457,6 +1458,14 @@ function connect() {
     const event = JSON.parse(message.data);
     if (event.type === "view") {
       render(event);
+      // The first view of a session: the splash, with the server's game as the one to continue
+      // once it has begun. A mode starts a new game the way the menu does, by posting.
+      if (!splashSeen()) {
+        const begun = event.round > 0 || event.hand.length < 9;
+        showSplash({ resume: begun ? { mode: event.mode, round: event.round } : null }).then((choice) => {
+          if (choice !== "continue") menu.startMode(choice);
+        });
+      }
       // A remark belongs to the pause after a trick, when nobody is waiting on you. Read from
       // the view of the finished trick (the `trick_won` event arrives before it), and said
       // once per trick however often that view is repainted — `maybeSay` keeps count.

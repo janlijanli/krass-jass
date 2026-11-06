@@ -89,7 +89,7 @@ def asset_version() -> str:
     for name in sorted(
         (
             "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
-            "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js",
+            "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "splash.js",
             "render.js", "solo.js", "engine.js", "krass_jass_core.wasm",
             "report.html", "report.css", "report.js",
         )
@@ -235,13 +235,13 @@ def build_index() -> None:
     (SITE / "report.html").write_text(report)
 
     for name in (
-        "solo.js", "render.js", "menu.js", "engine.js", "about.js", "walkthrough.js", "report.js",
+        "solo.js", "render.js", "menu.js", "engine.js", "about.js", "walkthrough.js", "report.js", "splash.js",
     ):
         path = SITE / name
         text = path.read_text()
         for dep in (
             "engine.js", "render.js", "menu.js", "cards.js", "about.js", "tafel.js",
-            "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js",
+            "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "splash.js",
         ):
             text = text.replace(f'"./{dep}"', f'"./{dep}?v={version}"')
         text = text.replace('"measurements.json"', f'"measurements.json?v={version}"')
@@ -266,7 +266,7 @@ def build_service_worker(version: str) -> None:
     """
     versioned = [
         "table.css", "cards.js", "about.js", "menu.js", "tafel.js", "i18n.js",
-        "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "render.js", "solo.js", "engine.js",
+        "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "splash.js", "render.js", "solo.js", "engine.js",
         "krass_jass_core.wasm", "measurements.json",
     ]
     assets = (
@@ -293,7 +293,7 @@ def copy_assets() -> None:
     """
     for name in (
         "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
-        "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js",
+        "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "splash.js",
         "report.html", "report.css", "report.js",
     ):
         (SITE / name).write_text((ROOT / "web/static" / name).read_text())
