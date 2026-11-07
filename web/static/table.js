@@ -480,8 +480,16 @@ function renderContract(contract, multiplier) {
     return;
   }
   if (!contract) {
-    el.contract.className = "contract none";
     delete el.contract.dataset.contract;
+    // The first round's Müessi: who holds the Ecken 10 and must choose, in the badge every
+    // seat looks at — the nameplates are hidden while a choice is made.
+    if (lastView?.muessi) {
+      el.contract.className = "contract muessi";
+      el.contract.innerHTML = `<span class="muessi-tag">${t("muessi.tag")}</span>` +
+        `<span>${seatShort(lastView, lastView.declarer)}</span>`;
+      return;
+    }
+    el.contract.className = "contract none";
     el.contract.textContent = "—";
     return;
   }
@@ -1276,7 +1284,7 @@ function statusText(view) {
   if (view.coiffeur && view.phase === "bidding") {
     return view.to_act === view.seat
       ? t(view.muessi ? "status.muessi" : "coiffeur.yourChoice")
-      : t("coiffeur.choosing", { who: seatName(view, view.to_act) });
+      : t(view.muessi ? "status.muessiOther" : "coiffeur.choosing", { who: seatName(view, view.to_act) });
   }
   if (view.to_act === view.seat) {
     if (view.phase === "bidding") {
@@ -1290,7 +1298,7 @@ function statusText(view) {
   if (view.to_act === null) return "";
   const who = seatName(view, view.to_act);
   return view.phase === "bidding"
-    ? t("status.bidding", { who })
+    ? t(view.muessi ? "status.muessiOther" : "status.bidding", { who })
     : t("status.thinking", { who });
 }
 
