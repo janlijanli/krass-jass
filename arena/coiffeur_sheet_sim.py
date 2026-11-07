@@ -164,12 +164,11 @@ def play(m: Model, thetas: tuple[dict, dict], seed: int) -> tuple[list[int], int
         hands = deal(seed, rnd)
         # The deal's luck per seat, fixed before anyone chooses: common to both sides of a pair.
         luck = rng.integers(len(m.residual), size=NUM_SEATS)
-        # The first round is a Müessi, as in the engine: the Ecken 10 opens and may not shove.
-        if rnd == 0 and CFG.ecken_ten_muss:
+        # The Ecken 10 opens the first round, as in the engine — and may shove (owner, 2026-11-07).
+        if rnd == 0:
             dealer = next(s for s in range(NUM_SEATS) if hands[s] >> ECKEN_TEN & 1) - 1
             dealer %= NUM_SEATS
-        choosing = Choosing(forehand=(dealer + 1) % NUM_SEATS, sheet=sheet, cfg=CFG,
-                            muss=rnd == 0 and CFG.ecken_ten_muss)
+        choosing = Choosing(forehand=(dealer + 1) % NUM_SEATS, sheet=sheet, cfg=CFG)
         while True:
             seat = choosing.chooser
             action = choose(m, thetas[team_of(seat)], hands[seat], choosing.legal(), mults)
