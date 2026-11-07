@@ -95,3 +95,26 @@ def test_rust_agrees(seed):
     assert [str(c) for c in py.legal_choices()] == rs.legal_choices()
     assert "SHOVE" not in rs.legal_choices()
     assert not rs.may_shove(py.to_act)
+
+
+def test_the_view_names_the_muessi_seat_for_the_whole_first_round():
+    """The table marks who was in the Müessi with a gold M through the first round, and only then."""
+    from web.app import new_table, view
+
+    table = new_table(settings={"mode": "schieber"})
+    game = table.game
+    seat = ecken_seat(game)
+    frame = view(table, 0)
+    assert frame["muessi"] and frame["muessi_seat"] == seat
+    game.bid(seat, Contract.OBENABE)
+    while game.phase is not Phase.ROUND_OVER:
+        frame = view(table, 0)
+        assert frame["muessi_seat"] == seat and not frame["muessi"]
+        s = game.to_act
+        if game.phase is Phase.WEIS:
+            game.choose_weis(s, False)
+            continue
+        game.play(s, card_list(game.round.legal_moves(s))[0])
+    game.next_round()
+    frame = view(table, 0)
+    assert frame["muessi_seat"] is None and not frame["muessi"]
