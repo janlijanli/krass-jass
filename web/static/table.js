@@ -1148,6 +1148,18 @@ function renderSeats(view) {
       badge.title = t("seat.trumpMaker");
       badge.hidden = !isDeclarer;
     }
+
+    // The Müessi: a gold M on the other corner, for the whole first round.
+    const inMuessi = view.muessi_seat === seat;
+    let m = marker.querySelector(".muessi-pip");
+    if (inMuessi && !m) {
+      m = html("span", "muessi-pip", "M");
+      marker.append(m);
+    }
+    if (m) {
+      m.title = t("muessi.title");
+      m.hidden = !inMuessi;
+    }
   });
 
   // And on the status line when it was you, since you have no pill to put it on.
@@ -1156,6 +1168,11 @@ function renderSeats(view) {
     mine.textContent = pip;
     mine.title = t("seat.trumpMaker");
     mine.hidden = !(pip !== "" && view.declarer === view.seat);
+  }
+  const myMuessi = document.getElementById("my-muessi");
+  if (myMuessi) {
+    myMuessi.title = t("muessi.title");
+    myMuessi.hidden = view.muessi_seat !== view.seat;
   }
   renderCovered(view);
 }
