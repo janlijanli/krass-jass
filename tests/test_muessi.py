@@ -1,7 +1,9 @@
-"""The Müessi: whoever was dealt the Ecken 10 opens a game's first round and must choose.
+"""The Müessi: whoever was dealt the Ecken 10 opens a game's first round.
 
-Owner, 2026-11-06, for the Schieber and the Coiffeur (`ecken_ten_muss`). After the first round the
-choice passes on one seat in play order — counter-clockwise — and shoving is back.
+Owner, 2026-11-06 and 2026-11-07 (`ecken_ten_muss`): in the Schieber the Ecken 10 must choose in the
+first round; in the Coiffeur it only opens, and may shove. After the first round the choice passes
+on one seat in play order — counter-clockwise. The table marks who is in the Müessi: the Schieber's
+first round, and every Coiffeur round's first chooser.
 """
 
 from __future__ import annotations
@@ -44,15 +46,14 @@ def test_schieber_ecken_ten_opens_and_may_not_shove(seed):
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3, 17, 404])
-def test_coiffeur_ecken_ten_must_choose_a_row(seed):
+def test_coiffeur_ecken_ten_opens_and_may_shove(seed):
     game = Game(cfg=COIFFEUR, seed=seed)
     seat = ecken_seat(game)
-    assert game.to_act == seat
-    legal = game.legal_choices()
-    assert SHOVE not in legal and legal
-    assert not game.may_shove(seat)
-    with pytest.raises(IllegalMove, match="Müessi"):
-        game.bid(seat, SHOVE)
+    assert game.to_act == seat == game.muessi_seat
+    assert SHOVE in game.legal_choices() and game.may_shove(seat) and not game.muss
+    game.bid(seat, SHOVE)
+    assert game.to_act == (seat + 1) % 4
+    assert game.muessi_seat == seat, "the M stays with the seat that chose first"
 
 
 @pytest.mark.parametrize("cfg", [HOUSE.variant(target_score=None), COIFFEUR], ids=["schieber", "coiffeur"])
@@ -63,7 +64,8 @@ def test_after_the_first_round_the_choice_passes_counter_clockwise_and_shoving_r
     for r in range(4):
         seat = game.to_act
         assert seat == (first + r) % 4, "one seat on in play order each round"
-        assert game.may_shove(seat) == (r > 0)
+        assert game.may_shove(seat) == (r > 0 or cfg.coiffeur)
+        assert game.muessi_seat == (seat if cfg.coiffeur or r == 0 else None)
         if cfg.coiffeur:
             game.bid(seat, str(next(c for c in game.legal_choices() if c != SHOVE)))
         else:
@@ -93,8 +95,8 @@ def test_rust_agrees(seed):
     py = Game(cfg=COIFFEUR, seed=seed)
     rs = core.RsGame(seed, coiffeur=True)
     assert [str(c) for c in py.legal_choices()] == rs.legal_choices()
-    assert "SHOVE" not in rs.legal_choices()
-    assert not rs.may_shove(py.to_act)
+    assert "SHOVE" in rs.legal_choices()
+    assert rs.may_shove(py.to_act)
 
 
 def test_the_view_names_the_muessi_seat_for_the_whole_first_round():
@@ -118,3 +120,21 @@ def test_the_view_names_the_muessi_seat_for_the_whole_first_round():
     game.next_round()
     frame = view(table, 0)
     assert frame["muessi_seat"] is None and not frame["muessi"]
+
+
+def test_in_the_coiffeur_every_round_marks_its_first_chooser():
+    from web.app import new_table, view
+
+    table = new_table(settings={"mode": "coiffeur"})
+    game = table.game
+    first = ecken_seat(game)
+    frame = view(table, 0)
+    assert frame["muessi"] and frame["muessi_seat"] == first and not frame["muss"]
+    rng = random.Random(2)
+    for r in range(3):
+        assert view(table, 0)["muessi_seat"] == (first + r) % 4
+        game.bid(game.to_act, SHOVE)                    # the M does not move with a shove
+        assert view(table, 0)["muessi_seat"] == (first + r) % 4
+        game.bid(game.to_act, str(next(c for c in game.legal_choices() if c != SHOVE)))
+        finish_round(game, rng)
+        game.next_round()

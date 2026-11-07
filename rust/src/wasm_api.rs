@@ -842,12 +842,14 @@ pub extern "C" fn game_view(handle: u32, seat: u32, acked_tricks: u32) -> usize 
             !sidi && !game.rules.coiffeur && game.may_shove(seat)
         ));
         // The first round's Müessi, as `web/app.py::view`.
-        out.push_str(&format!(",\"muessi\":{}", game.phase == Phase::Bidding && game.muss()));
-        // Who was in it: the Ecken 10, forehand of the first round, for that whole round.
-        if game.muss() {
-            out.push_str(&format!(",\"muessi_seat\":{}", game.forehand));
-        } else {
-            out.push_str(",\"muessi_seat\":null");
+        out.push_str(&format!(",\"muss\":{}", game.phase == Phase::Bidding && game.muss()));
+        // Who is in the Müessi this round, as `web/app.py::view`: the badge while choosing, the M
+        // for the whole round.
+        let muessi = game.muessi_seat();
+        out.push_str(&format!(",\"muessi\":{}", game.phase == Phase::Bidding && muessi.is_some()));
+        match muessi {
+            Some(s) => out.push_str(&format!(",\"muessi_seat\":{s}")),
+            None => out.push_str(",\"muessi_seat\":null"),
         }
         // Sidi Barrani, in the shape `web/app.py::view` sends: the auction (public — every
         // call was said aloud), the calls this seat may make, the bid and the double.

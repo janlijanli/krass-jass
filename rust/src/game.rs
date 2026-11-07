@@ -92,6 +92,8 @@ pub struct Game {
     pub sheet: Sheet,
     pub row_multipliers: [i32; coiffeur::ALL_ROWS],
     pub shoves: u32,
+    /// Who chooses first this round — the Coiffeur's Müessi (`muessi_seat`).
+    pub first_chooser: usize,
     pub row: Option<usize>,
     /// The chosen extra row's game, when it is one (`schedule.rs`).
     pub schedule: Option<crate::schedule::Schedule>,
@@ -133,6 +135,7 @@ impl Game {
             sheet: Sheet::for_game(&rules),
             row_multipliers: coiffeur::multipliers(seed, &rules),
             shoves: 0,
+            first_chooser: 0,
             row: None,
             schedule: None,
             last_coiffeur: None,
@@ -188,6 +191,7 @@ impl Game {
         if self.rules.coiffeur {
             self.declarer = coiffeur::first_chooser(self.forehand, &self.sheet);
         }
+        self.first_chooser = self.declarer;
         self.contract = None;
         self.round = None;
         self.phase = Phase::Bidding;
@@ -349,9 +353,22 @@ impl Game {
         )
     }
 
-    /// The game's first round under `ecken_ten_muss`: the Ecken 10 opens and must choose.
+    /// The Schieber's first round under `ecken_ten_muss`: the Ecken 10 opens and must choose.
+    /// The Coiffeur's Ecken 10 only opens, and may shove. Twin of `Game.muss`.
     pub fn muss(&self) -> bool {
-        self.rules.ecken_ten_muss && self.round_index == 0 && !self.rules.sidi
+        self.rules.ecken_ten_muss && self.round_index == 0 && !self.rules.sidi && !self.rules.coiffeur
+    }
+
+    /// Who is in the Müessi this round: the Schieber's first round, the Ecken 10; every Coiffeur
+    /// round, the seat that chooses first. Twin of `Game.muessi_seat`.
+    pub fn muessi_seat(&self) -> Option<usize> {
+        if self.rules.coiffeur {
+            Some(self.first_chooser)
+        } else if self.muss() {
+            Some(self.forehand)
+        } else {
+            None
+        }
     }
 
     /// Whether `seat` may shove now: on turn to choose, and the rules allow it. Twin of

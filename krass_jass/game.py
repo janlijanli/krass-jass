@@ -118,10 +118,10 @@ class Game:
         self.row = -1
         self.schedule = None
         if self.cfg.coiffeur:
-            self.choosing = Choosing(
-                forehand=self.forehand, sheet=self.sheet, cfg=self.cfg, muss=self.muss
-            )
+            self.choosing = Choosing(forehand=self.forehand, sheet=self.sheet, cfg=self.cfg)
             self.declarer = self.choosing.chooser
+        #: Who chooses first this round — the Coiffeur's Müessi (`muessi_seat`).
+        self.first_chooser = self.declarer
         self.bid_value = 0
         self.doubled = False
         self._double_queue = []
@@ -293,8 +293,18 @@ class Game:
 
     @property
     def muss(self) -> bool:
-        """The game's first round under `ecken_ten_muss`: the Ecken 10 opens and must choose."""
-        return self.cfg.ecken_ten_muss and self.round_index == 0 and not self.cfg.sidi
+        """The Schieber's first round under `ecken_ten_muss`: the Ecken 10 opens and must choose.
+        The Coiffeur's Ecken 10 only opens, and may shove (owner, 2026-11-07)."""
+        return self.cfg.ecken_ten_muss and self.round_index == 0 and self.cfg.mode == "schieber"
+
+    @property
+    def muessi_seat(self) -> int | None:
+        """Who is in the Müessi this round, for the table to mark: in the Schieber's first round the
+        Ecken 10, who must choose; in every Coiffeur round the seat that chooses first — the Ecken 10
+        in the first, then one on in play order — whoever it shoves to."""
+        if self.cfg.coiffeur:
+            return self.first_chooser
+        return self.forehand if self.muss else None
 
     def may_shove(self, seat: int) -> bool:
         """Whether `seat` may shove now: on turn to choose, and the rules allow it."""
