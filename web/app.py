@@ -542,8 +542,12 @@ def view(table: Table, seat: int) -> dict:
         "scores": list(game.scores),
         "round": game.round_index,
         "can_shove": game.cfg.mode == "schieber" and game.may_shove(seat),
-        # The first round's Müessi: the Ecken 10 chooses and nobody shoves (`ecken_ten_muss`).
-        "muessi": game.phase is Phase.BIDDING and game.muss,
+        # The Schieber's first round: the Ecken 10 must choose, nobody shoves (`ecken_ten_muss`).
+        "muss": game.phase is Phase.BIDDING and game.muss,
+        # Who is in the Müessi this round (`Game.muessi_seat`), the badge while choosing and the
+        # gold M for the whole round.
+        "muessi": game.phase is Phase.BIDDING and game.muessi_seat is not None,
+        "muessi_seat": game.muessi_seat,
         # Sidi Barrani. The auction is public — every call was said aloud — and the calls this
         # seat may make now are the engine's, as legal cards are: the client never decides.
         "mode": game.cfg.mode,

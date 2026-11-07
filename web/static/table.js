@@ -486,7 +486,7 @@ function renderContract(contract, multiplier) {
     if (lastView?.muessi) {
       el.contract.className = "contract muessi";
       el.contract.innerHTML = `<span class="muessi-tag">${t("muessi.tag")}</span>` +
-        `<span>${seatShort(lastView, lastView.declarer)}</span>`;
+        `<span>${seatShort(lastView, lastView.muessi_seat)}</span>`;
       return;
     }
     el.contract.className = "contract none";
@@ -659,7 +659,7 @@ function renderCoiffeur(view) {
   const canShove = c.legal.includes("SHOVE");
   const open = coiffeurOpen;
   el.coiffeurPrompt.textContent = !open
-    ? (canShove ? t("coiffeur.prompt") : t(view.muessi ? "coiffeur.muessi" : "coiffeur.mustChoose"))
+    ? (canShove ? t("coiffeur.prompt") : t(view.muss ? "coiffeur.muessi" : "coiffeur.mustChoose"))
     : open === "TRIO" ? t("coiffeur.pickFirstBlock")
     : open === "CHANCE" ? t("coiffeur.pickAny", { row: rowLabel(open) })
     : EXTRA_ROWS.includes(open) ? t("coiffeur.pickGame", { row: rowLabel(open) })
@@ -1148,6 +1148,18 @@ function renderSeats(view) {
       badge.title = t("seat.trumpMaker");
       badge.hidden = !isDeclarer;
     }
+
+    // The Müessi: a gold M on the other corner, for the whole first round.
+    const inMuessi = view.muessi_seat === seat;
+    let m = marker.querySelector(".muessi-pip");
+    if (inMuessi && !m) {
+      m = html("span", "muessi-pip", "M");
+      marker.append(m);
+    }
+    if (m) {
+      m.title = t("muessi.title");
+      m.hidden = !inMuessi;
+    }
   });
 
   // And on the status line when it was you, since you have no pill to put it on.
@@ -1156,6 +1168,11 @@ function renderSeats(view) {
     mine.textContent = pip;
     mine.title = t("seat.trumpMaker");
     mine.hidden = !(pip !== "" && view.declarer === view.seat);
+  }
+  const myMuessi = document.getElementById("my-muessi");
+  if (myMuessi) {
+    myMuessi.title = t("muessi.title");
+    myMuessi.hidden = view.muessi_seat !== view.seat;
   }
   renderCovered(view);
 }
@@ -1283,12 +1300,12 @@ function statusText(view) {
   }
   if (view.coiffeur && view.phase === "bidding") {
     return view.to_act === view.seat
-      ? t(view.muessi ? "status.muessi" : "coiffeur.yourChoice")
-      : t(view.muessi ? "status.muessiOther" : "coiffeur.choosing", { who: seatName(view, view.to_act) });
+      ? t(view.muss ? "status.muessi" : "coiffeur.yourChoice")
+      : t(view.muss ? "status.muessiOther" : "coiffeur.choosing", { who: seatName(view, view.to_act) });
   }
   if (view.to_act === view.seat) {
     if (view.phase === "bidding") {
-      if (view.muessi) return t("status.muessi");
+      if (view.muss) return t("status.muessi");
       return view.declarer === view.seat && view.can_shove
         ? t("status.yourBid")
         : t("status.mustChoose");
@@ -1298,7 +1315,7 @@ function statusText(view) {
   if (view.to_act === null) return "";
   const who = seatName(view, view.to_act);
   return view.phase === "bidding"
-    ? t(view.muessi ? "status.muessiOther" : "status.bidding", { who })
+    ? t(view.muss ? "status.muessiOther" : "status.bidding", { who })
     : t("status.thinking", { who });
 }
 

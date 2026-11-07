@@ -1270,6 +1270,22 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
   box-shadow: 0 1px 4px rgba(0, 0, 0, .45);
   pointer-events: none;
 }
+/* The Müessi: a gold M on the nameplate's other corner, for the whole first round. */
+.muessi-pip {
+  position: absolute;
+  top: -6px; left: -6px;
+  width: 16px; height: 16px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  font-size: 10px; font-weight: 800; line-height: 1;
+  color: var(--ink);
+  background: linear-gradient(160deg, #f1d58a, var(--gold));
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .35);
+  pointer-events: none;
+  animation: pop .35s var(--ease-spring);
+}
+.muessi-pip.mine { position: static; display: inline-grid; margin-left: 6px; vertical-align: middle; }
+.muessi-pip[hidden] { display: none; }
 /* On the status line instead, for the one seat with no pill: yours. */
 .declarer-pip.mine {
   position: static;

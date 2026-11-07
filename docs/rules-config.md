@@ -63,9 +63,12 @@ Obenabe); `multipliers` covers it.
 the more common Schieber rule; when on, forehand must then choose.
 
 `ecken_ten_muss` — **default `True`** (owner, 2026-11-06), the **Müessi**. Whoever was dealt the
-Ecken 10 opens a game's first round and must choose — trump in the Schieber, a row in the Coiffeur —
-without shoving. From the second round the choice passes on one seat in play order
-(counter-clockwise) and shoving is back. The Sidi has no shove. **Off in `EVAL`**: every arena deal
+Ecken 10 opens a game's first round. In the **Schieber** it must choose trump without shoving; in the
+**Coiffeur** it only opens and may shove like anyone (owner, 2026-11-07: "the Ecken 10 only decides who
+is first in the Müessi"). From the second round the choice passes on one seat in play order
+(counter-clockwise), shoving as usual. The Sidi has no shove. The table marks who is in the Müessi
+with a gold M (`Game.muessi_seat`): the Schieber's first round, and every Coiffeur round's first
+chooser — the M does not move with a shove. **Off in `EVAL`**: every arena deal
 is a game's first round, so on there it would force a choice on every deal measured. Known gap: the
 bots' bid likelihood still reads a first-round choice as if forehand could have shoved.
 
@@ -366,8 +369,8 @@ jassverzeichnis.ch's sheet for the contracts: Eichel ×1, Rosen ×2, Schilten ×
 four-player table puts acorns/spades ×1, flowers/clubs ×2, shields/diamonds ×3, bells/hearts ×4 —
 the sources do not even agree which suit is cheapest, which is one reason random is a good default.
 
-**Choosing.** Forehand (the seat after the dealer) chooses a row or shoves — except in the game's
-first round, where the Ecken 10 must choose (`ecken_ten_muss`, above). A shove goes to the
+**Choosing.** Forehand (the seat after the dealer) chooses a row or shoves. In the game's first
+round forehand is the Ecken 10 (`ecken_ten_muss`, above), who may shove too. A shove goes to the
 **next seat in play order — an opponent**, not the partner. After four shoves the choice is back
 with forehand, who must choose ("im Loch", "im Fass"). Once one team has filled its column only the
 other team chooses: the first seat of that team from forehand chooses or shoves **to its partner**,
