@@ -9,6 +9,10 @@ share of games A won is reported beside it.
 Usage::
 
     python -m arena.coiffeur_ab --games 200 --baseline-weights old.json
+
+A long match can be played in pieces: `--first` is the first pair's index and `--out` appends
+each pair's result as a JSON line; `--report` reads such files back and tests them together.
+Every pair is seeded from `(seed, index)`, so the pieces are exactly the one match.
 """
 
 from __future__ import annotations
@@ -60,8 +64,20 @@ def _chunk(args):
     return out
 
 
+def report(rows: list[tuple[float, float]]) -> None:
+    diffs = [d for d, _ in rows]
+    wins = sum(w for _, w in rows) / (2 * len(rows))
+    t, p = paired_test(diffs)
+    mean = sum(diffs) / len(diffs)
+    print(f"{len(rows)} paired games: A - B = {mean / 2:+.1f} points a game, t = {t:.2f}, p = {p:.3f}; "
+          f"A wins {wins:.1%} of games")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--report", type=Path, nargs="*", help="only test the pairs in these --out files")
+    ap.add_argument("--first", type=int, default=0, help="index of the first pair (a match in pieces)")
+    ap.add_argument("--out", type=Path, default=None, help="append each pair's result here, as JSON lines")
     ap.add_argument("--games", type=int, default=200)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--iterations", type=int, default=2400)
@@ -69,6 +85,11 @@ def main() -> None:
     ap.add_argument("--weights", type=Path, default=None, help="A's (default: the shipped file)")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 1)
     args = ap.parse_args()
+    if args.report:
+        rows = [tuple(json.loads(line)[k] for k in ("diff", "wins"))
+                for path in args.report for line in path.read_text().splitlines() if line]
+        report(rows)
+        return
 
     base = DmctsAgent(determinizations=40, iterations=args.iterations // 40, cfg=CFG,
                       read_bidding=False, bid_alpha=0.0, tree_policy=False, label="search")
@@ -79,17 +100,17 @@ def main() -> None:
     b.label = "B"
     b.coiffeur_weights = json.loads(args.baseline_weights.read_text())
 
-    chunks = [range(i, args.games, args.workers) for i in range(args.workers)]
+    end = args.first + args.games
+    chunks = [range(args.first + i, end, args.workers) for i in range(args.workers)]
     rows = []
     with ProcessPoolExecutor(args.workers) as pool:
-        for part in pool.map(_chunk, [(a, b, args.seed * 100_000, c) for c in chunks if c]):
+        for c, part in zip(chunks, pool.map(_chunk, [(a, b, args.seed * 100_000, c) for c in chunks if c])):
             rows.extend(part)
-    diffs = [d for d, _ in rows]
-    wins = sum(w for _, w in rows) / (2 * len(rows))
-    t, p = paired_test(diffs)
-    mean = sum(diffs) / len(diffs)
-    print(f"{len(rows)} paired games: A - B = {mean / 2:+.1f} points a game, t = {t:.2f}, p = {p:.3f}; "
-          f"A wins {wins:.1%} of games")
+            if args.out:
+                with args.out.open("a") as f:
+                    for i, (d, w) in zip(c, part):
+                        f.write(json.dumps({"pair": i, "diff": d, "wins": w}) + "\n")
+    report(rows)
 
 
 if __name__ == "__main__":
