@@ -407,8 +407,8 @@ def test_coiffeur_is_a_mode_of_its_own_with_the_sheet_in_the_view():
     assert len(seven["rows"]) == len(seven["multipliers"]) == 7
     # The choices on offer are the engine's, in wire form, and only for the seat on turn.
     assert sheet["legal"] == [str(c) for c in game.legal_choices()]
-    # The first round is a Müessi: the Ecken 10 opens and may not shove.
-    assert "SHOVE" not in sheet["legal"] and "HEARTS/CHANCE" in sheet["legal"]
+    # The Ecken 10 opens the first round and may shove (owner, 2026-11-07).
+    assert "SHOVE" in sheet["legal"] and "HEARTS/CHANCE" in sheet["legal"]
     assert view(table, (game.to_act + 1) % 4)["coiffeur"]["legal"] == []
     # The Schieber's shove button and bidding panel are not this game's.
     assert frame["can_shove"] is False
