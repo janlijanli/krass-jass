@@ -23,7 +23,10 @@ SITE = ROOT / "site"
 CONTRACTS = {"DIAMONDS": 1, "HEARTS": 2, "SPADES": 1, "CLUBS": 2, "OBENABE": 3, "UNDENUFE": 4}
 TARGETS = (1000, 2000, 2500)
 # The Coiffeur's extra rows and their labels, as `web/app.py` offers them.
-COIFFEUR_ROWS = (("TUTTI", "Tutti"), ("SLALOM", "Slalom"), ("GUSCHTI", "Guschti"), ("TRIO", "3×3"), ("MISERE", "Misère"))
+COIFFEUR_ROWS = (
+    ("TUTTI", "Tutti"), ("SLALOM", "Slalom"), ("GUSCHTI", "Guschti"), ("TRIO", "3×3"), ("MISERE", "Misère"),
+    ("MITTE", "Mitte"),
+)
 ICONS = {"icon-192.png": 192, "icon-512.png": 512, "apple-touch-icon.png": 180}
 REPO_URL = "https://github.com/janlijanli/krass-jass"
 
@@ -86,7 +89,7 @@ def asset_version() -> str:
     for name in sorted(
         (
             "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
-            "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js",
+            "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "splash.js",
             "render.js", "solo.js", "engine.js", "krass_jass_core.wasm",
             "report.html", "report.css", "report.js",
         )
@@ -232,13 +235,13 @@ def build_index() -> None:
     (SITE / "report.html").write_text(report)
 
     for name in (
-        "solo.js", "render.js", "menu.js", "engine.js", "about.js", "walkthrough.js", "report.js",
+        "solo.js", "render.js", "menu.js", "engine.js", "about.js", "walkthrough.js", "report.js", "splash.js",
     ):
         path = SITE / name
         text = path.read_text()
         for dep in (
             "engine.js", "render.js", "menu.js", "cards.js", "about.js", "tafel.js",
-            "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js",
+            "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "splash.js",
         ):
             text = text.replace(f'"./{dep}"', f'"./{dep}?v={version}"')
         text = text.replace('"measurements.json"', f'"measurements.json?v={version}"')
@@ -263,7 +266,7 @@ def build_service_worker(version: str) -> None:
     """
     versioned = [
         "table.css", "cards.js", "about.js", "menu.js", "tafel.js", "i18n.js",
-        "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "render.js", "solo.js", "engine.js",
+        "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "splash.js", "render.js", "solo.js", "engine.js",
         "krass_jass_core.wasm", "measurements.json",
     ]
     assets = (
@@ -290,7 +293,7 @@ def copy_assets() -> None:
     """
     for name in (
         "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
-        "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js",
+        "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "splash.js",
         "report.html", "report.css", "report.js",
     ):
         (SITE / name).write_text((ROOT / "web/static" / name).read_text())

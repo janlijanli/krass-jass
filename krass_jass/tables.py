@@ -24,7 +24,7 @@ from .cards import (
     card_rank,
     card_suit,
 )
-from .rules import Contract
+from .rules import Contract, Order
 
 # --- card values, per rank -------------------------------------------------
 
@@ -37,6 +37,9 @@ _VAL_UNDENUFE = (0, 4, 3, 2, 10, 0, 8, 0, 11)       # values invert with the ord
 
 _STR_PLAIN = tuple(NUM_RANKS - 1 - r for r in range(NUM_RANKS))        # A high
 _STR_UNDENUFE = tuple(range(NUM_RANKS))                                # 6 high
+#: Mitte: the ten, then outwards from it — 9 = J, 8 = Q, 7 = K, 6 = A. Equal pairs are broken by
+#: `trick_winner`'s strict comparison: the card played first keeps the trick.
+_STR_MITTE = tuple(RANK_T - abs(r - RANK_T) for r in range(NUM_RANKS))
 #: J > 9 > A > K > Q > 10 > 8 > 7 > 6
 _STR_TRUMP = tuple(
     {RANK_J: 8, RANK_9: 7, RANK_A: 6, RANK_K: 5, RANK_Q: 4, RANK_T: 3, RANK_8: 2, RANK_7: 1, RANK_6: 0}[r]
@@ -71,7 +74,7 @@ def _values_for(contract: Contract) -> tuple[int, ...]:
     return tuple(per_rank[card_suit(c)][card_rank(c)] for c in range(NUM_CARDS))
 
 
-def _strength_for(contract: Contract, led: int) -> tuple[int, ...]:
+def _strength_for(contract: Contract | Order, led: int) -> tuple[int, ...]:
     """Trick strength of every card index, given the led suit.
 
     Banded so a single ``max`` decides the trick: trump 100+, led suit 10+, anything else
@@ -79,7 +82,11 @@ def _strength_for(contract: Contract, led: int) -> tuple[int, ...]:
     card is always in a scoring band, so the max is never ambiguous.
     """
     trump = contract.trump_suit
-    base = _STR_UNDENUFE if contract is Contract.UNDENUFE else _STR_PLAIN
+    base = (
+        _STR_MITTE if contract is Order.MITTE
+        else _STR_UNDENUFE if contract is Contract.UNDENUFE
+        else _STR_PLAIN
+    )
     out = []
     for c in range(NUM_CARDS):
         s, r = card_suit(c), card_rank(c)
@@ -95,11 +102,16 @@ def _strength_for(contract: Contract, led: int) -> tuple[int, ...]:
 #: ``CARD_VALUES[contract]`` -> 36 point values.
 CARD_VALUES: dict[Contract, tuple[int, ...]] = {c: _values_for(c) for c in Contract}
 
-#: ``STRENGTH[contract][led_suit]`` -> 36 strengths.
-STRENGTH: dict[Contract, tuple[tuple[int, ...], ...]] = {
-    c: tuple(_strength_for(c, led) for led in range(NUM_SUITS)) for c in Contract
-}
-
 #: Points in the whole deck, per contract. Every contract totals 152 — which is exactly why
 #: a "sums to 157" test cannot catch a mis-implemented Undenufe.
 DECK_POINTS: dict[Contract, int] = {c: sum(v) for c, v in CARD_VALUES.items()}
+
+#: A Mitte trick is never *counted* in Mitte — the round is counted as Obenabe or Undenufe — but
+#: code that values the cards of the trick in progress (the conventions, the play model) reads
+#: this: Obenabe's values, the placeholder the round is counted in until it is decided.
+CARD_VALUES[Order.MITTE] = CARD_VALUES[Contract.OBENABE]
+
+#: ``STRENGTH[contract][led_suit]`` -> 36 strengths, for the six contracts and `Order.MITTE`.
+STRENGTH: dict[Contract | Order, tuple[tuple[int, ...], ...]] = {
+    c: tuple(_strength_for(c, led) for led in range(NUM_SUITS)) for c in (*Contract, *Order)
+}

@@ -187,8 +187,8 @@ el.tafel.addEventListener("click", (e) => { if (e.target === el.tafel) closeTafe
 
 const CONTRACT_PIPS = { DIAMONDS: "♦", HEARTS: "♥", SPADES: "♠", CLUBS: "♣" };
 // The no-trump contracts by direction: Obenabe runs from the top down, Undenufe from the
-// bottom up.
-const CONTRACT_ARROWS = { OBENABE: "↓", UNDENUFE: "↑" };
+// bottom up, and the Coiffeur's Mitte from the ten outwards both ways.
+const CONTRACT_ARROWS = { OBENABE: "↓", UNDENUFE: "↑", MITTE: "↕" };
 
 /* ---------- test mode: what the bot believes -----------------------------
  *
@@ -538,8 +538,8 @@ function rowLabel(row) {
  * SLALOM_OBENABE, GUSCHTI4_UNDENUFE, TRIO_HEARTS, MISERE_UNDENUFE — and shown as the orders it
  * runs through: pips for trump, arrows for Obenabe (↓) and Undenufe (↑), "?" for a trick whose
  * order is not known yet (a 3×3 block not named, a Tutti trick not led). */
-const EXTRA_ROWS = ["TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE"];
-const isGame = (name) => /^((SLALOM|GUSCHTI4?|TRIO|MISERE)_|TUTTI$)/.test(name);
+const EXTRA_ROWS = ["TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE", "MITTE"];
+const isGame = (name) => /^((SLALOM|GUSCHTI4?|TRIO|MISERE)_|TUTTI$|MITTE$)/.test(name);
 const gameRow = (name) => name.split("_")[0].replace(/4$/, "");
 
 function orderSymbol(contract) {
@@ -551,6 +551,8 @@ function gameSymbols(name) {
   const flip = (c) => (c === "OBENABE" ? "UNDENUFE" : "OBENABE");
   // Tutti: whatever suit is led is trump, trick by trick.
   if (kind === "TUTTI") return `${orderSymbol(null)}<em>${t("coiffeur.row.TUTTI")}</em>`;
+  // Mitte: one order, from the ten outwards; counted as its first trick's first card says.
+  if (kind === "MITTE") return `${orderSymbol("MITTE")}<em>${t("coiffeur.row.MITTE")}</em>`;
   if (kind === "SLALOM") return `${orderSymbol(a)}${orderSymbol(flip(a))}${orderSymbol(a)}<em>…</em>`;
   if (kind === "GUSCHTI" || kind === "GUSCHTI4") {
     const first = kind === "GUSCHTI" ? 5 : 4;
@@ -649,13 +651,13 @@ function renderCoiffeur(view) {
   const canShove = c.legal.includes("SHOVE");
   const open = coiffeurOpen;
   el.coiffeurPrompt.textContent = !open
-    ? (canShove ? t("coiffeur.prompt") : t("coiffeur.mustChoose"))
+    ? (canShove ? t("coiffeur.prompt") : t(view.muessi ? "coiffeur.muessi" : "coiffeur.mustChoose"))
     : open === "TRIO" ? t("coiffeur.pickFirstBlock")
     : open === "CHANCE" ? t("coiffeur.pickAny", { row: rowLabel(open) })
     : EXTRA_ROWS.includes(open) ? t("coiffeur.pickGame", { row: rowLabel(open) })
     : t("coiffeur.pickContract", { row: rowLabel(open) });
   el.coiffeurSheet.replaceChildren(coiffeurSheet(view, (row) => {
-    if (row === "TUTTI") {
+    if (row === "TUTTI" || row === "MITTE") {
       send({ type: "bid", action: row });     // one game: nothing to pick
     } else if (row === "CHANCE" || EXTRA_ROWS.includes(row)) {
       coiffeurOpen = coiffeurOpen === row ? null : row;
@@ -1273,11 +1275,12 @@ function statusText(view) {
   }
   if (view.coiffeur && view.phase === "bidding") {
     return view.to_act === view.seat
-      ? t("coiffeur.yourChoice")
+      ? t(view.muessi ? "status.muessi" : "coiffeur.yourChoice")
       : t("coiffeur.choosing", { who: seatName(view, view.to_act) });
   }
   if (view.to_act === view.seat) {
     if (view.phase === "bidding") {
+      if (view.muessi) return t("status.muessi");
       return view.declarer === view.seat && view.can_shove
         ? t("status.yourBid")
         : t("status.mustChoose");
@@ -1338,6 +1341,9 @@ function render(view) {
   renderHand(view);
   renderTrick(view);
   renderSeats(view);
+  // While trump or a row is being chosen the felt is empty, and on a phone the nameplates and
+  // the other hands' backs only sit over the choice. They come back with the first card.
+  document.body.classList.toggle("choosing", view.phase === "bidding");
   renderWeis(view);
   renderScorecard(view);
 
@@ -1424,6 +1430,7 @@ document.getElementById("weis-no").addEventListener("click", () =>
 applyStatic();
 
 import { initMenu, adviceOn, beliefsOn, overlayOn, talkOn } from "./menu.js";
+import { showSplash, splashSeen } from "./splash.js";
 
 /** Both belief displays read the same pool, so the server computes it if either is on. */
 function syncBeliefs() {
@@ -1431,7 +1438,7 @@ function syncBeliefs() {
   send({ type: "beliefs", on: beliefsOn() || overlayOn() });
 }
 
-initMenu({
+const menu = initMenu({
   measurementsUrl: MEASUREMENTS_URL,
   // The hosted build runs the fourth bot on the server — the same search, on your own hand.
   onAdviceChange: () => send({ type: "advice", on: adviceOn() }),
@@ -1451,6 +1458,14 @@ function connect() {
     const event = JSON.parse(message.data);
     if (event.type === "view") {
       render(event);
+      // The first view of a session: the splash, with the server's game as the one to continue
+      // once it has begun. A mode starts a new game the way the menu does, by posting.
+      if (!splashSeen()) {
+        const begun = event.round > 0 || event.hand.length < 9;
+        showSplash({ resume: begun ? { mode: event.mode, round: event.round } : null }).then((choice) => {
+          if (choice !== "continue") menu.startMode(choice);
+        });
+      }
       // A remark belongs to the pause after a trick, when nobody is waiting on you. Read from
       // the view of the finished trick (the `trick_won` event arrives before it), and said
       // once per trick however often that view is repainted — `maybeSay` keeps count.

@@ -20,7 +20,7 @@ def play_out(game, agent=None):
             return
         seat = game.to_act
         if game.phase is Phase.BIDDING:
-            game.bid(seat, agent.select_trump(game.hand_of(seat), seat == game.forehand))
+            game.bid(seat, agent.select_trump(game.hand_of(seat), game.may_shove(seat)))
         elif game.phase is Phase.WEIS:
             game.choose_weis(seat, True)
         else:

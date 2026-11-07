@@ -254,6 +254,9 @@ impl Game {
             return Err(GameError::NotYourTurn(seat));
         }
         if action == SHOVE {
+            if self.muss() {
+                return Err(GameError::WrongPhase("Müessi: the Ecken 10 must choose"));
+            }
             if self.shoved {
                 return Err(GameError::AlreadyShoved);
             }
@@ -288,7 +291,7 @@ impl Game {
         }
         let choice = match choice {
             None => {
-                if self.shoves >= coiffeur::max_shoves(&self.sheet) {
+                if self.muss() || self.shoves >= coiffeur::max_shoves(&self.sheet) {
                     return Err(GameError::Choose(ChooseError::MustChoose));
                 }
                 self.shoves += 1;
@@ -342,8 +345,28 @@ impl Game {
         }
         (
             self.sheet.choices(team_of(self.declarer), &self.rules),
-            self.shoves < coiffeur::max_shoves(&self.sheet),
+            !self.muss() && self.shoves < coiffeur::max_shoves(&self.sheet),
         )
+    }
+
+    /// The game's first round under `ecken_ten_muss`: the Ecken 10 opens and must choose.
+    pub fn muss(&self) -> bool {
+        self.rules.ecken_ten_muss && self.round_index == 0 && !self.rules.sidi
+    }
+
+    /// Whether `seat` may shove now: on turn to choose, and the rules allow it. Twin of
+    /// `Game.may_shove` in `game.py`.
+    pub fn may_shove(&self, seat: usize) -> bool {
+        if self.phase != Phase::Bidding || self.rules.sidi || seat != self.declarer {
+            return false;
+        }
+        if self.rules.coiffeur {
+            return self.legal_choices().1;
+        }
+        if self.muss() || self.shoved {
+            return false;
+        }
+        seat == self.forehand || self.rules.allow_zurueckschieben
     }
 
     /// Sidi: one call in the auction. See `auction.rs`.

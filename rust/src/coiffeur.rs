@@ -17,11 +17,11 @@ use crate::schedule::{for_row, Schedule, FIRST_EXTRA_ROW};
 use crate::tables::{contract_name, NUM_CONTRACTS};
 
 /// Every slot on the sheet, played or not.
-pub const ALL_ROWS: usize = 12;
+pub const ALL_ROWS: usize = 13;
 pub const CHANCE_ROW: usize = 6;
 pub const ROW_NAMES: [&str; ALL_ROWS] = [
     "DIAMONDS", "HEARTS", "SPADES", "CLUBS", "OBENABE", "UNDENUFE", "CHANCE",
-    "TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE",
+    "TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE", "MITTE",
 ];
 
 /// The `Rng::split` index the multipliers are drawn from — clear of every round's deal.

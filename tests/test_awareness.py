@@ -22,7 +22,7 @@ def test_the_taker_predicts_the_trick_it_ends_up_winning(seed):
     when the fourth lands, unless the fourth card changes it."""
     game = Game(cfg=HOUSE.variant(target_score=None), seed=seed)
     agent = GreedyAgent()
-    game.bid(game.to_act, agent.select_trump(game.hand_of(game.to_act), True))
+    game.bid(game.to_act, agent.select_trump(game.hand_of(game.to_act), game.may_shove(game.to_act)))
 
     while game.round is not None and not game.round.done:
         state = game.round

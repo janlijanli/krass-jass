@@ -8,17 +8,19 @@
 //! A 3x3's second and third blocks are named during the round by the leaders of tricks 4 and 7,
 //! so until then their tricks hold `UNNAMED`. A Tutti's tricks are named by their lead card — the
 //! suit led is trump — so until each is led it holds `LED`, and the round is counted in the suit
-//! of its very first card.
+//! of its very first card. A Mitte plays every trick in the Mitte order (`tables::MITTE`) and is
+//! counted as Obenabe or Undenufe by the first card of trick 1 that is not a ten (`mitte_count`).
 
 use crate::config::Rules;
 use crate::scoring::TRICKS_PER_ROUND;
-use crate::tables::contract_name;
+use crate::cards::{card_rank, RANK_T};
+use crate::tables::{contract_name, MITTE};
 
 const OBENABE: usize = 4;
 const UNDENUFE: usize = 5;
 
 /// The extra rows' sheet slots and names, after the six contracts and the Chance (`coiffeur.rs`).
-pub const EXTRA_ROWS: [&str; 5] = ["TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE"];
+pub const EXTRA_ROWS: [&str; 6] = ["TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE", "MITTE"];
 pub const FIRST_EXTRA_ROW: usize = 7;
 /// A 3x3's blocks start at these tricks; the leader of each names it.
 pub const TRIO_BLOCKS: [usize; 3] = [0, 3, 6];
@@ -28,6 +30,21 @@ pub const UNNAMED: usize = usize::MAX;
 pub const LED: usize = usize::MAX - 1;
 /// What a Tutti is counted in before its first card (`TUTTI_PLACEHOLDER` in Python).
 pub const TUTTI_PLACEHOLDER: usize = OBENABE;
+/// What a Mitte is counted in until a card other than a ten is played in trick 1.
+pub const MITTE_PLACEHOLDER: usize = OBENABE;
+
+/// What a Mitte is counted in, from trick 1's cards so far: the first that is not a ten — above it
+/// Obenabe, below it Undenufe. `None` while only tens are down; four tens leave the placeholder.
+/// Twin of `mitte_count` in `schedule.py`.
+pub fn mitte_count(first_trick: &[usize]) -> Option<usize> {
+    for &card in first_trick {
+        let rank = card_rank(card);
+        if rank != RANK_T {
+            return Some(if rank < RANK_T { OBENABE } else { UNDENUFE });
+        }
+    }
+    if first_trick.len() >= 4 { Some(MITTE_PLACEHOLDER) } else { None }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Schedule {
@@ -41,6 +58,8 @@ pub enum Schedule {
     Misere { contract: usize },
     /// Tutti: the suit led to each trick is trump for it.
     Tutti,
+    /// Mitte: every trick in the Mitte order, counted by trick 1's first card that is not a ten.
+    Mitte,
 }
 
 fn other(c: usize) -> usize {
@@ -57,6 +76,7 @@ impl Schedule {
                 Schedule::Trio { first } => if i < 3 { first } else { UNNAMED },
                 Schedule::Misere { contract } => contract,
                 Schedule::Tutti => LED,
+                Schedule::Mitte => MITTE,
             };
         }
         out
@@ -65,7 +85,11 @@ impl Schedule {
     /// The contract the round's card points are counted in: the first trick's. A Tutti's is not
     /// known until the first card; until then, the placeholder.
     pub fn count(&self) -> usize {
-        if self.led() { TUTTI_PLACEHOLDER } else { self.tricks()[0] }
+        match self {
+            Schedule::Tutti => TUTTI_PLACEHOLDER,
+            Schedule::Mitte => MITTE_PLACEHOLDER,
+            _ => self.tricks()[0],
+        }
     }
 
     /// Tutti: each trick is named by its lead card.
@@ -82,6 +106,7 @@ impl Schedule {
                 Schedule::Guschti { .. } => 2,
                 Schedule::Trio { .. } => 3,
                 Schedule::Misere { .. } => 4,
+                Schedule::Mitte => 5,
             }
     }
 
@@ -99,6 +124,7 @@ impl Schedule {
             Schedule::Trio { first } => format!("TRIO_{}", contract_name(first)),
             Schedule::Misere { contract } => format!("MISERE_{}", contract_name(contract)),
             Schedule::Tutti => "TUTTI".to_string(),
+            Schedule::Mitte => "MITTE".to_string(),
         }
     }
 
@@ -116,6 +142,7 @@ impl Schedule {
             }
             ["TRIO", c] => contract(c).map(|first| Schedule::Trio { first }),
             ["TUTTI"] => Some(Schedule::Tutti),
+            ["MITTE"] => Some(Schedule::Mitte),
             ["MISERE", c] => {
                 contract(c).filter(|&c| c >= 4).map(|contract| Schedule::Misere { contract })
             }
@@ -127,7 +154,7 @@ impl Schedule {
         let upper = text.trim().to_ascii_uppercase();
         matches!(
             upper.split('_').next(),
-            Some("TUTTI" | "SLALOM" | "GUSCHTI" | "GUSCHTI4" | "TRIO" | "MISERE")
+            Some("TUTTI" | "SLALOM" | "GUSCHTI" | "GUSCHTI4" | "TRIO" | "MISERE" | "MITTE")
         )
     }
 }
@@ -149,6 +176,7 @@ pub fn for_row(row: usize, rules: &Rules) -> Vec<Schedule> {
             out
         }
         3 => (0..6).map(|first| Schedule::Trio { first }).collect(),
+        5 => vec![Schedule::Mitte],
         _ => vec![Schedule::Misere { contract: OBENABE }, Schedule::Misere { contract: UNDENUFE }],
     }
 }
@@ -200,5 +228,12 @@ mod tests {
         let tutti = Schedule::parse("TUTTI").unwrap();
         assert!(tutti.led() && tutti.tricks() == [LED; TRICKS_PER_ROUND]);
         assert_eq!(tutti.count(), TUTTI_PLACEHOLDER);
+        let mitte = Schedule::parse("MITTE").unwrap();
+        assert!(mitte.tricks() == [MITTE; TRICKS_PER_ROUND] && mitte.count() == OBENABE);
+        // DT=4 (ten), DJ=3 (above), D9=5 (below), HT=13
+        assert_eq!(mitte_count(&[4]), None);
+        assert_eq!(mitte_count(&[4, 3]), Some(OBENABE));
+        assert_eq!(mitte_count(&[4, 13, 5]), Some(UNDENUFE));
+        assert_eq!(mitte_count(&[4, 13, 22, 31]), Some(OBENABE));
     }
 }

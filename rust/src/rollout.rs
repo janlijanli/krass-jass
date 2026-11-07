@@ -27,6 +27,8 @@ pub struct Kernel {
     pub count: usize,
     /// Tutti before its first card: `count` is a placeholder until `on_card` sees the lead.
     pub count_open: bool,
+    /// Mitte while trick 1 has shown only tens: 1 + the tens seen, 0 once `count` is decided.
+    pub mitte_open: u8,
     pub schedule: Option<[u8; TRICKS_PER_ROUND]>,
     pub strict_undertrump: bool,
     pub puur_exempt: bool,
@@ -47,6 +49,7 @@ impl Kernel {
             trump: if contract < 4 { contract as i32 } else { -1 },
             count: contract,
             count_open: false,
+            mitte_open: 0,
             schedule: None,
             strict_undertrump,
             puur_exempt,
@@ -76,7 +79,14 @@ impl Kernel {
             }
             self.schedule = Some(packed);
             self.count_open = s[0] == crate::schedule::LED;
-            self.count = if self.count_open { crate::schedule::TUTTI_PLACEHOLDER } else { s[0] };
+            self.mitte_open = u8::from(s[0] == crate::tables::MITTE);
+            self.count = if self.count_open {
+                crate::schedule::TUTTI_PLACEHOLDER
+            } else if self.mitte_open > 0 {
+                crate::schedule::MITTE_PLACEHOLDER
+            } else {
+                s[0]
+            };
             self = self.at_trick(0);
         }
         self
@@ -149,13 +159,44 @@ impl Kernel {
     }
 
     /// Note a card about to be played, `leads` if it starts a trick. A Tutti's first card fixes
-    /// what the round is counted in; nothing else changes.
+    /// what the round is counted in; so does a Mitte's first card of trick 1 that is not a ten
+    /// (`schedule::mitte_count`). Nothing else changes.
     #[inline(always)]
     pub fn on_card(&mut self, card: usize, leads: bool) {
         if self.count_open && leads {
             self.count = card_suit(card);
             self.count_open = false;
         }
+        if self.mitte_open > 0 {
+            let rank = card_rank(card);
+            if rank != RANK_T {
+                self.count = if rank < RANK_T { crate::tables::OBENABE } else { crate::tables::UNDENUFE };
+                self.mitte_open = 0;
+            } else if self.mitte_open == NUM_SEATS as u8 {
+                // The fourth ten: trick 1 is over and the placeholder stands.
+                self.mitte_open = 0;
+            } else {
+                self.mitte_open += 1;
+            }
+        }
+    }
+
+    /// A Mitte kernel for a position `played` cards into the round, `trick` the cards on the table:
+    /// during trick 1 its count follows from the cards so far; after it, the count is `contract`,
+    /// which the caller already has decided. Nothing changes for anything but a Mitte.
+    pub fn mitte_at(mut self, contract: usize, played: usize, trick: &[usize]) -> Self {
+        if self.mitte_open == 0 {
+            return self;
+        }
+        if played > trick.len() {
+            self.mitte_open = 0;
+            self.count = contract;
+        } else {
+            for &card in trick {
+                self.on_card(card, false);
+            }
+        }
+        self
     }
 }
 
@@ -219,6 +260,11 @@ pub fn play_out(hands: &mut [u64; NUM_SEATS], mut leader: usize, k: &Kernel, rng
                 values = &CARD_VALUES[base.count];
                 k = base.at_trick_led(first + t, Some(c));
                 strength_by_led = &STRENGTH[k.contract];
+            } else if base.mitte_open > 0 {
+                // Mitte: trick 1's first card that is not a ten decides the count. Only tens came
+                // before it, worth 10 either way, so the points already summed stand.
+                base.on_card(c, false);
+                values = &CARD_VALUES[base.count];
             }
             hands[seat] = hand ^ (1u64 << c);
             trick_pts += values[c];
@@ -257,4 +303,54 @@ pub fn play_out(hands: &mut [u64; NUM_SEATS], mut leader: usize, k: &Kernel, rng
         }
     }
     (pts[0], pts[1])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schedule::{Schedule, MITTE_PLACEHOLDER};
+    use crate::tables::{OBENABE, UNDENUFE};
+
+    fn mitte_kernel() -> Kernel {
+        Kernel::new(OBENABE, true, true, 5, 0).with_schedule(Some(Schedule::Mitte.tricks()))
+    }
+
+    #[test]
+    fn a_mitte_is_counted_by_the_first_card_of_trick_one_that_is_not_a_ten() {
+        // Diamonds: A=0 K=1 Q=2 J=3 T=4 9=5 8=6 7=7 6=8; the ten of hearts is 13.
+        let k = mitte_kernel();
+        assert_eq!((k.count, k.mitte_open), (MITTE_PLACEHOLDER, 1));
+        assert_eq!(k.mitte_at(OBENABE, 2, &[4, 8]).count, UNDENUFE);
+        let open = k.mitte_at(OBENABE, 2, &[4, 13]);
+        assert!(open.mitte_open > 0);
+        let mut decided = open;
+        decided.on_card(1, false);
+        assert_eq!((decided.count, decided.mitte_open), (OBENABE, 0));
+        // Past trick 1 the caller's contract stands, whatever is on the table now.
+        let later = k.mitte_at(UNDENUFE, 6, &[0, 1]);
+        assert_eq!((later.count, later.mitte_open), (UNDENUFE, 0));
+        // Four tens: the placeholder stands and the next card changes nothing.
+        let mut tens = k;
+        for c in [4, 13, 22, 31, 8] {
+            tens.on_card(c, false);
+        }
+        assert_eq!((tens.count, tens.mitte_open), (OBENABE, 0));
+    }
+
+    #[test]
+    fn a_random_mitte_playout_counts_every_point_once() {
+        let mut rng = Rng::new(7);
+        for _ in 0..500 {
+            let mut deck: Vec<usize> = (0..NUM_CARDS).collect();
+            for i in (1..deck.len()).rev() {
+                deck.swap(i, rng.below(i as u32 + 1) as usize);
+            }
+            let mut hands = [0u64; NUM_SEATS];
+            for (i, &c) in deck.iter().enumerate() {
+                hands[i / 9] |= 1u64 << c;
+            }
+            let (a, b) = play_out(&mut hands, 0, &mitte_kernel(), &mut rng);
+            assert_eq!(a + b, 157);
+        }
+    }
 }

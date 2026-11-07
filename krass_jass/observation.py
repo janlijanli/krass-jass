@@ -23,7 +23,7 @@ import hmac
 from dataclasses import dataclass, field
 
 from .cards import card_list, card_suit
-from .rules import Contract
+from .rules import Contract, Order
 from .scoring import team_of
 
 #: In `Observation.schedule`: a 3×3 block not yet named is -1; a Tutti trick not yet led is this.
@@ -97,13 +97,15 @@ class Observation:
     misere: bool = False
 
     @property
-    def trick_contract(self) -> Contract:
-        """The contract the current trick is played in."""
+    def trick_contract(self) -> Contract | Order:
+        """The contract (or `Order`, a Mitte) the current trick is played in."""
         if not self.schedule:
             return self.contract
         named = self.schedule[min(len(self.tricks_played), 8)]
         if named == TUTTI_UNLED and self.trick:
             return Contract(card_suit(self.trick[0]))
+        if named == Order.MITTE:
+            return Order.MITTE
         return self.contract if named < 0 else Contract(named)
 
     @property

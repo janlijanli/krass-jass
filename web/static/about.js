@@ -437,7 +437,7 @@ function coiffeurRulesPanel(L) {
   }
   table.append(body);
   wrap.append(table, h("coif.extra.h"), p("coif.extra.p"),
-    list(["coif.extra.tutti", "coif.extra.slalom", "coif.extra.guschti", "coif.extra.trio", "coif.extra.misere"]),
+    list(["coif.extra.tutti", "coif.extra.slalom", "coif.extra.guschti", "coif.extra.trio", "coif.extra.misere", "coif.extra.mitte"]),
     p("coif.extra.header"), h("coif.end.h"), p("coif.end.p"), h("coif.bots.h"), p("coif.bots.p"),
     html("p", "warn", about(L, "coif.bots.warn")));
   return wrap;

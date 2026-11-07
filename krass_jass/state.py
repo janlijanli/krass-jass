@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 from .cards import NUM_CARDS, bit, card_suit
 from .legal import legal_moves
-from .rules import Contract, RulesConfig
+from .rules import Contract, Order, RulesConfig
 from .scoring import NUM_TEAMS, TRICKS_PER_ROUND, RoundScore, score_round, team_of
 from .tables import CARD_VALUES, STRENGTH
 from .weis import score_stoeck, score_weis
@@ -51,6 +51,8 @@ class RoundState:
     def __post_init__(self) -> None:
         if self.schedule is not None:
             self.schedule = list(self.schedule)
+        #: Mitte: counted as Obenabe or Undenufe, by the first card in trick 1 that is not a ten.
+        self.count_open = self.schedule is not None and self.schedule[0] is Order.MITTE
         self._values = CARD_VALUES[self.contract]
         self.trump = self.contract.trump_suit
         #: Weis is announced from the *dealt* hand during the first trick, so the round has
@@ -69,8 +71,8 @@ class RoundState:
         return card_suit(self.trick[0]) if self.trick else -1
 
     @property
-    def trick_contract(self) -> Contract:
-        """The contract the current trick is played in."""
+    def trick_contract(self) -> Contract | Order:
+        """The contract (or `Order`) the current trick is played in."""
         if self.schedule is None:
             return self.contract
         named = self.schedule[min(len(self.tricks_played), TRICKS_PER_ROUND - 1)]
@@ -149,6 +151,8 @@ class RoundState:
             self._name_by_lead(card)
         self.hands[seat] ^= bit(card)
         self.trick.append(card)
+        if self.count_open:
+            self._count_mitte()
         if len(self.trick) == NUM_SEATS:
             self._resolve_trick()
 
@@ -160,6 +164,16 @@ class RoundState:
             self.contract = led
             self._values = CARD_VALUES[led]
             self.trump = led.trump_suit
+
+    def _count_mitte(self) -> None:
+        """Mitte: the first card of trick 1 that is not a ten fixes what the round is counted in."""
+        from .schedule import mitte_count
+
+        counted = mitte_count(self.trick)
+        if counted is not None:
+            self.count_open = False
+            self.contract = counted
+            self._values = CARD_VALUES[counted]
 
     def _resolve_trick(self) -> None:
         strength = STRENGTH[self.trick_contract][card_suit(self.trick[0])]

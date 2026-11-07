@@ -96,7 +96,7 @@ pub(crate) fn parse_schedule(schedule: Option<Vec<i64>>) -> PyResult<Option<[usi
         Some(s)
             if s.len() == 9
                 && (s[0] >= 0 || s[0] == -2)
-                && s.iter().all(|&c| c == -1 || c == -2 || (0..tables::NUM_CONTRACTS as i64).contains(&c)) =>
+                && s.iter().all(|&c| c == -1 || c == -2 || (0..tables::NUM_ORDERS as i64).contains(&c)) =>
         {
             let mut out = [0usize; 9];
             for (o, &c) in out.iter_mut().zip(&s) {
@@ -313,7 +313,10 @@ fn dmcts(
         rb.copy_from_slice(&rows);
     }
     let schedule = parse_schedule(schedule)?;
-    let k = make_kernel(contract, strict_undertrump, puur_exempt, 5, 0)?.with_schedule(schedule);
+    let played = cards::NUM_CARDS - (hand | unseen).count_ones() as usize;
+    let k = make_kernel(contract, strict_undertrump, puur_exempt, 5, 0)?
+        .with_schedule(schedule)
+        .mitte_at(contract, played, &trick);
     // The exact endgame solver assumes one card order to the end of the round. It is off by
     // default anyway (docs/measurements.md §3e); a schedule keeps it off rather than port it.
     let endgame_cards = if schedule.is_some() { 0 } else { endgame_cards };

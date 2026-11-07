@@ -202,13 +202,15 @@ class Choosing:
     cfg: RulesConfig | None = None
     chooser: int = -1
     shoves: int = 0
+    #: The game's first round under `ecken_ten_muss`: the Ecken 10 must choose.
+    muss: bool = False
 
     def __post_init__(self) -> None:
         self.chooser = first_chooser(self.forehand, self.sheet)
 
     @property
     def may_shove(self) -> bool:
-        return self.shoves < max_shoves(self.sheet)
+        return not self.muss and self.shoves < max_shoves(self.sheet)
 
     def legal(self) -> list:
         out: list = list(self.sheet.choices(team_of(self.chooser), self.cfg))
@@ -221,6 +223,8 @@ class Choosing:
         if seat != self.chooser:
             raise ValueError(f"seat {seat} is not on turn to choose")
         if str(action).strip().upper() == SHOVE:
+            if self.muss:
+                raise ValueError("Müessi: the Ecken 10 must choose in the first round")
             if not self.may_shove:
                 raise ValueError("must choose: shoving is exhausted")
             self.shoves += 1

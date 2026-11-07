@@ -101,6 +101,20 @@ as trump: no one can trump in, and every later trick is trumped in whatever suit
 Tutti first on 2.9% of fresh hands, as before: the reserve fell with the line, so the row is no cheaper
 to fill. The A/B in step 5 predates both rows.
 
+**Mitte, priced (2026-11-06).** The owner's sixth extra row (`docs/rules-config.md`, "Mitte"). Its
+card order is none the trump weights know, so it has an edge of its own: each card weighted by its
+distance from the ten (`coiffeur_select.mitte_edge`), ridge-fitted by `arena/fit_mitte.py` on step 1
+re-run for `MITTE` alone — `arena/coiffeur_contracts.py generate --games MITTE`, 1,500 hands × 2 deals
+at 2,400 iterations, 31 min on 4 cores (`arena/runs/2026-11-06/mitte_games.npz`). A Mitte writes
+**82.7** points on average (sd 46.6). Per card: a **ten 31.3**, 9/Under 10.8, 8/Ober 6.1, 7/King 5.2,
+6/Ace 4.5. Held-out R² **0.197** — in the range of the other games' lines — where the hand's better
+no-trump edge reaches 0.024. Reserve **84.6**, spread 21.2; the Chance's reserve rises to **120.7**
+(was 119.0), the Mitte being a random hand's best game 12.5% of the time. The chooser takes the
+Mitte first on **10.1%** of fresh hands. **Not re-fitted:** the option value and shove threshold
+(steps 3 and 4) were fitted on twelve-row sheets; `_open_share` now divides by twelve open rows
+instead of eleven so a full column still reads 1, and the Mitte's spread is the line's own, not the
+simulator's. No A/B yet.
+
 **Steps 3 and 4: option value and shove threshold, fitted by simulating sheets (2026-11-03).**
 `arena/coiffeur_sheet_sim.py` plays whole Coiffeur games at the choosing level only, no search: hands
 from the real deal (`deal(seed, round)`), valued by step 2's lines; what a game actually writes is the

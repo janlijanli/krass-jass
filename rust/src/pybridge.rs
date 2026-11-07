@@ -502,7 +502,11 @@ fn rs_belief_marginals(
     use crate::belief::{PlayInfo, Pool};
     use crate::objective::Stakes;
     let seat = seat & 3;
-    let k = Kernel::new(contract, true, true, 5, 0).with_schedule(crate::parse_schedule(schedule)?);
+    let played: Vec<usize> = history.iter().map(|&(_, c)| c).collect();
+    let in_trick = &played[played.len() - played.len() % crate::NUM_SEATS..];
+    let k = Kernel::new(contract, true, true, 5, 0)
+        .with_schedule(crate::parse_schedule(schedule)?)
+        .mitte_at(contract, played.len(), in_trick);
     // How many cards each seat still holds, counted from the round's public history — the view
     // may be asked for at any moment, not only when `seat` is on turn.
     let mut counts = [crate::scoring::TRICKS_PER_ROUND; 4];
@@ -1104,6 +1108,9 @@ impl PyGame {
     #[getter]
     fn scores(&self) -> (i32, i32) {
         (self.inner.scores[0], self.inner.scores[1])
+    }
+    fn may_shove(&self, seat: usize) -> bool {
+        self.inner.may_shove(seat)
     }
     #[getter]
     fn forehand(&self) -> usize {

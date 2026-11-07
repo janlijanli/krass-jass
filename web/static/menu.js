@@ -408,5 +408,18 @@ export function initMenu({
   );
   syncMode(false);
 
-  return { open, close, showMode, relocalise };
+  /** Start a new game of `mode` with the other settings as they are — the splash's choice. The
+   *  same submit as "Start new game", so the settings are kept and the server build posts. */
+  const startMode = (mode) => {
+    const input = form?.querySelector(`input[name="mode"][value="${mode}"]`);
+    if (!input) return;
+    if (!input.checked) {
+      input.checked = true;
+      currentMode = mode;
+      syncMode(true);
+    }
+    form.requestSubmit();
+  };
+
+  return { open, close, showMode, relocalise, startMode };
 }

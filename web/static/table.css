@@ -103,7 +103,9 @@ body {
 .table {
   position: relative;   /* the menu and AI buttons sit in the score row's corners, in the column */
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  /* The controls may shrink below their content (and scroll) rather than push the hand off a
+     short screen: a twelve-row Coiffeur sheet is taller than a phone has room for. */
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, auto) auto auto;
   /* One column, never wider than the screen: an `auto` column sized itself from the felt's
      content and pushed a 320px phone out to 374. */
   grid-template-columns: minmax(0, 1fr);
@@ -122,6 +124,15 @@ body {
 
 /* The prompts and bid buttons. Capped so four bid buttons stay button-sized on a wide screen. */
 .controls { display: flex; flex-direction: column; width: 100%; max-width: 560px; margin-inline: auto; }
+/* Over the felt, not under it. The felt is positioned, so it painted above the controls, and
+   on a short screen its empty green reached over the sheet's upper rows and took their taps.
+   Allowed to shrink, scrolling what does not fit, so the hand below always stays on screen. */
+.controls {
+  position: relative; z-index: 3;
+  min-height: 0; overflow: hidden auto; overscroll-behavior: contain;
+}
+/* While trump or a row is chosen: no nameplates or covered hands under the choice. */
+.choosing .seat-marker, .choosing .covered { visibility: hidden; }
 
 /* ---------- scoreboard ---------- */
 
@@ -349,6 +360,12 @@ body {
 /* ---------- Coiffeur: the sheet ---------- */
 
 .coiffeur-sheet { margin: 0 auto 8px; max-width: 420px; }
+/* The sheet scrolls inside the choice; the prompt and Schieben stay put. */
+#coiffeur-bidding:not([hidden]) { display: flex; flex-direction: column; min-height: 0; }
+#coiffeur-bidding .coiffeur-sheet {
+  width: 100%; min-height: 0; flex: 0 1 auto;
+  overflow-y: auto; overscroll-behavior: contain;
+}
 .coiffeur-table {
   width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums;
   font-size: 14px; color: var(--paper);
@@ -1444,3 +1461,125 @@ form.menu-mode-panel { background: none; border: none; border-radius: 0; box-sha
 
 /* New game and Settings side by side at the right of the status bar. */
 .statusbar-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
+
+/* ---------- splash (splash.js) ---------- */
+/* The cards are dealt in from below, turn over in a fan, and the name rises under them; then
+   the fan lifts and the choice comes in, one line after the other. Everything here is
+   transform and opacity, so it stays smooth on a phone. */
+.splash {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px;
+  padding: calc(env(safe-area-inset-top) + 24px) 20px calc(env(safe-area-inset-bottom) + 24px);
+  background:
+    radial-gradient(70% 45% at 50% 42%, rgba(255, 255, 255, .07), transparent 70%),
+    radial-gradient(130% 95% at 50% 10%, var(--felt) 0%, var(--felt-dark) 62%, var(--felt-deep) 100%);
+  background-color: var(--chrome);
+  overflow: hidden;
+  animation: fade .35s ease-out;
+  transition: opacity .4s ease-out;
+}
+.splash.leaving { opacity: 0; pointer-events: none; }
+
+.splash-stage {
+  display: flex; flex-direction: column; align-items: center; gap: 22px;
+  transition: transform .7s var(--ease-out);
+}
+.splash.ready .splash-stage { transform: translateY(-2vh) scale(.82); }
+
+.splash-fan {
+  --w: clamp(62px, 17vw, 92px);
+  position: relative;
+  width: calc(var(--w) * 4.4); height: calc(var(--w) * 1.75);
+}
+.splash-card {
+  position: absolute; left: 50%; bottom: 0;
+  width: var(--w); height: calc(var(--w) * 1.48);
+  margin-left: calc(var(--w) * -.5);
+  transform-origin: 50% 120%;
+  transform: translateX(calc(var(--x) * var(--w))) rotate(var(--r));
+  perspective: 600px;
+  animation: splash-deal .62s var(--ease-out) both;
+  animation-delay: calc(var(--i) * 110ms + 120ms);
+}
+.splash-flip {
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  animation: splash-turn .5s var(--ease-out) both;
+  animation-delay: calc(var(--i) * 110ms + 620ms);
+}
+.splash-face, .splash-back {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+}
+.splash-face { box-shadow: var(--shadow-lift); }
+.splash-back {
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, .5);
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,.09) 0 3px, transparent 3px 7px),
+    linear-gradient(160deg, #73303a, #4a1b23);
+  box-shadow: var(--shadow-lift);
+  transform: rotateY(180deg);
+}
+@keyframes splash-deal {
+  from { transform: translate(0, 70vh) rotate(calc(var(--r) * -3)); opacity: 0; }
+  30% { opacity: 1; }
+}
+@keyframes splash-turn { from { transform: rotateY(180deg); } }
+
+.splash-title {
+  margin: 0;
+  font-size: clamp(34px, 11vw, 52px); font-weight: 800; letter-spacing: .01em;
+  color: var(--paper);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, .35);
+  animation: splash-title .8s var(--ease-spring) both;
+  animation-delay: 1.05s;
+}
+.splash-title span { color: var(--gold); }
+@keyframes splash-title { from { opacity: 0; transform: translateY(18px) scale(.9); } }
+
+.splash-menu {
+  display: flex; flex-direction: column; gap: 8px;
+  width: min(100%, 360px);
+  /* Takes no room until it is wanted, so the deal sits in the middle of the screen. */
+  max-height: 0; overflow: hidden; opacity: 0;
+  transition: max-height .6s var(--ease-out), opacity .3s ease-out;
+}
+.splash.ready .splash-menu { max-height: 70vh; opacity: 1; }
+.splash-menu > * { opacity: 0; transform: translateY(14px); }
+.splash.ready .splash-menu > * {
+  animation: splash-in .45s var(--ease-out) both;
+  animation-delay: calc(var(--n) * 70ms + 150ms);
+}
+@keyframes splash-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+.splash-heading {
+  margin: 6px 2px 0;
+  font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: rgba(253, 251, 246, .55);
+}
+.splash-option {
+  appearance: none; cursor: pointer; text-align: left;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 16px; border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(0, 0, 0, .22);
+  color: var(--paper); font: inherit;
+  transition: transform .15s ease-out, background .2s, border-color .2s;
+}
+.splash-option.primary { background: var(--gold); color: #1a1a1a; border-color: transparent; }
+.splash-option:active { transform: scale(.97); }
+.splash-option:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+@media (hover: hover) { .splash-option:not(.primary):hover { background: rgba(255, 255, 255, .08); } }
+.splash-option-title { font-size: 17px; font-weight: 700; }
+.splash-option-note { font-size: 12.5px; opacity: .72; line-height: 1.35; }
+.splash.leaving .splash-option.chosen { transform: scale(1.03); }
+
+/* Reduced motion: no deal, no flip — the fan and the choice are simply there. */
+.splash.still, .splash.still * { animation: none !important; transition: none !important; }
+.splash.still .splash-menu > * { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .splash, .splash * { animation: none !important; transition: none !important; }
+}

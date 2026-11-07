@@ -11,6 +11,9 @@ pub struct Rules {
     /// Indexed by contract. Schilten + Schellen (spades + diamonds) are the cheap pair.
     pub multipliers: [i32; NUM_CONTRACTS],
     pub allow_zurueckschieben: bool,
+    /// "Müessi": the Ecken 10 opens a game's first round and must choose, no shove. Twin of
+    /// `ecken_ten_muss` in `rules.py`; off in the measurement preset only.
+    pub ecken_ten_muss: bool,
     pub strict_undertrump: bool,
     pub puur_exempt: bool,
     pub last_trick_bonus: i32,
@@ -40,16 +43,16 @@ pub struct Rules {
     /// Deal the row multipliers out at random from the game seed (default) or use the table.
     pub coiffeur_random_multipliers: bool,
     /// Slot order: diamonds, hearts, spades, clubs, Obenabe, Undenufe, Chance, Tutti, Slalom,
-    /// Guschti, 3x3, Misère. A slot not played is not read, nor the Chance's.
-    pub coiffeur_multipliers: [i32; 12],
+    /// Guschti, 3x3, Misère, Mitte. A slot not played is not read, nor the Chance's.
+    pub coiffeur_multipliers: [i32; crate::coiffeur::ALL_ROWS],
     /// The Chance row's multiplier, random or not.
     pub coiffeur_chance_multiplier: i32,
     /// Also credit the defenders with their card points, times the row's multiplier.
     pub coiffeur_score_opponents: bool,
     /// Write card points in tens, rounded half up, and multiply those.
     pub coiffeur_tens: bool,
-    /// The extra rows played: Tutti, Slalom, Guschti, 3x3, Misère (`schedule.rs`).
-    pub coiffeur_extra_rows: [bool; 5],
+    /// The extra rows played: Tutti, Slalom, Guschti, 3x3, Misère, Mitte (`schedule.rs`).
+    pub coiffeur_extra_rows: [bool; crate::schedule::EXTRA_ROWS.len()],
     /// Guschti also as four tricks then five.
     pub coiffeur_guschti_45: bool,
     /// The Chance may also take an extra row's game, not only one of the six contracts.
@@ -71,6 +74,7 @@ impl Default for Rules {
             // DIAMONDS, HEARTS, SPADES, CLUBS, OBENABE, UNDENUFE
             multipliers: [1, 2, 1, 2, 3, 4],
             allow_zurueckschieben: false,
+            ecken_ten_muss: true,
             strict_undertrump: true,
             puur_exempt: true,
             last_trick_bonus: 5,
@@ -89,11 +93,11 @@ impl Default for Rules {
             sidi_double_ends_auction: true,
             coiffeur: false,
             coiffeur_random_multipliers: true,
-            coiffeur_multipliers: [4, 2, 3, 1, 5, 6, 0, 7, 8, 9, 10, 11],
+            coiffeur_multipliers: [4, 2, 3, 1, 5, 6, 0, 7, 8, 9, 10, 11, 12],
             coiffeur_chance_multiplier: 13,
             coiffeur_score_opponents: false,
             coiffeur_tens: true,
-            coiffeur_extra_rows: [true; 5],
+            coiffeur_extra_rows: [true; crate::schedule::EXTRA_ROWS.len()],
             coiffeur_guschti_45: false,
             coiffeur_chance_takes_extra: true,
             coiffeur_match_stroke: Some(10),

@@ -32,13 +32,20 @@ Wire names, which are also what a player chooses:
 * ``MISERE_OBENABE`` / ``MISERE_UNDENUFE`` — Misère: nine tricks in that contract, and the aim is
   to take as few points as possible. The choosing team writes the points the *opponents* took
   (owner, 2026-10-31) — so both teams play to avoid points.
+* ``MITTE`` — Mitte (owner, 2026-11-06): nine tricks in the Mitte order (`rules.Order.MITTE`), no
+  trump: the ten highest, then 9 = Under, 8 = Ober, 7 = King, 6 = Ace, and of an equal pair the
+  card played first takes the trick. **Counted by the first trick**: the first card in it that is
+  not a ten decides — Under, Ober, King or Ace (above the ten) counts the round as Obenabe, a 9, 8,
+  7 or 6 (below it) as Undenufe. Tens before it are worth 10 either way. Four tens in the first
+  trick leave it Obenabe (`mitte_count`).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .rules import Contract, RulesConfig
+from .cards import RANK_T, card_rank
+from .rules import Contract, Order, RulesConfig
 from .scoring import TRICKS_PER_ROUND
 
 O, U = Contract.OBENABE, Contract.UNDENUFE
@@ -46,8 +53,12 @@ O, U = Contract.OBENABE, Contract.UNDENUFE
 #: before the first card, and leading is legal with any card whatever the contract.
 TUTTI_PLACEHOLDER = O
 
+#: What a Mitte is counted in until a card other than a ten is played in the first trick.
+MITTE_PLACEHOLDER = O
+MITTE = Order.MITTE
+
 #: The extra rows, in sheet order after the eight (`krass_jass/coiffeur.py`).
-EXTRA_ROWS = ("TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE")
+EXTRA_ROWS = ("TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE", "MITTE")
 #: A 3×3's blocks start at these tricks; the leader of each names it.
 TRIO_BLOCKS = (0, 3, 6)
 
@@ -66,10 +77,17 @@ class Schedule:
         return None in self.tricks
 
     @property
+    def mitte(self) -> bool:
+        return self.tricks[0] is MITTE
+
+    @property
     def count(self) -> Contract:
         """The contract the round's card points are counted in: the first trick's. A Tutti's is
-        not known until the first card; until then this is a placeholder (`TUTTI_PLACEHOLDER`)."""
-        return TUTTI_PLACEHOLDER if self.led else self.tricks[0]
+        not known until the first card, a Mitte's until the first card that is not a ten; until
+        then this is a placeholder (`TUTTI_PLACEHOLDER`, `MITTE_PLACEHOLDER`)."""
+        if self.led:
+            return TUTTI_PLACEHOLDER
+        return MITTE_PLACEHOLDER if self.mitte else self.tricks[0]
 
     @property
     def row(self) -> str:
@@ -110,6 +128,21 @@ def misere(contract: Contract) -> Schedule:
     return Schedule(f"MISERE_{contract.name}", (contract,) * TRICKS_PER_ROUND, misere=True)
 
 
+def mitte() -> Schedule:
+    return Schedule("MITTE", (MITTE,) * TRICKS_PER_ROUND)
+
+
+def mitte_count(first_trick) -> Contract | None:
+    """What a Mitte is counted in, from the first trick's cards so far: the first card that is
+    not a ten — above it Obenabe, below it Undenufe. `None` while only tens have been played; four
+    tens leave the placeholder."""
+    for card in first_trick:
+        rank = card_rank(card)
+        if rank != RANK_T:
+            return O if rank < RANK_T else U
+    return MITTE_PLACEHOLDER if len(first_trick) >= 4 else None
+
+
 def block_options(tricks, at: int) -> list[Contract]:
     """What the leader of trick `at` may name for a 3×3's block, in contract order.
 
@@ -142,6 +175,8 @@ def for_row(row: str, cfg: RulesConfig) -> list[Schedule]:
         return [tutti()]
     if row == "MISERE":
         return [misere(O), misere(U)]
+    if row == "MITTE":
+        return [mitte()]
     raise ValueError(f"unknown row {row!r}")
 
 
@@ -161,6 +196,8 @@ def parse(name: str) -> Schedule:
             return trio(Contract[parts[1]])
         elif parts == ["TUTTI"]:
             return tutti()
+        elif parts == ["MITTE"]:
+            return mitte()
         elif parts[0] == "MISERE" and len(parts) == 2:
             contract = Contract[parts[1]]
             if contract in (O, U):
@@ -171,4 +208,4 @@ def parse(name: str) -> Schedule:
 
 
 def is_schedule_name(name: str) -> bool:
-    return name.strip().upper().split("_")[0] in ("TUTTI", "SLALOM", "GUSCHTI", "GUSCHTI4", "TRIO", "MISERE")
+    return name.strip().upper().split("_")[0] in ("TUTTI", "SLALOM", "GUSCHTI", "GUSCHTI4", "TRIO", "MISERE", "MITTE")

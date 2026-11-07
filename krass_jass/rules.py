@@ -42,6 +42,24 @@ class Contract(IntEnum):
         return int(self) if self < 4 else -1
 
 
+class Order(IntEnum):
+    """Card orders a trick can be *played* in beyond the six contracts. Never counted in: a round
+    played in one is counted as Obenabe or Undenufe (`krass_jass/schedule.py`). Indexed after the
+    contracts, so `STRENGTH[order]` and the Rust tables share the numbering."""
+
+    #: Mitte (Coiffeur, owner 2026-11-06): the ten highest, then outwards in pairs — 9 and Under,
+    #: 8 and Ober, 7 and King, 6 and Ace. A pair ranks equal, and the one played first takes it.
+    MITTE = 6
+
+    @property
+    def is_trump(self) -> bool:
+        return False
+
+    @property
+    def trump_suit(self) -> int:
+        return -1
+
+
 #: Shove. Not a contract — a bid action, so it lives outside the enum.
 SHOVE = "SHOVE"
 
@@ -65,6 +83,10 @@ class RulesConfig:
     # -- bidding
     multipliers: dict[Contract, int] = field(default_factory=lambda: dict(DEFAULT_MULTIPLIERS))
     allow_zurueckschieben: bool = False
+    #: "Müessi": whoever was dealt the Ecken 10 opens the first round of a game and must choose
+    #: trump (or, in the Coiffeur, a row) without shoving. Later rounds shove as usual. On for the
+    #: Schieber and the Coiffeur (owner, 2026-11-06); the Sidi has no shove.
+    ecken_ten_muss: bool = True
 
     # -- trick-taking
     strict_undertrump: bool = True
@@ -110,11 +132,11 @@ class RulesConfig:
     #: the Chance excepted — instead of the fixed table below. On by default (owner, 2026-10-30).
     coiffeur_random_multipliers: bool = True
     #: The fixed table, in row order: diamonds, hearts, spades, clubs, Obenabe, Undenufe, Chance,
-    #: then the extra rows: Tutti, Slalom, Guschti, 3x3, Misère. jassverzeichnis.ch's sheet: Eichel
+    #: then the extra rows: Tutti, Slalom, Guschti, 3x3, Misère, Mitte. jassverzeichnis.ch's sheet: Eichel
     #: x1, Rosen x2, Schilten x3, Schellen x4, Obenabe x5, Undenufe x6; the extra rows follow on
     #: (Fässler counts on the same way). The Chance's slot is not read — it is always
     #: `coiffeur_chance_multiplier` — and neither is a row not in the game.
-    coiffeur_multipliers: tuple[int, ...] = (4, 2, 3, 1, 5, 6, 0, 7, 8, 9, 10, 11)
+    coiffeur_multipliers: tuple[int, ...] = (4, 2, 3, 1, 5, 6, 0, 7, 8, 9, 10, 11, 12)
     #: The Chance row's multiplier, random or not (owner, 2026-11-01).
     coiffeur_chance_multiplier: int = 13
     #: Also credit the defenders with their card points, times the row's multiplier. Off:
@@ -131,9 +153,9 @@ class RulesConfig:
     #: before: the match bonus counted into the row (257 -> 26 x the multiplier).
     coiffeur_match_stroke: int | None = 10
     #: The rows played beyond the seven, from `krass_jass.schedule.EXTRA_ROWS`: "TUTTI", "SLALOM",
-    #: "GUSCHTI", "TRIO" (3x3) and "MISERE". All five (owner, 2026-10-31 and 2026-11-01); `()` is
-    #: the six contracts and the Chance.
-    coiffeur_extra_rows: tuple[str, ...] = ("TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE")
+    #: "GUSCHTI", "TRIO" (3x3), "MISERE" and "MITTE". All six (owner, 2026-10-31, 2026-11-01 and,
+    #: Mitte, 2026-11-06); `()` is the six contracts and the Chance.
+    coiffeur_extra_rows: tuple[str, ...] = ("TUTTI", "SLALOM", "GUSCHTI", "TRIO", "MISERE", "MITTE")
     #: Guschti also as four tricks then five, not only five then four. Off: Swisslos plays 5/4;
     #: jasswiki, swissjass.ch's Riesenslalom and Fässler allow both.
     coiffeur_guschti_45: bool = False
@@ -163,6 +185,9 @@ HOUSE = RulesConfig()
 #: Bot-vs-bot measurement. Weis, Stöck and the match bonus are off because they dominate
 #: scoring variance and would drown any real difference between two agents (PLAN.md §4).
 EVAL = HOUSE.variant(
+    # Off for measurement: the arena's deals are each a game's first round, and a forced choice
+    # on every one of them would change what every earlier measurement was taken under.
+    ecken_ten_muss=False,
     weis_enabled=False,
     stoeck_enabled=False,
     match_bonus=0,

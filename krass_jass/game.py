@@ -118,7 +118,9 @@ class Game:
         self.row = -1
         self.schedule = None
         if self.cfg.coiffeur:
-            self.choosing = Choosing(forehand=self.forehand, sheet=self.sheet, cfg=self.cfg)
+            self.choosing = Choosing(
+                forehand=self.forehand, sheet=self.sheet, cfg=self.cfg, muss=self.muss
+            )
             self.declarer = self.choosing.chooser
         self.bid_value = 0
         self.doubled = False
@@ -273,6 +275,8 @@ class Game:
             raise IllegalMove(f"seat {seat} is not on turn to bid")
 
         if action == SHOVE:
+            if self.muss:
+                raise IllegalMove("Müessi: the Ecken 10 must choose in the first round")
             if self.shoved:
                 raise IllegalMove("already shoved once")
             if seat != self.forehand and not self.cfg.allow_zurueckschieben:
@@ -286,6 +290,21 @@ class Game:
         self.contract = contract
         self.log.emit(EventType.BID, {"seat": seat, "action": contract.name})
         self._begin_play()
+
+    @property
+    def muss(self) -> bool:
+        """The game's first round under `ecken_ten_muss`: the Ecken 10 opens and must choose."""
+        return self.cfg.ecken_ten_muss and self.round_index == 0 and not self.cfg.sidi
+
+    def may_shove(self, seat: int) -> bool:
+        """Whether `seat` may shove now: on turn to choose, and the rules allow it."""
+        if self.phase is not Phase.BIDDING or self.cfg.sidi or seat != self.declarer:
+            return False
+        if self.cfg.coiffeur:
+            return self.choosing is not None and self.choosing.may_shove
+        if self.muss or self.shoved:
+            return False
+        return seat == self.forehand or self.cfg.allow_zurueckschieben
 
     def _choose(self, seat: int, action) -> None:
         """Coiffeur: choose a contract and a row, or shove. See `krass_jass/coiffeur.py`."""
