@@ -81,7 +81,7 @@ def main() -> None:
     ap.add_argument("--games", type=int, default=200)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--iterations", type=int, default=2400)
-    ap.add_argument("--baseline-weights", type=Path, required=True, help="B's coiffeur_weights.json")
+    ap.add_argument("--baseline-weights", type=Path, help="B's coiffeur_weights.json (required to play)")
     ap.add_argument("--weights", type=Path, default=None, help="A's (default: the shipped file)")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 1)
     args = ap.parse_args()
@@ -90,6 +90,8 @@ def main() -> None:
                 for path in args.report for line in path.read_text().splitlines() if line]
         report(rows)
         return
+    if args.baseline_weights is None:
+        ap.error("--baseline-weights is required to play")
 
     base = DmctsAgent(determinizations=40, iterations=args.iterations // 40, cfg=CFG,
                       read_bidding=False, bid_alpha=0.0, tree_policy=False, label="search")
