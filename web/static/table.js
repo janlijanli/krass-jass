@@ -1149,6 +1149,34 @@ function renderSeats(view) {
       badge.hidden = !isDeclarer;
     }
 
+    // Sidi: each seat's latest call on its own nameplate while the auction runs, so a bid is
+    // seen where it was made, not only in the list under the felt.
+    const calls = view.mode === "sidi" && view.phase === "bidding" ? view.auction ?? [] : [];
+    const said = [...calls].reverse().find((c) => c.seat === seat);
+    let bubble = marker.querySelector(".call-tag");
+    if (said && !bubble) {
+      bubble = html("span", "call-tag");
+      marker.append(bubble);
+    }
+    if (bubble) {
+      bubble.hidden = !said;
+      if (said) {
+        const label = callLabel(said.call);
+        if (bubble.dataset.call !== said.call) {
+          bubble.dataset.call = said.call;
+          bubble.textContent = label;
+          bubble.classList.remove("fresh");
+          void bubble.offsetWidth;                     // restart the pop for a new call
+          bubble.classList.add("fresh");
+        }
+        bubble.classList.toggle("pass", said.call === "PASS");
+        const suit = said.call.split(" ")[0];
+        bubble.classList.toggle("red", suit === "HEARTS" || suit === "DIAMONDS");
+      } else {
+        delete bubble.dataset.call;
+      }
+    }
+
     // The Müessi: a gold M on the other corner, for the whole first round.
     const inMuessi = view.muessi_seat === seat;
     let m = marker.querySelector(".muessi-pip");
@@ -1368,7 +1396,8 @@ function render(view) {
   renderSeats(view);
   // While trump or a row is being chosen the felt is empty, and on a phone the nameplates and
   // the other hands' backs only sit over the choice. They come back with the first card.
-  document.body.classList.toggle("choosing", view.phase === "bidding");
+  // Not in the Sidi: there the auction is the game, and who sits where is what a call means.
+  document.body.classList.toggle("choosing", view.phase === "bidding" && view.mode !== "sidi");
   renderWeis(view);
   renderScorecard(view);
 
