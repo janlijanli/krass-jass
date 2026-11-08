@@ -115,6 +115,22 @@ Mitte first on **10.1%** of fresh hands. **Not re-fitted:** the option value and
 instead of eleven so a full column still reads 1, and the Mitte's spread is the line's own, not the
 simulator's. No A/B yet.
 
+**Steps 3 and 4 re-taken on the thirteen-row sheet (2026-11-07).** The sheet simulation now knows
+the Mitte (its own edge), divides the column share by twelve open rows, and opens the first round
+with the Ecken 10, who may shove. Residuals from a fresh step 1 table on 312 hands × 2 deals, all 20
+games at 2,400 iterations (`arena/coiffeur_contracts.py generate --first`, in pieces; the game means
+match the earlier runs, e.g. Mitte 82.8 against 82.7). Same cross-entropy search (12 × 24 × 1,500
+pairs): **a = 1.40, b = 0.58, tau = 41.6, tau_n = 7.6** (shipped: 1.38, 0.65, 27.3, 15.3) — the option
+value barely moves, the shove threshold rises at the end of the column; shoves 41.5% of decisions.
+**Against the shipped weights, in the simulator: +5.1 ± 0.8 points a game, 50.7% of games** (20,000
+pairs). Real, and small: the shipped selector was already near its optimum on today's sheet.
+**Whole games: 1,500 pairs at 2,400 iterations, seed 1, refit vs shipped: +4.5 points a game,
+t = 3.26, p = 0.001; 51.0% of games won** — the simulator's +5.1 survives the search playing the
+cards almost whole. Played in four parallel cloud sessions of 375 pairs each
+(`arena/candidates/run_ab_part.sh`; the per-pair results are `arena/candidates/ab_part_1..4.jsonl`,
+`python3 -m arena.coiffeur_ab --report` reads them). The candidate is
+`arena/candidates/coiffeur_weights_refit_2026-11-07.json`.
+
 **Steps 3 and 4: option value and shove threshold, fitted by simulating sheets (2026-11-03).**
 `arena/coiffeur_sheet_sim.py` plays whole Coiffeur games at the choosing level only, no search: hands
 from the real deal (`deal(seed, round)`), valued by step 2's lines; what a game actually writes is the

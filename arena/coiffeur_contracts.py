@@ -118,13 +118,16 @@ def _label_chunk(args) -> list[tuple[int, int, list[int], list[int]]]:
 
 
 def generate(
-    hands: int, deals: int, seed: int, iterations: int, workers: int, out: Path, names: list[str] | None = None
+    hands: int, deals: int, seed: int, iterations: int, workers: int, out: Path, names: list[str] | None = None,
+    first: int = 0,
 ) -> None:
-    """`names`: price only these games (all by default) — a new row is priced on its own."""
+    """`names`: price only these games (all by default) — a new row is priced on its own.
+    `first`: start at this hand index, so a long run can be done in pieces (`merge` joins them);
+    every hand is dealt from `(seed, index)`, so the pieces are exactly the one run."""
     names = names or [g[0] for g in GAMES]
     games = [g for g in GAMES if g[0] in names]
     workers = max(1, min(workers, hands))
-    chunks = [list(range(i, hands, workers)) for i in range(workers)]
+    chunks = [list(range(first + i, first + hands, workers)) for i in range(workers)]
     started = time.time()
     rows = []
     with ProcessPoolExecutor(max_workers=workers) as pool:
@@ -142,6 +145,19 @@ def generate(
     )
     print(f"wrote {len(rows)} deals ({hands} hands x {deals}) x {len(games)} games to {out} "
           f"in {time.time() - started:.0f}s")
+
+
+def merge(parts: list[Path], out: Path) -> None:
+    """Join pieces of one run (`generate --first`) into one file, in hand order."""
+    loaded = [np.load(p) for p in parts]
+    games = [list(map(str, d["games"])) for d in loaded]
+    if any(g != games[0] for g in games) or len({int(d["seed"]) for d in loaded}) != 1:
+        raise SystemExit("pieces differ in games or seed")
+    order = np.argsort(np.concatenate([d["hand_index"] for d in loaded]), kind="stable")
+    cat = lambda key: np.concatenate([d[key] for d in loaded])[order]  # noqa: E731
+    np.savez_compressed(out, hand_index=cat("hand_index"), hands=cat("hands"), values=cat("values"),
+                        games=loaded[0]["games"], seed=loaded[0]["seed"], iterations=loaded[0]["iterations"])
+    print(f"merged {len(parts)} pieces, {len(order)} deals, into {out}")
 
 
 def summary(path: Path) -> None:
@@ -166,12 +182,18 @@ def main() -> None:
     g.add_argument("--workers", type=int, default=os.cpu_count() or 1)
     g.add_argument("--out", type=Path, required=True)
     g.add_argument("--games", default="", help="comma-separated game names; all by default")
+    g.add_argument("--first", type=int, default=0, help="first hand index (for a run in pieces)")
+    mg = sub.add_parser("merge")
+    mg.add_argument("parts", type=Path, nargs="+")
+    mg.add_argument("--out", type=Path, required=True)
     s = sub.add_parser("summary")
     s.add_argument("path", type=Path)
     args = ap.parse_args()
     if args.cmd == "generate":
         names = [n.strip().upper() for n in args.games.split(",") if n.strip()] or None
-        generate(args.hands, args.deals, args.seed, args.iterations, args.workers, args.out, names)
+        generate(args.hands, args.deals, args.seed, args.iterations, args.workers, args.out, names, args.first)
+    elif args.cmd == "merge":
+        merge(args.parts, args.out)
     else:
         summary(args.path)
 

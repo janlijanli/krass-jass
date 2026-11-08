@@ -1,0 +1,169 @@
+{
+  "_comment": "Coiffeur row choice (krass_jass/coiffeur_select.py). UNTRAINED: every value here is a first estimate, not a fit. The hand is scored with the Schieber's trump weights (trump_weights.json, edge = score - baseline); a row is worth multiplier x (edge - reserve), where reserve is what the row is expected to fetch if it is kept for a later hand. arena/coiffeur_fit.py is the training run that replaces these numbers.",
+  "reserve": {
+    "_comment": "Per contract, in Contract order (D, H, S, C, Obenabe, Undenufe): the mean edge of a random hand, 20,000 hands from the shared deal, 2026-10-30. Keeping a row for later is worth an average hand.",
+    "value": [
+      -6.0,
+      -6.0,
+      -6.0,
+      -6.0,
+      -3.22,
+      -1.81
+    ]
+  },
+  "joker_reserve": {
+    "_comment": "Untrained fallback for the Chance (was the Joker): keeping it is worth the mean of a random hand's BEST contract edge (1.58 over the same 20,000 hands). The fitted points_reserve.CHANCE counts every game.",
+    "value": 1.58
+  },
+  "extra_reserve": {
+    "_comment": "The extra rows (krass_jass/schedule.py), in order TUTTI, SLALOM, GUSCHTI, TRIO, MISERE; 20,000 hands from the shared deal, 2026-10-31. A Slalom or Guschti is valued at the mean edge of the contracts its nine tricks are played in; a 3x3 at its first block's edge, the only one known when it is chosen; a Tutti at its best trump suit's edge (TUTTI added 2026-11-01, -0.36); a Misère at minus the edge, since a hand that is bad at Obenabe is good at Misère Obenabe. Keeping the row is worth a random hand's best game in it. Untrained like the rest.",
+    "value": [
+      -0.36,
+      -2.26,
+      -2.26,
+      1.58,
+      4.77,
+      84.59
+    ]
+  },
+  "shove_threshold": {
+    "_comment": "Shove when the best choice is worth less than this, in multiplier x points; plus option_value.tau_n x the share of the column still open. Fitted with option_value (arena/coiffeur_sheet_sim.py, 2026-11-03); was 0, a guess.",
+    "value": 41.61
+  },
+  "value_map": {
+    "_comment": "Per game, expected points written = a + b x edge, where edge is the selector's (see value_choices). Fitted on half of coiffeur_games.npz (3000 deals), 2026-11-01, arena/fit_coiffeur.py.",
+    "value": {
+      "DIAMONDS": [
+        104.471,
+        4.3796
+      ],
+      "HEARTS": [
+        105.833,
+        4.3279
+      ],
+      "SPADES": [
+        104.542,
+        4.4547
+      ],
+      "CLUBS": [
+        105.372,
+        4.3471
+      ],
+      "OBENABE": [
+        99.687,
+        5.5871
+      ],
+      "UNDENUFE": [
+        92.855,
+        6.8951
+      ],
+      "TUTTI": [
+        87.39,
+        4.3339
+      ],
+      "SLALOM_OBENABE": [
+        128.631,
+        13.2719
+      ],
+      "SLALOM_UNDENUFE": [
+        130.405,
+        14.5829
+      ],
+      "GUSCHTI_OBENABE": [
+        128.195,
+        13.4528
+      ],
+      "GUSCHTI_UNDENUFE": [
+        123.96,
+        12.5234
+      ],
+      "TRIO_DIAMONDS": [
+        100.845,
+        3.4606
+      ],
+      "TRIO_HEARTS": [
+        99.615,
+        3.2263
+      ],
+      "TRIO_SPADES": [
+        98.812,
+        3.0984
+      ],
+      "TRIO_CLUBS": [
+        99.846,
+        3.2863
+      ],
+      "TRIO_OBENABE": [
+        115.381,
+        6.8352
+      ],
+      "TRIO_UNDENUFE": [
+        111.561,
+        8.3823
+      ],
+      "MISERE_OBENABE": [
+        66.334,
+        3.4168
+      ],
+      "MISERE_UNDENUFE": [
+        68.655,
+        4.0997
+      ],
+      "MITTE": [
+        0.0,
+        1.0
+      ]
+    }
+  },
+  "points_reserve": {
+    "_comment": "Per row, in points: what a random hand is expected to write in it at its best, under value_map. CHANCE is any game.",
+    "value": {
+      "DIAMONDS": 78.18,
+      "HEARTS": 79.87,
+      "SPADES": 77.84,
+      "CLUBS": 79.33,
+      "OBENABE": 81.71,
+      "UNDENUFE": 80.36,
+      "CHANCE": 120.71,
+      "TUTTI": 85.81,
+      "SLALOM": 97.86,
+      "GUSCHTI": 96.71,
+      "TRIO": 115.38,
+      "MISERE": 84.85,
+      "MITTE": 84.59
+    }
+  },
+  "option_value": {
+    "_comment": "Keeping a row open is worth more than a random hand in it: a later hand may fill it better. keep = points_reserve + a x share**b x spread[row], share = (own open rows - 1)/11. Fitted by the cross-entropy method on simulated whole sheets, 2026-11-03 (arena/coiffeur_sheet_sim.py; +108.6 +- 0.8 points a paired game, 66.4% of games in the simulator, 40,000 pairs). Real-game A/B: arena/coiffeur_ab.py.",
+    "value": {
+      "a": 1.4024,
+      "b": 0.5831,
+      "tau_n": 7.56,
+      "spread": {
+        "DIAMONDS": 21.65,
+        "HEARTS": 21.69,
+        "SPADES": 21.73,
+        "CLUBS": 21.63,
+        "OBENABE": 18.82,
+        "UNDENUFE": 19.34,
+        "CHANCE": 16.53,
+        "TUTTI": 16.91,
+        "SLALOM": 21.28,
+        "GUSCHTI": 20.07,
+        "TRIO": 16.03,
+        "MISERE": 7.08,
+        "MITTE": 21.22
+      }
+    }
+  },
+  "mitte_edge": {
+    "value": {
+      "T": 31.262,
+      "9J": 10.788,
+      "8Q": 6.126,
+      "7K": 5.24,
+      "6A": 4.511
+    },
+    "_comment": "Mitte (owner, 2026-11-06): a card's weight by its distance from the ten, in points written — the five counts sum to 9, so they carry the intercept and value_map's MITTE line is 0 + 1 x edge. Ridge fit on half of mitte_games.npz (3000 deals at 2400 iterations), held-out R2 0.197; arena/fit_mitte.py."
+  }
+}

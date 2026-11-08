@@ -5,7 +5,7 @@ constant per row: what a random hand writes in that row at its best. That is the
 with *no choice left*. A row kept open while other hands are still to come is worth more — the
 team may get a better hand for it — and that option shrinks as the sheet fills. This fits it:
 
-    keep(row, n) = reserve[row] + a x ((n - 1) / 11) ** b x spread[row]
+    keep(row, n) = reserve[row] + a x ((n - 1) / (ALL_ROWS - 1)) ** b x spread[row]
 
 where `n` is the team's own open rows (the bot reads it off its legal choices), `spread` the
 spread of a random hand's best value in the row, and `a`, `b` fitted. The shove threshold `tau`
@@ -41,9 +41,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np  # noqa: E402
 
 from arena.fit_coiffeur import game_of  # noqa: E402
-from krass_jass.coiffeur import ROW_NAMES, Choosing, Sheet, multipliers  # noqa: E402
-from krass_jass.coiffeur_select import game_edge, load_coiffeur_weights  # noqa: E402
+from krass_jass.coiffeur import ALL_ROWS, ROW_NAMES, Choosing, Sheet, multipliers  # noqa: E402
+from krass_jass.coiffeur_select import game_edge, load_coiffeur_weights, mitte_edge  # noqa: E402
 from krass_jass.deal import deal  # noqa: E402
+from krass_jass.game import ECKEN_TEN  # noqa: E402
 from krass_jass.rules import COIFFEUR, SHOVE, Contract  # noqa: E402
 from krass_jass.scoring import team_of  # noqa: E402
 from krass_jass.trick import NUM_SEATS  # noqa: E402
@@ -71,6 +72,7 @@ class Model:
         self.a = np.array([vm[g][0] for g in self.games])
         self.b = np.array([vm[g][1] for g in self.games])
         self.tw = load_weights()
+        self.weights = weights
         values = data["values"]
         est = np.array([self.estimate(int(h)) for h in data["hands"][:, 0]])
         # A deal's luck: what it wrote, less what its hand was expected to write. A match is
@@ -83,7 +85,11 @@ class Model:
 
     def estimate(self, hand: int) -> np.ndarray:
         edge = score_all(hand, UNIT, self.tw)
-        e = np.array([game_edge(edge, c, s) for c, s in self.parsed])
+        # The Mitte has an edge of its own (`coiffeur_select.mitte_edge`); the rest read the trump weights.
+        e = np.array([
+            mitte_edge(hand, self.weights) if s is not None and s.mitte else game_edge(edge, c, s)
+            for c, s in self.parsed
+        ])
         return self.a + self.b * e
 
     def est(self, hand: int) -> np.ndarray:
@@ -129,7 +135,8 @@ def choose(m: Model, theta: dict, hand: int, legal: list, mults: tuple) -> objec
     choices = [c for c in legal if c != SHOVE]
     n = len({c.row for c in choices})
     v = m.est(hand)
-    lift = theta["a"] * ((n - 1) / 11) ** theta["b"] if n > 1 else 0.0
+    share = (n - 1) / (ALL_ROWS - 1)          # as `coiffeur_select._open_share`
+    lift = theta["a"] * share ** theta["b"] if n > 1 else 0.0
     best, best_val = None, -1e18
     for c in choices:
         name = c.schedule.name if c.schedule is not None else c.contract.name
@@ -139,7 +146,7 @@ def choose(m: Model, theta: dict, hand: int, legal: list, mults: tuple) -> objec
         if val > best_val:
             best, best_val = c, val
     if SHOVE in legal and len(choices) > 1:
-        if best_val < theta["tau"] + theta["tau_n"] * (n - 1) / 11:
+        if best_val < theta["tau"] + theta["tau_n"] * share:
             return SHOVE
     return best
 
@@ -157,6 +164,10 @@ def play(m: Model, thetas: tuple[dict, dict], seed: int) -> tuple[list[int], int
         hands = deal(seed, rnd)
         # The deal's luck per seat, fixed before anyone chooses: common to both sides of a pair.
         luck = rng.integers(len(m.residual), size=NUM_SEATS)
+        # The Ecken 10 opens the first round, as in the engine — and may shove (owner, 2026-11-07).
+        if rnd == 0:
+            dealer = next(s for s in range(NUM_SEATS) if hands[s] >> ECKEN_TEN & 1) - 1
+            dealer %= NUM_SEATS
         choosing = Choosing(forehand=(dealer + 1) % NUM_SEATS, sheet=sheet, cfg=CFG)
         while True:
             seat = choosing.chooser
