@@ -19,6 +19,143 @@ pub fn sister(suit: usize) -> usize {
     suit ^ 1
 }
 
+/// How much a seat's discards have said, in `Signal::strength`. Mirror of the Python constants.
+pub const NO_SIGNAL: u8 = 0;
+pub const SCHMIER_ONLY: u8 = 1;
+pub const SIGNALLED: u8 = 2;
+pub const CONFIRMED: u8 = 3;
+
+/// The suit a discard of `suit` asks for under the colour-pair convention: the sister, unless
+/// the sister is trump — then the suit itself. Mirror of `signal_target` in Python.
+pub fn signal_target(suit: usize, trump: i32) -> usize {
+    if trump >= 0 && sister(suit) == trump as usize { suit } else { sister(suit) }
+}
+
+/// What one seat's discards have said this round. Mirror of `Signal` in `convention.py`,
+/// which carries the reasoning.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Signal {
+    pub wanted: i32,
+    pub strength: u8,
+    pub thrown: u8,
+}
+
+impl Default for Signal {
+    fn default() -> Self {
+        Signal { wanted: -1, strength: NO_SIGNAL, thrown: 0 }
+    }
+}
+
+impl Signal {
+    /// The suit asked for if the evidence is more than a schmier, else -1.
+    pub fn asked(&self) -> i32 {
+        if self.strength >= SIGNALLED { self.wanted } else { -1 }
+    }
+
+    /// Suits thrown that were not the one asked for.
+    pub fn avoid(&self) -> u8 {
+        if self.wanted >= 0 { self.thrown & !(1u8 << self.wanted) } else { self.thrown }
+    }
+
+    pub fn observe(self, suit: usize, trump: i32, schmier: bool) -> Signal {
+        let target = signal_target(suit, trump) as i32;
+        let thrown = self.thrown | 1u8 << suit;
+        if self.strength == NO_SIGNAL || (self.strength == SCHMIER_ONLY && !schmier) {
+            return Signal { wanted: target, strength: if schmier { SCHMIER_ONLY } else { SIGNALLED }, thrown };
+        }
+        if suit as i32 == self.wanted && target != self.wanted {
+            return Signal { strength: SCHMIER_ONLY, thrown, ..self };
+        }
+        if schmier {
+            return Signal { thrown, ..self };
+        }
+        Signal { strength: CONFIRMED, thrown, ..self }
+    }
+}
+
+/// Reads the signals play by play — for a caller replaying a round, like the belief weighting.
+#[derive(Clone, Debug)]
+pub struct SignalTracker {
+    pub seats: [Signal; NUM_SEATS],
+    trump: i32,
+    contract: usize,
+    leader: usize,
+    trick: Vec<usize>,
+    best: usize,
+}
+
+impl SignalTracker {
+    pub fn new(contract: usize) -> Self {
+        SignalTracker {
+            seats: [Signal::default(); NUM_SEATS],
+            trump: if contract < 4 { contract as i32 } else { -1 },
+            contract,
+            leader: 0,
+            trick: Vec::with_capacity(NUM_SEATS),
+            best: 0,
+        }
+    }
+
+    pub fn play(&mut self, seat: usize, card: usize) {
+        if self.trick.is_empty() {
+            self.leader = seat;
+            self.best = 0;
+        } else {
+            let led = card_suit(self.trick[0]);
+            let suit = card_suit(card);
+            if suit != led && suit as i32 != self.trump {
+                let winner = (self.leader + self.best) % NUM_SEATS;
+                let schmier = winner % 2 == seat % 2 && CARD_VALUES[self.contract][card] >= 10;
+                self.seats[seat] = self.seats[seat].observe(suit, self.trump, schmier);
+            }
+            let by_led = &STRENGTH[self.contract][led];
+            if by_led[card] > by_led[self.trick[self.best]] {
+                self.best = self.trick.len();
+            }
+        }
+        self.trick.push(card);
+        if self.trick.len() == NUM_SEATS {
+            self.trick.clear();
+        }
+    }
+}
+
+/// Every seat's signal from a `(seat, card)` history in play order, tricks of four.
+pub fn read_signals(history: &[(usize, usize)], contract: usize) -> [Signal; NUM_SEATS] {
+    let mut t = SignalTracker::new(contract);
+    for &(s, c) in history {
+        t.play(s, c);
+    }
+    t.seats
+}
+
+/// The same, from the round's tricks and the one in play.
+pub fn read_signals_tricks(
+    tricks_played: &[(usize, Vec<usize>)],
+    trick: &[usize],
+    trick_leader: usize,
+    contract: usize,
+) -> [Signal; NUM_SEATS] {
+    let mut t = SignalTracker::new(contract);
+    let current = (trick_leader, trick.to_vec());
+    for (leader, cards) in tricks_played.iter().chain(std::iter::once(&current)) {
+        for (i, &c) in cards.iter().enumerate() {
+            t.play((leader + i) % NUM_SEATS, c);
+        }
+    }
+    t.seats
+}
+
+/// The table's discard convention and what it has said, as `choose` reads it. `sister` off is
+/// the default "throw the weakest" convention, read through `discarded` alone.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Signals {
+    pub sister: bool,
+    pub seats: [Signal; NUM_SEATS],
+    /// The partner's thrown suits, for the default convention (`partner_discards`).
+    pub discarded: u8,
+}
+
 /// The strongest card of `suit` not yet played, as a single-bit mask. Strength, not rank:
 /// Undenufe runs the other way.
 fn top_live(live: u64, suit: usize, contract: usize) -> u64 {
@@ -148,7 +285,7 @@ fn lowest(cards: &[usize], contract: usize) -> Option<usize> {
 
 /// The card to play, given what the search returned. Mirror of `choose` in
 /// `krass_jass/convention.py`, which carries the reasoning; `declaring` is whether this seat's
-/// team declared, `discarded` the suits the partner has thrown away.
+/// team declared, `signals` what the table's discards have said.
 #[allow(clippy::too_many_arguments)]
 pub fn choose(
     candidates: &[Candidate],
@@ -162,7 +299,7 @@ pub fn choose(
     forbidden: &[u64; NUM_SEATS],
     declaring: bool,
     slack: (f64, f64),
-    discarded: u8,
+    signals: &Signals,
 ) -> Option<usize> {
     let best = candidates.first()?;
     let fallback = best.card;
@@ -190,9 +327,12 @@ pub fn choose(
     let live = hand | unseen;
     let is_boss = |c: usize| top_live(live, card_suit(c), contract) == 1u64 << c;
     let pick = if trick.is_empty() {
-        lead(&cards, hand, live, seen, seat, trump, contract, forbidden, declaring, discarded, &is_boss)
+        let partner = signals.sister.then(|| signals.seats[seat ^ 2]);
+        lead(&cards, hand, live, seen, seat, trump, contract, forbidden, declaring, signals.discarded,
+             partner, &is_boss)
     } else {
-        follow(&cards, hand, live, trick, seat, trump, contract, &is_boss)
+        let mine = signals.sister.then(|| signals.seats[seat]);
+        follow(&cards, hand, unseen, live, trick, seat, trump, contract, mine, &is_boss)
     };
     Some(pick.unwrap_or(fallback))
 }
@@ -209,8 +349,10 @@ fn lead(
     forbidden: &[u64; NUM_SEATS],
     declaring: bool,
     discarded: u8,
+    partner: Option<Signal>,
     is_boss: &dyn Fn(usize) -> bool,
 ) -> Option<usize> {
+    let discarded = partner.map_or(discarded, |p| p.avoid());
     let values = &CARD_VALUES[contract];
     let out_of_trump = opponents_out_of_trump(forbidden, seen, seat, trump);
     let boss: Vec<usize> = cards.iter().copied().filter(|&c| is_boss(c)).collect();
@@ -265,6 +407,19 @@ fn lead(
         }
     }
 
+    // 3b. Farbpaar — bring the suit the partner asked for: its best card if held, else the lowest.
+    if let Some(p) = partner {
+        let asked = p.asked();
+        if asked >= 0 && asked != trump {
+            let in_suit: Vec<usize> =
+                cards.iter().copied().filter(|&c| card_suit(c) as i32 == asked).collect();
+            if !in_suit.is_empty() {
+                let mine: Vec<usize> = in_suit.iter().copied().filter(|c| boss.contains(c)).collect();
+                return if mine.is_empty() { lowest(&in_suit, contract) } else { highest(&mine) };
+            }
+        }
+    }
+
     // 4. Cash from the top, avoiding a suit the partner threw away.
     let side: Vec<usize> = boss.iter().copied().filter(|&c| card_suit(c) as i32 != trump).collect();
     if !side.is_empty() {
@@ -294,11 +449,13 @@ fn lead(
 fn follow(
     cards: &[usize],
     hand: u64,
+    unseen: u64,
     live: u64,
     trick: &[usize],
     seat: usize,
     trump: i32,
     contract: usize,
+    mine: Option<Signal>,
     is_boss: &dyn Fn(usize) -> bool,
 ) -> Option<usize> {
     let values = &CARD_VALUES[contract];
@@ -348,11 +505,26 @@ fn follow(
         .filter(|&c| card_suit(c) != led && !is_trump(c) && !is_boss(c))
         .collect();
     if !throws.is_empty() {
-        let mut suits: Vec<usize> = throws.iter().map(|&c| card_suit(c)).collect();
+        // Farbpaar: signal given, throw anything but the suit asked for; not yet, ask for the
+        // suit this hand wants by throwing its target.
+        let mut keep: i32 = -1;
+        if let Some(m) = mine {
+            keep = if m.asked() >= 0 { m.asked() } else { wanted_suit(hand, unseen, trump, contract) };
+            if m.asked() < 0 && keep >= 0 {
+                let target = signal_target(keep as usize, trump);
+                let ask: Vec<usize> = throws.iter().copied().filter(|&c| card_suit(c) == target).collect();
+                if !ask.is_empty() {
+                    return lowest(&ask, contract);
+                }
+            }
+        }
+        let rest: Vec<usize> = throws.iter().copied().filter(|&c| card_suit(c) as i32 != keep).collect();
+        let rest = if rest.is_empty() { throws } else { rest };
+        let mut suits: Vec<usize> = rest.iter().map(|&c| card_suit(c)).collect();
         suits.sort_unstable();
         suits.dedup();
         let weakest = first_min(&suits, |s| suit_strength(hand, live, s, contract)).unwrap_or(0);
-        let in_suit: Vec<usize> = throws.iter().copied().filter(|&c| card_suit(c) == weakest).collect();
+        let in_suit: Vec<usize> = rest.iter().copied().filter(|&c| card_suit(c) == weakest).collect();
         return lowest(&in_suit, contract);
     }
 

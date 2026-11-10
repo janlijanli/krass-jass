@@ -164,6 +164,13 @@ class RulesConfig:
     #: Swisslos Joker is the six contracts only.
     coiffeur_chance_takes_extra: bool = True
 
+    # -- table conventions. Not rules — the engine checks none of them — but agreed at the table
+    # before the first card, so every seat (and every bot) knows them.
+    #: How a discard is read (`krass_jass/convention.py`). "weakest": throw from the weakest suit,
+    #: read as "not this suit". "sister" (*Farbpaar*, owner 2026-11-10): throw the other suit of
+    #: the same colour as the one wanted, or the wanted suit itself when its sister is trump.
+    discard_signal: str = "weakest"
+
     @property
     def sidi(self) -> bool:
         return self.mode == "sidi"

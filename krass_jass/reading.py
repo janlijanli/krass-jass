@@ -7,10 +7,12 @@ at all. This is the **soft** side, and the distinction matters more than it look
 - A void is a fact. It removes worlds.
 - A signal is a suggestion. It may only make worlds *likelier*, never impossible.
 
-That is not fastidiousness. The convention here is the one `convention.py` plays: when a seat
-cannot follow and is not trumping, the card it throws is the sister of the suit it wants led
-(``♦/♥`` and ``♠/♣`` are the colour pairs). Our own bots always play it, so reading it back at
-them is exact. A human at the table may play it, may play the plainer "throw your weakest
+That is not fastidiousness. The convention read here is the colour pair: when a seat cannot
+follow and is not trumping, the card it throws is the sister of the suit it wants led (``♦/♥``
+and ``♠/♣`` are the colour pairs). Our bots play it only at a table that chose it
+(`RulesConfig.discard_signal = "sister"`, `convention.py`); by default they throw their weakest
+suit. That table reads it differently anyway — through `convention.read_signals` and a play
+model fitted to it, which weight whole worlds — and this per-suit tilt stays off (§3f). A human at the table may play it, may play the plainer "throw your weakest
 suit", or may have thrown the only card they could spare. Turning any of those into a hard
 constraint would have the bot searching worlds that cannot exist — the precise failure
 `voids.py` exists to prevent — so the output of this module is a *weight*, bounded away from

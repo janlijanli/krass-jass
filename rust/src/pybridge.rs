@@ -340,7 +340,7 @@ fn rs_card_features(
 /// Features of every legal card at one decision, ascending by card — the training set for
 /// `playmodel.rs` is built from these, so the model is fitted on exactly what it will see.
 #[pyfunction]
-#[pyo3(signature = (hand, live, trick, trick_leader, seat, contract, declarer, legal))]
+#[pyo3(signature = (hand, live, trick, trick_leader, seat, contract, declarer, legal, sister=false, asked=-1))]
 #[allow(clippy::too_many_arguments)]
 fn rs_play_features(
     hand: u64,
@@ -351,9 +351,12 @@ fn rs_play_features(
     contract: usize,
     declarer: usize,
     legal: u64,
+    sister: bool,
+    asked: i32,
 ) -> Vec<Vec<f32>> {
     use crate::playmodel::{PlayCtx, N_PLAY_FEATURES};
-    let ctx = PlayCtx::new(hand, live, &trick, trick_leader & 3, seat & 3, contract, declarer);
+    let ctx = PlayCtx::new(hand, live, &trick, trick_leader & 3, seat & 3, contract, declarer)
+        .with_signal(sister, asked);
     let mut out = Vec::new();
     let mut f = [0.0f32; N_PLAY_FEATURES];
     for c in crate::cards::card_list(legal) {
@@ -366,7 +369,7 @@ fn rs_play_features(
 /// log π(card) for every legal card, ascending by card. `model_json` of None uses the shipped
 /// model; passing one lets Python check a freshly trained model against the Rust evaluation.
 #[pyfunction]
-#[pyo3(signature = (hand, live, trick, trick_leader, seat, contract, declarer, legal, temperature=1.0, model_json=None))]
+#[pyo3(signature = (hand, live, trick, trick_leader, seat, contract, declarer, legal, temperature=1.0, model_json=None, sister=false, asked=-1))]
 #[allow(clippy::too_many_arguments)]
 fn rs_play_log_probs(
     hand: u64,
@@ -379,11 +382,14 @@ fn rs_play_log_probs(
     legal: u64,
     temperature: f32,
     model_json: Option<String>,
+    sister: bool,
+    asked: i32,
 ) -> Vec<(usize, f32)> {
-    use crate::playmodel::{model, PlayCtx, PlayModel};
+    use crate::playmodel::{model, sister_model, PlayCtx, PlayModel};
     let owned = model_json.map(|t| PlayModel::from_json(&t));
-    let m = owned.as_ref().unwrap_or_else(|| model());
-    let ctx = PlayCtx::new(hand, live, &trick, trick_leader & 3, seat & 3, contract, declarer);
+    let m = owned.as_ref().unwrap_or_else(|| if sister { sister_model() } else { model() });
+    let ctx = PlayCtx::new(hand, live, &trick, trick_leader & 3, seat & 3, contract, declarer)
+        .with_signal(sister, asked);
     crate::cards::card_list(legal)
         .into_iter()
         .map(|c| (c, m.log_prob(&ctx, legal, c, temperature)))
@@ -472,7 +478,7 @@ fn rs_belief_pool(
 #[pyo3(signature = (seat, hand, unseen, trick, trick_leader, contract, forbidden, declarer, history,
     pool=4096, seed=1, belief_alpha=1.0, bid_alpha=1.0, policy_temperature=1.0, bid_temperature=3.0,
     weis_called=None, weis_played=None, sidi_auction=None, sidi_alpha=0.0, model_json=None,
-    schedule=None))]
+    schedule=None, discard_sister=false))]
 #[allow(clippy::too_many_arguments)]
 fn rs_belief_marginals(
     py: Python<'_>,
@@ -497,6 +503,7 @@ fn rs_belief_marginals(
     sidi_alpha: f32,
     model_json: Option<String>,
     schedule: Option<Vec<i64>>,
+    discard_sister: bool,
 ) -> PyResult<(Vec<(usize, f32, f32, f32)>, f64)> {
     use crate::announce::Announcements;
     use crate::belief::{PlayInfo, Pool};
@@ -542,6 +549,7 @@ fn rs_belief_marginals(
         .map(|(s, contract, value)| crate::sidi_read::Bid { seat: s & 3, contract, value })
         .collect();
     info.model = model_json.map(|t| std::sync::Arc::new(crate::playmodel::PlayModel::from_json(&t)));
+    let info = info.with_discard_signal(discard_sister, contract);
 
     let position = crate::search::Position {
         seat,
@@ -932,7 +940,7 @@ fn rs_determinize(
 /// Exposed so `tests/test_convention.py` can hold both implementations to the same answer:
 /// both sides read the *same* search output, so any difference is the convention itself.
 #[pyfunction]
-#[pyo3(signature = (candidates, hand, unseen, seen, trick, seat, trump, contract, forbidden, declaring=false, vote_slack=0.05, score_slack=0.01, discarded=0))]
+#[pyo3(signature = (candidates, hand, unseen, seen, trick, seat, trump, contract, forbidden, declaring=false, vote_slack=0.05, score_slack=0.01, discarded=0, history=None, sister=false))]
 #[allow(clippy::too_many_arguments)]
 fn rs_convention_choose(
     candidates: Vec<(usize, u64, f64, u32)>,
@@ -948,7 +956,14 @@ fn rs_convention_choose(
     vote_slack: f64,
     score_slack: f64,
     discarded: u8,
+    history: Option<Vec<(usize, usize)>>,
+    sister: bool,
 ) -> Option<usize> {
+    let signals = convention::Signals {
+        sister,
+        seats: convention::read_signals(&history.unwrap_or_default(), contract),
+        discarded,
+    };
     let cands: Vec<Candidate> = candidates
         .into_iter()
         .map(|(card, visits, mean_score, determinizations_selecting)| Candidate {
@@ -964,8 +979,18 @@ fn rs_convention_choose(
     }
     convention::choose(
         &cands, hand, unseen, seen, &trick, seat, trump, contract, &forb, declaring,
-        (vote_slack, score_slack), discarded,
+        (vote_slack, score_slack), &signals,
     )
+}
+
+/// Every seat's discard signal under the colour-pair reading, from a `(seat, card)` history:
+/// `(wanted, strength, thrown)` per seat. Mirror of `read_signals` in `convention.py`.
+#[pyfunction]
+fn rs_read_signals(history: Vec<(usize, usize)>, contract: usize) -> Vec<(i32, u8, u8)> {
+    convention::read_signals(&history, contract)
+        .iter()
+        .map(|s| (s.wanted, s.strength, s.thrown))
+        .collect()
 }
 
 /// Returns the contract index, or -1 for a shove.
@@ -1279,6 +1304,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rs_infer_forbidden, m)?)?;
     m.add_function(wrap_pyfunction!(rs_trick_taker, m)?)?;
     m.add_function(wrap_pyfunction!(rs_convention_choose, m)?)?;
+    m.add_function(wrap_pyfunction!(rs_read_signals, m)?)?;
     m.add_function(wrap_pyfunction!(rs_infer_affinity, m)?)?;
     m.add_function(wrap_pyfunction!(rs_reward, m)?)?;
     m.add_function(wrap_pyfunction!(rs_sidi_auction_loglik, m)?)?;

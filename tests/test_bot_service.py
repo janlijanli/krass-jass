@@ -252,6 +252,8 @@ def test_the_request_carries_no_hidden_cards():
         "mode", "auction", "bid_value", "doubled",
         # Coiffeur's extra rows: the game the chooser named aloud, as nine contracts — no card.
         "schedule", "misere",
+        # The table's discard convention, agreed aloud before the first card — no card.
+        "discard_signal",
     }, "the bot request shape changed — is the new field public?"
 
 
@@ -343,3 +345,21 @@ def test_the_bot_service_plays_a_coiffeur_schedule_and_refuses_a_bad_one():
     card = parse_card(client.post("/play_card", json=payload).json()["card"])
     assert obs.legal_moves & (1 << card)
     assert client.post("/play_card", json={**payload, "schedule": [7] * 9}).status_code == 422
+
+
+def test_the_bot_service_takes_the_tables_discard_convention():
+    """Farbpaar crosses with every request, like the mode, and nothing else is accepted."""
+    from fastapi.testclient import TestClient
+
+    from bot.service import create_app
+
+    client = TestClient(create_app())
+    payload = {
+        "hand": ["SA", "SK", "S9", "CK", "CQ", "CJ", "C9", "H6", "H7"],
+        "legal_moves": ["SA", "SK", "S9", "CK", "CQ", "CJ", "C9", "H6", "H7"],
+        "contract": "OBENABE", "declarer_seat": 0, "seat": 1, "trick_leader": 0,
+        "current_trick": [{"seat": 0, "card": "DA"}], "discard_signal": "sister",
+    }
+    response = client.post("/play_card", json=payload)
+    assert response.status_code == 200
+    assert client.post("/play_card", json={**payload, "discard_signal": "loud"}).status_code == 422

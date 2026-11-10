@@ -226,8 +226,9 @@ def test_it_only_ever_picks_a_move_the_search_offered(seed):
         game.play(seat, pick)
 
 
+@pytest.mark.parametrize("signal", ["weakest", "sister"])
 @pytest.mark.parametrize("seed", [5, 23])
-def test_both_implementations_choose_the_same_card(seed):
+def test_both_implementations_choose_the_same_card(seed, signal):
     """The offline build runs the convention in Rust. Both sides are handed the *same*
     search output here, so any difference is the convention itself and not the search."""
     core = pytest.importorskip("krass_jass_core", reason="Rust core not built")
@@ -249,7 +250,7 @@ def test_both_implementations_choose_the_same_card(seed):
         forbidden = infer_forbidden(
             list(obs.tricks_played), list(obs.trick), obs.trick_leader, obs.contract, bot.cfg
         )
-        mine = convention.choose(cands, obs, forbidden)
+        mine = convention.choose(cands, obs, forbidden, signal=signal)
         theirs = core.rs_convention_choose(
             [tuple(c) for c in cands],
             obs.hand,
@@ -264,8 +265,135 @@ def test_both_implementations_choose_the_same_card(seed):
             0.05,
             0.01,
             convention.partner_discards(obs),
+            _history(obs),
+            signal == "sister",
         )
         assert mine == theirs, (
             f"convention diverged: python {format_card(mine)} vs rust {format_card(theirs)}"
         )
         game.play(seat, mine)
+
+
+# -- Farbpaar: the colour-pair discard convention (`RulesConfig.discard_signal = "sister"`) --
+
+OBENABE = Contract.OBENABE
+D, H, S, C = 0, 1, 2, 3
+
+
+def _history(obs):
+    out = []
+    for leader, cards in list(obs.tricks_played) + [(obs.trick_leader, obs.trick)]:
+        out.extend(((leader + i) % 4, c) for i, c in enumerate(cards))
+    return out
+
+
+def trick(leader, *cards):
+    return (leader, tuple(parse_card(c) for c in cards))
+
+
+def test_a_discard_asks_for_its_sister_unless_the_sister_is_trump():
+    assert convention.signal_target(C, -1) == S
+    assert convention.signal_target(S, -1) == C
+    assert convention.signal_target(D, -1) == H
+    # Ecken trump: to ask for Herz you throw Herz.
+    assert convention.signal_target(H, D) == H
+    assert convention.signal_target(C, D) == S
+
+
+def test_kreuz_then_another_colour_confirms_schaufel():
+    """The owner's example: Kreuz 8 first, Herz 10 later — Schaufel is wanted, and strongly."""
+    tricks = [trick(1, "DA", "C8", "D6", "D7"),      # seat 2 throws Kreuz; seat 1 is winning
+              trick(1, "DK", "HT", "D8", "D9")]      # seat 2 throws the Herz 10; still seat 1
+    sig = convention.read_signals(tricks, OBENABE)[2]
+    assert sig.wanted == S and sig.strength == convention.CONFIRMED
+    assert sig.avoid == (1 << C) | (1 << H)
+
+
+def test_a_schmier_is_weak_evidence_and_the_next_real_discard_replaces_it():
+    tricks = [trick(0, "DA", "D6", "HT", "D7")]      # seat 2 smears the Herz 10 on its partner
+    sig = convention.read_signals(tricks, OBENABE)[2]
+    assert sig.wanted == D and sig.strength == convention.SCHMIER_ONLY
+    assert sig.asked == -1, "a schmier alone is not a request"
+    tricks.append(trick(1, "SA", "C8", "S6", "S7"))  # then Kreuz under the opponent's ace
+    sig = convention.read_signals(tricks, OBENABE)[2]
+    assert sig.wanted == S and sig.strength == convention.SIGNALLED
+
+
+def test_with_ecken_trump_a_thrown_herz_asks_for_herz():
+    tricks = [trick(1, "SA", "H7", "S6", "S7")]      # Ecken trump; seat 2 throws Herz
+    sig = convention.read_signals(tricks, DIAMONDS)[2]
+    assert sig.asked == H
+    assert sig.avoid == 0, "the wanted suit is not a suit to avoid"
+
+
+def test_throwing_the_asked_suit_takes_the_request_back():
+    tricks = [trick(1, "DA", "C8", "D6", "D7"),      # asks for Schaufel
+              trick(1, "DK", "S7", "D8", "D9")]      # then throws Schaufel
+    assert convention.read_signals(tricks, OBENABE)[2].asked == -1
+
+
+def test_read_signals_agrees_with_rust():
+    core = pytest.importorskip("krass_jass_core", reason="Rust core not built")
+    from krass_jass.agent import RandomAgent
+    from krass_jass.game import Game
+    from krass_jass.rules import EVAL
+
+    for seed in range(30):
+        game = Game(cfg=EVAL.variant(target_score=None), seed=seed)
+        game.bid(game.to_act, Contract(seed % 6))
+        bot = RandomAgent()
+        while game.round is not None and not game.round.done:
+            obs = game.observation(game.to_act)
+            ours = convention.read_signals(convention._tricks(obs), obs.contract)
+            theirs = core.rs_read_signals(_history(obs), int(obs.contract))
+            assert [(x.wanted, x.strength, x.thrown) for x in ours] == [tuple(t) for t in theirs]
+            game.play(game.to_act, bot.decide(obs))
+
+
+SISTER_HAND = "SA SK S9 CK CQ CJ C9 H6 H7"          # Obenabe; no Ecken; Schaufel is the suit
+
+
+def test_sister_throws_kreuz_to_ask_for_schaufel():
+    obs = obs_for(SISTER_HAND, OBENABE, trick=("DA",), leader=0)
+    tied = candidates("H6", "C9", "CJ")
+    assert format_card(convention.choose(tied, obs, [0] * 4)) == "H6", "weakest: the Herz"
+    assert format_card(convention.choose(tied, obs, [0] * 4, signal="sister")) == "C9"
+
+
+def test_once_asked_it_confirms_with_another_suit():
+    played = (trick(0, "DA", "C9", "D6", "D7"),)     # seat 1 asked for Schaufel with Kreuz
+    obs = obs_for("SA SK S9 CK CQ CJ H6 H7", OBENABE, trick=("DK",), leader=0,
+                  tricks_played=played)
+    pick = convention.choose(candidates("CJ", "H6"), obs, [0] * 4, signal="sister")
+    assert format_card(pick) == "H6", "Herz confirms; another Kreuz would only repeat"
+
+
+def test_with_its_sister_trump_the_wanted_suit_is_thrown_itself():
+    obs = obs_for("SA SK S9 S8 H6 H7 H8 C6 C7", CLUBS, trick=("DA",), leader=0)
+    tied = candidates("S8", "H6")
+    assert format_card(convention.choose(tied, obs, [0] * 4)) == "H6"
+    assert format_card(convention.choose(tied, obs, [0] * 4, signal="sister")) == "S8"
+
+
+def test_the_partner_brings_the_suit_asked_for():
+    played = (trick(0, "DA", "D6", "D7", "C8"),)     # seat 3, the partner, asks for Schaufel
+    obs = obs_for("HA H7 S7 S8 C6 C7 D8 D9", OBENABE, seat=1, leader=1, tricks_played=played)
+    tied = candidates("HA", "S7", "D8")
+    assert format_card(convention.choose(tied, obs, [0] * 4)) == "HA", "weakest: cash the ace"
+    assert format_card(convention.choose(tied, obs, [0] * 4, signal="sister")) == "S7"
+
+
+def test_an_old_play_model_reads_the_same_with_the_convention_features():
+    """A model fitted before the four colour-pair features has zero weight on them: the
+    shipped model under "sister" is the shipped model."""
+    core = pytest.importorskip("krass_jass_core", reason="Rust core not built")
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[1] / "krass_jass/data/play_policy.json").read_text()
+    hand = parse_hand("SA SK S9 CK CQ CJ C9 H6 H7")
+    args = (hand, (1 << 36) - 1, [parse_card("DA")], 0, 1, int(OBENABE), 0, hand)
+    plain = core.rs_play_log_probs(*args, model_json=text)
+    read = core.rs_play_log_probs(*args, model_json=text, sister=True, asked=S)
+    assert plain == read
+    feats = core.rs_play_features(*args, sister=True, asked=S)
+    assert len(feats[0]) == 40 and any(f[36] or f[37] for f in feats)

@@ -81,6 +81,12 @@ pub struct PlayInfo {
     pub sidi_auction: Vec<crate::sidi_read::Bid>,
     /// Weight on the auction's likelihood. 0 is off.
     pub sidi_alpha: f32,
+    /// The table discards by the colour pair (`convention.rs`): the play model is the one fitted
+    /// to that, and it reads what each seat's partner has asked for.
+    pub sister: bool,
+    /// Per seat, the suit its partner has asked for by the end of `history`, or -1. Read by the
+    /// play model inside the tree, where the signals stay as the root saw them.
+    pub asked: [i32; NUM_SEATS],
 }
 
 impl PlayInfo {
@@ -103,7 +109,23 @@ impl PlayInfo {
             value_model: None,
             sidi_auction: Vec::new(),
             sidi_alpha: 0.0,
+            sister: false,
+            asked: [-1; NUM_SEATS],
         }
+    }
+
+    /// Set the discard convention and read `history` for what each seat's partner asked for.
+    /// Call after `history` is set; `contract` is the round's.
+    pub fn with_discard_signal(mut self, sister: bool, contract: usize) -> Self {
+        self.sister = sister;
+        self.asked = [-1; NUM_SEATS];
+        if sister {
+            let signals = crate::convention::read_signals(&self.history, contract);
+            for s in 0..NUM_SEATS {
+                self.asked[s] = signals[s ^ 2].asked();
+            }
+        }
+        self
     }
 
     /// The value network leaves are scored with, when `value_net` is on.
@@ -113,7 +135,9 @@ impl PlayInfo {
 
     /// The play model this search reads the table through.
     pub fn play_model(&self) -> &PlayModel {
-        self.model.as_deref().unwrap_or_else(|| model())
+        self.model.as_deref().unwrap_or_else(|| {
+            if self.sister { crate::playmodel::sister_model() } else { model() }
+        })
     }
 
     pub fn weighting(&self) -> bool {
@@ -156,6 +180,7 @@ pub fn play_log_likelihood(current: &[u64; NUM_SEATS], info: &PlayInfo, root: us
     let mut trick: Vec<usize> = Vec::with_capacity(4);
     let mut leader = 0usize;
     let mut acc = 0.0f32;
+    let mut signals = crate::convention::SignalTracker::new(k.contract);
     for (i, &(s, c)) in info.history.iter().enumerate() {
         if trick.is_empty() {
             leader = s;
@@ -170,9 +195,13 @@ pub fn play_log_likelihood(current: &[u64; NUM_SEATS], info: &PlayInfo, root: us
                 return f32::NEG_INFINITY;
             }
             if legal.count_ones() > 1 {
-                let ctx = PlayCtx::new(hands[s], live, &trick, leader, s, k.contract, info.declarer);
+                let ctx = PlayCtx::new(hands[s], live, &trick, leader, s, k.contract, info.declarer)
+                    .with_signal(info.sister, signals.seats[s ^ 2].asked());
                 acc += m.log_prob(&ctx, legal, c, info.policy_temperature);
             }
+        }
+        if info.sister {
+            signals.play(s, c);
         }
         hands[s] &= !(1u64 << c);
         live &= !(1u64 << c);

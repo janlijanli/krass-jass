@@ -47,6 +47,8 @@ const settings = () => {
     rows: [...form.querySelectorAll('input[name="coiffeur_rows"]:checked')].map((i) => i.value),
     target: Number(value("target") || 1000),
     weis: value("weis") !== "off",
+    // The table's discard convention, every mode.
+    discard: value("discard") === "sister" ? "sister" : "weakest",
     multipliers: ["diamonds", "hearts", "spades", "clubs", "obenabe", "undenufe"].map(
       (k) => Number(value(`mult_${k}`) || 1)
     ),

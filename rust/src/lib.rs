@@ -207,7 +207,7 @@ fn play_out_many(
     rollout_temperature=0.0, tree_policy=false, policy_temperature=1.0, belief_gamma=0.0, known=None, play_model_json=None,
     value_net=false, value_model_json=None,
     sidi_bid=0, sidi_declarers=0, sidi_doubled=false, sidi_auction=None, sidi_alpha=0.0,
-    schedule=None, misere=false, misere_declarers=-1
+    schedule=None, misere=false, misere_declarers=-1, discard_sister=false
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -283,6 +283,9 @@ fn dmcts(
     misere: bool,
     // ...and the choosing team must take a trick (`coiffeur_match_stroke`); -1 when it need not.
     misere_declarers: i64,
+    // The table discards by the colour pair (`convention.rs`): the play model fitted to that,
+    // reading what each seat's partner asked for.
+    discard_sister: bool,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -398,7 +401,10 @@ fn dmcts(
                 .map(|(seat, contract, value)| crate::sidi_read::Bid { seat: seat & 3, contract, value })
                 .collect(),
             sidi_alpha,
-        },
+            sister: false,
+            asked: [-1; NUM_SEATS],
+        }
+        .with_discard_signal(discard_sister, contract),
     };
     // Long CPU-bound work: release the GIL so the caller stays responsive and rayon can
     // actually use the cores.

@@ -63,7 +63,8 @@ class RecordingAgent(Agent):
         candidates = self.inner.trace(obs)
         if self.inner.conventions:
             forbidden, _ = self.inner._beliefs(obs)
-            card = convention.choose(candidates, obs, forbidden)
+            card = convention.choose(candidates, obs, forbidden, *self.inner.convention_slack,
+                                     signal=self.inner.cfg.discard_signal)
         else:
             card = candidates[0][0]
         visits = [0] * 36
@@ -83,8 +84,9 @@ class RecordingAgent(Agent):
 
 
 def _chunk(args):
-    seed, indices, iterations, belief_pool = args
-    inner = DmctsAgent(determinizations=40, iterations=max(1, iterations // 40), cfg=HOUSE,
+    seed, indices, iterations, belief_pool, signal = args
+    cfg = HOUSE.variant(discard_signal=signal)
+    inner = DmctsAgent(determinizations=40, iterations=max(1, iterations // 40), cfg=cfg,
                        belief_pool=belief_pool)
     rec = RecordingAgent(inner=inner)
     seats = {s: rec for s in range(4)}
@@ -93,9 +95,9 @@ def _chunk(args):
         rec.round_id = i
         # The round is driven here rather than through `play_round` so the observation carries the
         # Weis the table showed and called — the encoder reads both.
-        contract, declarer = choose_contract(hands, leader, seats, HOUSE)
-        _, _, shown, announced = resolve_weis(hands, contract, leader, HOUSE)
-        st = RoundState(contract=contract, hands=list(hands), cfg=HOUSE, leader=leader)
+        contract, declarer = choose_contract(hands, leader, seats, cfg)
+        _, _, shown, announced = resolve_weis(hands, contract, leader, cfg)
+        st = RoundState(contract=contract, hands=list(hands), cfg=cfg, leader=leader)
         while not st.done:
             seat = st.to_play
             obs = build_observation(
@@ -117,6 +119,8 @@ def main() -> None:
     ap.add_argument("--belief-pool", type=int, default=4096,
                     help="worlds the recorded bots weight per decision; smaller is faster")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 1)
+    ap.add_argument("--signal", choices=["weakest", "sister"], default="weakest",
+                    help="the table's discard convention, every seat (krass_jass/convention.py)")
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
@@ -127,7 +131,7 @@ def main() -> None:
     chunks = [list(range(i, min(i + step, args.rounds))) for i in range(0, args.rounds, step)]
     rows = []
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        for n, part in enumerate(pool.map(_chunk, [(args.seed, c, args.iterations, args.belief_pool) for c in chunks])):
+        for n, part in enumerate(pool.map(_chunk, [(args.seed, c, args.iterations, args.belief_pool, args.signal) for c in chunks])):
             rows.extend(part)
             if n % 20 == 0:
                 print(f"  {len(rows)} decisions after {n + 1}/{len(chunks)} chunks", flush=True)
@@ -153,6 +157,7 @@ def main() -> None:
         weis_called=np.array(cols[15], dtype=np.int16),
         iterations=args.iterations,
         seed=args.seed,
+        signal=args.signal,
     )
     print(f"wrote {len(rows)} decisions from {args.rounds} rounds to {args.out}")
 

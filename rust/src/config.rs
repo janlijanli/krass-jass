@@ -60,6 +60,10 @@ pub struct Rules {
     /// A match is a stroke in the sheet's Match category worth this much, never multiplied; the
     /// row gets the card points. `None`: the match bonus counts into the row. See `rules.py`.
     pub coiffeur_match_stroke: Option<i32>,
+    /// The table's discard convention: the colour pair (*Farbpaar*) instead of "throw the
+    /// weakest". Not a rule — nothing the engine checks — but agreed at the table, so it lives
+    /// here. Twin of `discard_signal == "sister"` in `rules.py`; `convention.rs`.
+    pub discard_sister: bool,
 }
 
 pub const SIDI_BIDS: usize = 14;
@@ -101,6 +105,7 @@ impl Default for Rules {
             coiffeur_guschti_45: false,
             coiffeur_chance_takes_extra: true,
             coiffeur_match_stroke: Some(10),
+            discard_sister: false,
         }
     }
 }

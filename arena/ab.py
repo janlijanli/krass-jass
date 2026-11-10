@@ -31,11 +31,18 @@ from krass_jass.rules import EVAL, HOUSE  # noqa: E402
 CFGS = {"eval": EVAL, "house": HOUSE.variant(target_score=None)}
 
 
+#: Arm settings that are the table's, not the agent's: they change the arm's `cfg`. An arm's
+#: discard convention is how *its* two seats signal and read each other (`convention.py`).
+CFG_FIELDS = {"discard_signal"}
+
+
 def parse(pairs: list[str]) -> dict:
     fields = {f.name: f for f in dataclasses.fields(DmctsAgent)}
     out = {}
     for pair in pairs:
         key, _, raw = pair.partition("=")
+        if key in CFG_FIELDS:
+            continue
         if key not in fields:
             raise SystemExit(f"DmctsAgent has no field {key!r}")
         default = fields[key].default
@@ -58,6 +65,9 @@ def build(pairs: list[str], iterations: int, cfg) -> DmctsAgent:
     kw = {"determinizations": 40, "iterations": max(1, iterations // 40), "cfg": cfg,
           "label": ",".join(pairs) or "shipped"}
     kw.update(parse(pairs))
+    table = {k: v for k, _, v in (p.partition("=") for p in pairs) if k in CFG_FIELDS}
+    if table:
+        kw["cfg"] = cfg.variant(**table)
     return DmctsAgent(**kw)
 
 

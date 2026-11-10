@@ -29,7 +29,10 @@ use crate::leafeval::top_live;
 use crate::rng::Rng;
 use crate::tables::{CARD_VALUES, STRENGTH};
 
-pub const N_PLAY_FEATURES: usize = 36;
+pub const N_PLAY_FEATURES: usize = 40;
+/// The features before the colour-pair discard convention (`convention.rs`) added four. A model
+/// fitted on those reads as one with zero weight on the new ones, so it plays exactly as it did.
+pub const N_PLAY_FEATURES_V1: usize = 36;
 
 /// Everything about a decision that does not depend on which card is being scored.
 pub struct PlayCtx<'a> {
@@ -49,6 +52,10 @@ pub struct PlayCtx<'a> {
     others_trumps: f32,
     declarer_team: bool,
     tricks_done: f32,
+    /// The table discards by the colour pair (`convention.rs`): the last four features read it.
+    sister: bool,
+    /// Under it, the suit this seat's partner has asked for, or -1.
+    asked: i32,
 }
 
 impl<'a> PlayCtx<'a> {
@@ -108,7 +115,17 @@ impl<'a> PlayCtx<'a> {
             others_trumps,
             declarer_team: declarer < NUM_SEATS && (declarer & 1) == (seat & 1),
             tricks_done: (gone / 4) as f32,
+            sister: false,
+            asked: -1,
         }
+    }
+
+    /// Read the colour-pair convention: `asked` is the suit the partner asked for, or -1.
+    /// Without this call the last four features are zero.
+    pub fn with_signal(mut self, sister: bool, asked: i32) -> Self {
+        self.sister = sister;
+        self.asked = if sister { asked } else { -1 };
+        self
     }
 
     pub fn features(&self, card: usize, out: &mut [f32; N_PLAY_FEATURES]) {
@@ -192,6 +209,22 @@ impl<'a> PlayCtx<'a> {
         out[33] = value * out[7] * (1.0 - out[3]);
         out[34] = b(self.trump < 0) * out[7] * out[3];
         out[35] = b(!leading && !follows && is_trump); // ruffing in
+
+        // The colour-pair convention: a discard asks for its target suit, so how strong this
+        // hand is there is what makes the throw likely; a lead into the suit the partner asked
+        // for is the answer to one.
+        out[36..].fill(0.0);
+        if self.sister {
+            if out[10] > 0.0 {
+                let target = crate::convention::signal_target(suit, self.trump);
+                out[36] = b(top_live(self.live, target, contract) & self.hand != 0);
+                out[37] = (self.hand & SUIT_MASK[target]).count_ones() as f32 / 9.0;
+            }
+            if leading && self.asked == suit as i32 {
+                out[38] = 1.0;
+                out[39] = b(lowest);
+            }
+        }
     }
 }
 
@@ -218,13 +251,23 @@ impl PlayModel {
     }
 
     pub fn from_json(text: &str) -> Self {
-        let m = PlayModel {
+        let mut m = PlayModel {
             hidden: number(text, "n_hidden").unwrap_or(0.0) as usize,
             w1: array(text, "w1"),
             b1: array(text, "b1"),
             w2: array(text, "w2"),
             skip: array(text, "skip"),
         };
+        // A model from before the convention features: the same model with zeros on them.
+        if m.skip.len() == N_PLAY_FEATURES_V1 && m.w1.len() == m.hidden * N_PLAY_FEATURES_V1 {
+            let pad = N_PLAY_FEATURES - N_PLAY_FEATURES_V1;
+            m.skip.extend(std::iter::repeat(0.0).take(pad));
+            m.w1 = m
+                .w1
+                .chunks(N_PLAY_FEATURES_V1)
+                .flat_map(|row| row.iter().copied().chain(std::iter::repeat(0.0).take(pad)))
+                .collect();
+        }
         if m.trained() { m } else { PlayModel::uniform() }
     }
 
@@ -310,12 +353,21 @@ impl PlayModel {
 }
 
 const MODEL_JSON: &str = include_str!("../../krass_jass/data/play_policy.json");
+/// Fitted to self-play in which every seat discards by the colour pair (`convention.rs`).
+const SISTER_MODEL_JSON: &str = include_str!("../../krass_jass/data/play_policy_sister.json");
 
 /// The shipped model, parsed once.
 pub fn model() -> &'static PlayModel {
     use std::sync::OnceLock;
     static CELL: OnceLock<PlayModel> = OnceLock::new();
     CELL.get_or_init(|| PlayModel::from_json(MODEL_JSON))
+}
+
+/// The shipped model for a table that discards by the colour pair.
+pub fn sister_model() -> &'static PlayModel {
+    use std::sync::OnceLock;
+    static CELL: OnceLock<PlayModel> = OnceLock::new();
+    CELL.get_or_init(|| PlayModel::from_json(SISTER_MODEL_JSON))
 }
 
 pub(crate) fn number(text: &str, key: &str) -> Option<f64> {

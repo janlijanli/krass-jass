@@ -63,6 +63,7 @@ pub extern "C" fn game_new(
     m0: i32, m1: i32, m2: i32, m3: i32, m4: i32, m5: i32,
     mode: u32,
     extra_rows: u32,
+    discard_sister: u32,
 ) -> u32 {
     // Sidi Barrani (mode 1) brings its own scoring — every contract x1, no Weis, no Stöck — so
     // the Schieber's multipliers and Weis switch from the settings do not apply to it. Nor to
@@ -84,6 +85,8 @@ pub extern "C" fn game_new(
             ..Rules::default()
         }
     };
+    // The table's discard convention, any mode: the colour pair (`convention.rs`) or the default.
+    let rules = Rules { discard_sister: discard_sister != 0, ..rules };
     let seed = ((seed_hi as u64) << 32) | seed_lo as u64;
     let handle = NEXT_HANDLE.with(|h| {
         let mut n = h.borrow_mut();
@@ -556,7 +559,7 @@ let contract = round.contract;
                 info.sidi_auction = sidi_bids(game);
                 info.sidi_alpha = SIDI_ALPHA;
             }
-            info
+            info.with_discard_signal(game.rules.discard_sister, contract)
         },
     };
 
@@ -628,7 +631,15 @@ fn think(handle: u32, seat: u32, determinizations: u32, iterations: u32, seed: u
             &position.forbidden,
             (game.declarer & 1) == (seat & 1),
             convention::DEFAULT_SLACK,
-            convention::partner_discards(&round.tricks_played, &round.trick, round.leader, seat, trump),
+            &convention::Signals {
+                sister: game.rules.discard_sister,
+                seats: convention::read_signals_tricks(
+                    &round.tricks_played, &round.trick, round.leader, contract,
+                ),
+                discarded: convention::partner_discards(
+                    &round.tricks_played, &round.trick, round.leader, seat, trump,
+                ),
+            },
         );
         match pick {
             Some(card) => Thought::Ranked(out, card),

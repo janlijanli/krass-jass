@@ -430,7 +430,8 @@ class DmctsAgent(Agent):
         # schedule changes the card order trick by trick; the conventions read this trick's.
         if obs.schedule:
             obs = dataclasses.replace(obs, contract=obs.trick_contract)
-        return convention.choose(candidates, obs, forbidden, *self.convention_slack)
+        return convention.choose(candidates, obs, forbidden, *self.convention_slack,
+                                 signal=self.cfg.discard_signal)
 
     def _beliefs(self, obs: Observation) -> tuple[list[int], dict]:
         """What the search is allowed to believe about the other three hands.
@@ -539,6 +540,7 @@ class DmctsAgent(Agent):
             "belief_gamma": self.belief_gamma,
             "known": known,
             "play_model_json": _read_text(self.play_model) if self.play_model else None,
+            "discard_sister": self.cfg.discard_signal == "sister",
             "value_net": self.value_net,
             "value_model_json": _read_text(self.value_model) if self.value_model else None,
             **(
