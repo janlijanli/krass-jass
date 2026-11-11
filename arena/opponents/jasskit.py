@@ -73,7 +73,7 @@ OPPONENTS: dict[str, dict] = {
     "jassager": {"py": "jassager", "args": ["--bot", "jassager", "--time-budget", "2"]},
     "jassager-cnn": {"py": "jassager", "args": ["--bot", "jassager-cnn", "--time-budget", "2"]},
     "kurtoid": {"py": "kit", "args": ["--bot", "kurtoid"]},
-    "jass-bot": {"cmd": [str(EXT / "jass-bot/build/release/jass-bot")],
+    "jass-bot": {"cmd": [str(EXT / "jass-bot-build/build/release/jass-bot")],
                  "env": {"TRUMP_STRATEGY": "baseline", "CARD_STRATEGY": "baseline", "BIND_ADDRESS": "127.0.0.1"}},
     "stub": {"stub": True},
 }
@@ -310,7 +310,8 @@ def start_servers(bot: str, ports: list[int], log_dir: Path) -> list[subprocess.
             cmd, env = [sys.executable, __file__, "--stub-serve", str(port)], None
         elif "py" in spec:
             cmd = [str(VENVS / spec["py"] / "bin/python"), "-I", str(BRIDGE), *spec["args"], "--port", str(port)]
-            env = None
+            # One thread for torch/BLAS: a server is one seat's search, not the whole machine.
+            env = {**os.environ, "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"}
         else:
             cmd, env = spec["cmd"], {**os.environ, **spec["env"], "PORT": str(port)}
         out = open(log_dir / f"opp-{bot}-{port}.server.log", "a")
@@ -419,6 +420,8 @@ def main() -> None:
     finally:
         for p in procs:
             p.terminate()
+        for p in procs:
+            p.wait(timeout=30)
     summary = report(out)
     errors = log_dir / f"opp-{args.bot}-errors.log"
     illegal = log_dir / f"opp-{args.bot}-illegal.log"
