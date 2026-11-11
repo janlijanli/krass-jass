@@ -1,1 +1,2 @@
 {"a": ["shipped"], "b": ["jass-mu-zero/1653237674/mcts-100"], "deals": 0, "status": "not measured: weights published, adapter tested; building jass-kit-cpp was refused by the session permission classifier", "when": "2026-11-11"}
+{"a": ["shipped"], "b": ["jass-mu-zero/1653237674/mcts-100"], "deals": 100, "seed": 1, "iterations": 153600, "cfg": "flat", "a_share": 0.5261783439490446, "std": 0.10742685908110472, "p": 0.014815710143227134, "se": 0.010742685908110472, "errors": 0, "minutes": 38.3, "when": "2026-11-11 20:33"}
