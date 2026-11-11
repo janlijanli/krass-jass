@@ -12,3 +12,4 @@ Cargo.lock
 site/
 # Measurement runs: large, regenerable from the command and seed in docs/; kept out of git.
 arena/runs/
+.runs/

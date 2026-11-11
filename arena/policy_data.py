@@ -20,7 +20,8 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from concurrent.futures import ProcessPoolExecutor
+import pickle
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -129,12 +130,28 @@ def main() -> None:
     # a long run loses little.
     step = max(1, args.rounds // (workers * 20))
     chunks = [list(range(i, min(i + step, args.rounds))) for i in range(0, args.rounds, step)]
-    rows = []
+    # Each chunk is written as it finishes, next to the output, and a rerun skips the ones on
+    # disk: a run of hours must survive a restart of the machine it runs on.
+    parts = args.out.with_suffix(".parts")
+    parts.mkdir(parents=True, exist_ok=True)
+    todo = [(n, c) for n, c in enumerate(chunks) if not (parts / f"{n:04d}.pkl").exists()]
+    print(f"{len(chunks) - len(todo)}/{len(chunks)} chunks already on disk", flush=True)
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        for n, part in enumerate(pool.map(_chunk, [(args.seed, c, args.iterations, args.belief_pool, args.signal) for c in chunks])):
-            rows.extend(part)
-            if n % 20 == 0:
-                print(f"  {len(rows)} decisions after {n + 1}/{len(chunks)} chunks", flush=True)
+        futures = {
+            pool.submit(_chunk, (args.seed, c, args.iterations, args.belief_pool, args.signal)): n
+            for n, c in todo
+        }
+        for done, fut in enumerate(as_completed(futures)):
+            n = futures[fut]
+            tmp = parts / f"{n:04d}.tmp"
+            with tmp.open("wb") as fh:
+                pickle.dump(fut.result(), fh)
+            tmp.rename(parts / f"{n:04d}.pkl")
+            print(f"  chunk {n} written, {done + 1}/{len(todo)} this run", flush=True)
+    rows = []
+    for n in range(len(chunks)):
+        with (parts / f"{n:04d}.pkl").open("rb") as fh:
+            rows.extend(pickle.load(fh))
 
     cols = list(zip(*rows))
     np.savez_compressed(
