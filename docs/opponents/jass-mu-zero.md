@@ -63,29 +63,35 @@ for f in $(git ls-files 'resources/results/1653237674/*' | grep -E '\.(pb|pkl)$'
   curl -sSL -o "$f" "https://media.githubusercontent.com/media/andrinbuerli/jass-mu-zero/main/$f"; done
 cd .. && git clone https://github.com/thomas-koller/jass-kit-py && (cd jass-kit-py && git checkout 2b778488dd7c)
 git clone https://github.com/thomas-koller/jass-kit-cpp && cd jass-kit-cpp && git checkout 6ff5063d290210af
-git clone https://github.com/pybind/pybind11 extern/pybind11 && (cd extern/pybind11 && git checkout 7516811315c7)
+# their pinned pybind11 (2.9, 7516811315c7) predates Python 3.11; v2.10.4 is the same API and builds
+git clone https://github.com/pybind/pybind11 extern/pybind11 && (cd extern/pybind11 && git checkout v2.10.4)
 git clone https://github.com/google/googletest extern/googletest && (cd extern/googletest && git checkout 054a986a8513)
 cd ..
 
 # 2. its own venv (TF 2.10 is not built for Python 3.11; 2.15 loads the 2.10 SavedModels' Keras 2 format)
 apt-get install -y libeigen3-dev
 uv venv -p python3.11 mzvenv && . mzvenv/bin/activate
-uv pip install "tensorflow-cpu==2.15.*" "numpy<2" flask==2.2.5 "werkzeug<3" Flask-Classful==0.14.1 scipy tqdm requests setuptools wheel
-(cd jass-kit-py && pip install .)
-(cd jass-kit-cpp && CMAKE_BUILD_PARALLEL_LEVEL=4 pip install --no-build-isolation .)   # builds `jasscpp`
+# numpy 1.23.5: jass-kit-py uses np.str (gone in 1.24); TF 2.15 needs >= 1.23.5
+uv pip install "tensorflow-cpu==2.15.*" "numpy==1.23.5" flask==2.2.5 "werkzeug<3" Flask-Classful==0.14.1 \
+    scipy tqdm requests pip "setuptools<70" wheel
+# `python -m pip`, not `pip`: the latter may be the system one
+(cd jass-kit-py && python -m pip install --no-deps --no-build-isolation .)   # it pins numpy 1.18.5
+# their CMakeLists hardcodes /usr/local/include/eigen3
+(cd jass-kit-cpp && CPLUS_INCLUDE_PATH=/usr/include/eigen3 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
+    CMAKE_BUILD_PARALLEL_LEVEL=4 python -m pip install --no-build-isolation .)   # builds `jasscpp`
 deactivate
 
 # 3. one server per core we give it (each runs one search at a time), from our checkout
 cd /home/user/krass-jass
-for p in 9910 9911; do
+for p in 9910 9911 9912 9913; do
   /home/user/ext/mzvenv/bin/python arena/opponents/mu_zero_server.py \
       --checkout /home/user/ext/jass-mu-zero --run 1653237674 --port $p & done
 
 # 4. the match: our shipped bot (40 x 3,840) vs MCTS-100-S, double rounds, same seed both halves
 python -m arena.opponents.mu_zero --deals 100 --seed 1 --cfg flat \
-    --urls http://127.0.0.1:9910 http://127.0.0.1:9911 --out .runs/muzero-1-flat.jsonl
+    --urls http://127.0.0.1:991{0,1,2,3} --out .runs/muzero-1-flat.jsonl
 python -m arena.opponents.mu_zero --deals 100 --seed 1 --cfg eval \
-    --urls http://127.0.0.1:9910 http://127.0.0.1:9911 --out .runs/muzero-1-eval.jsonl
+    --urls http://127.0.0.1:991{0,1,2,3} --out .runs/muzero-1-eval.jsonl
 python -m arena.opponents.mu_zero --report .runs/muzero-1-flat.jsonl     # share, per-contract table, worst deals
 ```
 
