@@ -282,9 +282,13 @@ them. Chosen in the settings panel, in every mode; the bots play them and read t
   - Throwing the suit one asked for takes the request back.
 
   The reading is `read_signals` in `krass_jass/convention.py` (`rust/src/convention.rs`). The partner
-  brings the asked suit when it leads — its best card of it, or the lowest — and the play model the
-  beliefs and the tree read the table through is one fitted to self-play under this convention
-  (`krass_jass/data/play_policy_sister.json`).
+  brings the asked suit when it leads — its best card of it, or the lowest. The play model the beliefs
+  and the tree read the table through has four inputs for it (`krass_jass/data/play_policy_sister.json`);
+  refitted to self-play under this convention they measured nothing, so that file is the shipped model
+  with those inputs at zero (`docs/measurements.md` §5y).
+
+  **Measured free:** Farbpaar against `"weakest"` is 50.08% (p = 0.39, §5y). Which the table plays is
+  the owner's choice, not a strength question.
 
 ---
 
