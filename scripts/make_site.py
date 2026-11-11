@@ -203,6 +203,9 @@ def build_index() -> None:
     html = html[: rows_loop.start()] + chips + html[rows_loop.end() :]
     html = html.replace("{% if settings.weis %}checked{% endif %}", "checked")
     html = html.replace("{% if not settings.weis %}checked{% endif %}", "")
+    # The discard convention, as the server's default: the weakest suit.
+    html = html.replace('{% if settings.discard != "sister" %}checked{% endif %}', "checked")
+    html = html.replace('{% if settings.discard == "sister" %}checked{% endif %}', "")
 
     leftovers = [line for line in html.splitlines() if "{%" in line or "{{" in line]
     if leftovers:
