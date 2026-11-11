@@ -32,9 +32,35 @@ import arena.arena as A  # noqa: E402
 from arena.ab import build  # noqa: E402
 from arena.arena import deal_spec, paired_test, play_round  # noqa: E402
 from arena.opponents.bridge import BridgeAgent, count_events  # noqa: E402
-from krass_jass.rules import EVAL, HOUSE, Contract  # noqa: E402
+from dataclasses import dataclass, fields  # noqa: E402
 
-CFGS = {"eval": EVAL, "house": HOUSE.variant(target_score=None)}
+from krass_jass.agent import DmctsAgent  # noqa: E402
+from krass_jass.rules import EVAL, HOUSE, SHOVE, Contract  # noqa: E402
+from krass_jass.trump import load_weights, score_all  # noqa: E402
+
+#: `suits`: the table for an opponent whose engine knows suit trumps only (no Obenabe/Undenufe):
+#: EVAL with every contract x1, and our bidding restricted to the suits (`SuitsOnly`).
+SUITS = EVAL.variant(multipliers={c: 1 for c in Contract})
+CFGS = {"eval": EVAL, "house": HOUSE.variant(target_score=None), "suits": SUITS}
+
+
+@dataclass
+class SuitsOnly(DmctsAgent):
+    """Our bot, bidding only suit contracts: the best-scoring suit by our trump weights, shoving
+    from forehand when that suit's score is under the shove threshold. Card play is unchanged.
+    Arena-only — this is the table's rule, not a change to how our bot plays."""
+
+    def select_trump(self, hand: int, is_forehand: bool):
+        w = load_weights(self.trump_weights or None)
+        scores = score_all(hand, self.cfg, w)
+        best = max((c for c in scores if c.is_trump), key=lambda c: (scores[c], -int(c)))
+        if is_forehand and scores[best] < w["shove_threshold"]["value"]:
+            return SHOVE
+        return best
+
+
+def suits_only(agent: DmctsAgent) -> SuitsOnly:
+    return SuitsOnly(**{f.name: getattr(agent, f.name) for f in fields(agent) if f.init})
 EXT = Path(os.environ.get("KJ_EXT", "/home/user/ext"))
 SERVERS = Path(__file__).resolve().parent / "servers"
 LOG_DIR = ".runs/opponents"
@@ -45,6 +71,10 @@ def opponent(name: str, cfg) -> BridgeAgent:
         return BridgeAgent(cfg=cfg, name="luegl", python=str(EXT / "venvs/luegl/bin/python"),
                            server=str(SERVERS / "luegl_server.py"),
                            args=(str(EXT / "luegl_JassAI"),), log_dir=LOG_DIR)
+    if name == "verardo-pimc":
+        return BridgeAgent(cfg=cfg, name="verardo-pimc", python=str(EXT / "venvs/luegl/bin/python"),
+                           server=str(SERVERS / "verardo_pimc_server.py"),
+                           args=(str(EXT / "AlessioVerardo_jass-reinforcement-learning"),), log_dir=LOG_DIR)
     if name == "standin":
         # Our own random-legal server: tests the bridge and this runner, runs no external code.
         return BridgeAgent(cfg=cfg, name="standin", python=sys.executable,
@@ -52,7 +82,7 @@ def opponent(name: str, cfg) -> BridgeAgent:
     raise SystemExit(f"unknown opponent {name!r}")
 
 
-OPPONENTS = ("luegl", "standin")
+OPPONENTS = ("luegl", "verardo-pimc", "standin")
 
 # -- one deal ----------------------------------------------------------------------------------
 
@@ -167,6 +197,8 @@ def main() -> None:
 
     cfg = CFGS[args.cfg]
     ours = build(args.ours, args.iterations, cfg)  # 40 x 3,840 as served, unless told otherwise
+    if args.cfg == "suits":
+        ours = suits_only(ours)
     theirs = opponent(args.opponent, cfg)
     tag = "-".join(args.ours) or "shipped"
     out = args.out or Path(f".runs/opp-{args.opponent}-{args.seed}-{tag}.jsonl")
