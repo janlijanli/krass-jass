@@ -120,6 +120,8 @@ def main() -> None:
     ap.add_argument("--belief-pool", type=int, default=4096,
                     help="worlds the recorded bots weight per decision; smaller is faster")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 1)
+    ap.add_argument("--chunk", type=int, default=0,
+                    help="rounds per chunk written to disk; 0 picks one from the run's size")
     ap.add_argument("--signal", choices=["weakest", "sister"], default="weakest",
                     help="the table's discard convention, every seat (krass_jass/convention.py)")
     ap.add_argument("--out", type=Path, required=True)
@@ -128,7 +130,7 @@ def main() -> None:
     workers = max(1, min(args.workers, args.rounds))
     # Many small chunks rather than one per worker, so progress is visible and a crash late in
     # a long run loses little.
-    step = max(1, args.rounds // (workers * 20))
+    step = args.chunk or max(1, args.rounds // (workers * 20))
     chunks = [list(range(i, min(i + step, args.rounds))) for i in range(0, args.rounds, step)]
     # Each chunk is written as it finishes, next to the output, and a rerun skips the ones on
     # disk: a run of hours must survive a restart of the machine it runs on.
