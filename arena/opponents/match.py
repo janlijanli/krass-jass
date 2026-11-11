@@ -175,6 +175,45 @@ def diagnose(path: Path, worst: int = 5) -> None:
         print(f"    deal {r['deal']:>4} share {r['share']:.1%}  {desc}")
 
 
+def replay(opponent_name: str, cfg_name: str, seed: int, index: int, iterations: int, pairs) -> None:
+    """Replay one deal of a run, trick by trick. Both sides are deterministic given the seed (our
+    search seeds from the decision seed; the servers seed from the request), so this is the deal
+    the run scored — the shares printed here match its JSON line."""
+    from krass_jass.cards import card_list, format_card
+    from krass_jass.state import RoundState
+
+    cfg = CFGS[cfg_name]
+    ours = build(pairs, iterations, cfg)
+    if cfg_name == "suits":
+        ours = suits_only(ours)
+    theirs = opponent(opponent_name, cfg)
+    captured = []
+    score = RoundState.score
+
+    def capture(self, *a, **k):
+        captured.append((self.contract, list(self.tricks_played)))
+        return score(self, *a, **k)
+
+    RoundState.score = capture
+    hands, _, leader, game_seed = deal_spec(seed, index, None)
+    print(f"deal {index} (seed {seed}), forehand seat {leader}")
+    for s in range(4):
+        print(f"  seat {s}: {' '.join(format_card(c) for c in card_list(hands[s]))}")
+    for half, (even, ours_even) in enumerate(((ours, True), (theirs, False))):
+        odd = theirs if even is ours else ours
+        captured.clear()
+        h = _half(hands, leader, {0: even, 2: even, 1: odd, 3: odd}, cfg, game_seed, ours_even)
+        contract, tricks = captured[-1]
+        who = "we" if h["ours_declare"] else "they"
+        print(f"half {half + 1}: ours on seats {'0,2' if ours_even else '1,3'}; {who} declare "
+              f"{Contract(contract).name} (seat {h['declarer']}{', shoved' if h['shoved'] else ''}); "
+              f"ours {h['ours']} : theirs {h['theirs']}")
+        for t, (lead, cards) in enumerate(tricks, 1):
+            marks = " ".join(f"{(lead + i) % 4}:{format_card(c)}" for i, c in enumerate(cards))
+            print(f"    {t}. {marks}")
+    RoundState.score = score
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("opponent", nargs="?", choices=OPPONENTS)
@@ -187,6 +226,7 @@ def main() -> None:
     ap.add_argument("--out", type=Path)
     ap.add_argument("--report", type=Path, nargs="+")
     ap.add_argument("--diagnose", type=Path)
+    ap.add_argument("--replay", type=int, metavar="DEAL", help="print one deal trick by trick")
     args = ap.parse_args()
     if args.report:
         return report(args.report)
@@ -194,6 +234,8 @@ def main() -> None:
         return diagnose(args.diagnose)
     if not args.opponent:
         ap.error("name an opponent")
+    if args.replay is not None:
+        return replay(args.opponent, args.cfg, args.seed, args.replay, args.iterations, args.ours)
 
     cfg = CFGS[args.cfg]
     ours = build(args.ours, args.iterations, cfg)  # 40 x 3,840 as served, unless told otherwise
