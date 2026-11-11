@@ -76,7 +76,7 @@ rl.on('line', line => {
     try {
         answer = run(JSON.parse(line));
     } catch (e) {
-        answer = {error: String(e && e.stack || e)};
+        answer = {error: String(e && e.stack || e), resource: e && e.resource};
     }
     write(JSON.stringify(answer) + '\n');
 });
