@@ -9,7 +9,12 @@ stays authoritative; every card it returns is checked against our legal moves.
 Nothing of JassTheRipper is imported or vendored: the repository has no licence file, so it is run
 locally as an opponent and talked to over HTTP, nothing more.
 
-    python -m arena.jass_the_ripper --deals 100 --endpoint runs-100000
+    python -m arena.jass_the_ripper --deals 400 --seed 1                 # the shipped bot
+    python -m arena.jass_the_ripper --deals 400 --seed 1 --ours belief_alpha=0 bid_alpha=0
+    python -m arena.jass_the_ripper --report .runs/jtr-1-shipped.jsonl .runs/jtr-1-belief_alpha=0-bid_alpha=0.jsonl
+
+Per-deal results go to a JSON-lines file as each deal finishes, and a rerun resumes from it. Arms on
+the same seed play the same deals, so two arms compare deal by deal (`--report`).
 
 Seats. HSLU numbers seats the other way round (the player after seat j is j-1), so our seat s is
 their seat -s mod 4; partners stay partners. Their dealer is the seat after forehand in their
@@ -22,6 +27,8 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import statistics
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import sys
 import time
 import urllib.request
@@ -30,8 +37,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from arena.arena import match  # noqa: E402
-from krass_jass.agent import Agent, DmctsAgent  # noqa: E402
+from arena.ab import build  # noqa: E402
+from arena.arena import deal_spec, double_round, paired_test  # noqa: E402
+from krass_jass.agent import Agent  # noqa: E402
 from krass_jass.cards import RANK_CHARS, SUIT_CHARS, card_list, card_rank, card_suit  # noqa: E402
 from krass_jass.rules import EVAL, HOUSE, SHOVE, Contract, RulesConfig  # noqa: E402
 
@@ -130,31 +138,83 @@ class JassTheRipper(Agent):
         return card
 
 
+def _deal(args) -> tuple[int, float]:
+    ours, theirs, cfg, seed, index = args
+    hands, c, leader, game_seed = deal_spec(seed, index, None)
+    share, _ = double_round(hands, c, leader, ours, theirs, cfg, game_seed)
+    return index, share
+
+
+def _load(path: Path) -> dict[int, float]:
+    if not path.exists():
+        return {}
+    rows = (json.loads(line) for line in path.read_text().splitlines() if line.strip())
+    return {r["deal"]: r["share"] for r in rows}
+
+
+def report(paths: list[Path]) -> None:
+    """Each arm's share against JassTheRipper; with two arms, their per-deal difference, paired.
+
+    The arms play the same deals (same seed), so arm-minus-arm per deal cancels the deal's luck
+    the way a double round does inside one match.
+    """
+    arms = [_load(p) for p in paths]
+    for p, arm in zip(paths, arms):
+        shares = list(arm.values())
+        t, pv = paired_test([s - 0.5 for s in shares])
+        print(f"{p.name}: {statistics.fmean(shares):.2%} ± {statistics.stdev(shares):.2%}  "
+              f"n={len(shares)}  p={pv:.2e}")
+    if len(arms) == 2:
+        common = sorted(set(arms[0]) & set(arms[1]))
+        diff = [arms[0][i] - arms[1][i] for i in common]
+        t, pv = paired_test(diff)
+        print(f"{paths[0].name} - {paths[1].name}: {statistics.fmean(diff):+.2%} "
+              f"± {statistics.stdev(diff) / len(diff) ** 0.5:.2%} (se)  n={len(diff)}  p={pv:.2e}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--deals", type=int, default=100)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--endpoint", default="runs-100000")
     ap.add_argument("--cfg", choices=sorted(CFGS), default="eval")
-    ap.add_argument("--workers", type=int, default=1)
-    ap.add_argument("--log", type=Path, default=Path("arena/results.jsonl"))
+    ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--ours", nargs="*", default=[], help="DmctsAgent field=value pairs, as arena.ab")
+    ap.add_argument("--out", type=Path, help="per-deal results, one JSON line each; a rerun resumes")
+    ap.add_argument("--report", type=Path, nargs="+", help="report one or two --out files and stop")
     args = ap.parse_args()
+    if args.report:
+        report(args.report)
+        return
 
     cfg = CFGS[args.cfg]
-    ours = DmctsAgent(determinizations=40, iterations=3840, cfg=cfg, label="shipped")  # as served
+    ours = build(args.ours, 153_600, cfg)  # 40 x 3,840, as served, unless --ours says otherwise
     theirs = JassTheRipper(cfg=cfg, endpoint=args.endpoint)
+    out = args.out or Path(f".runs/jtr-{args.seed}-{'-'.join(args.ours) or 'shipped'}.jsonl")
+    done = _load(out)
+    todo = [i for i in range(args.deals) if i not in done]
+    print(f"{out}: {len(done)} done, {len(todo)} to play", flush=True)
     t = time.time()
-    result = match(ours, theirs, deals=args.deals, seed=args.seed, cfg=cfg, workers=args.workers)
-    elapsed = time.time() - t
-    print(result, f"({elapsed / 60:.1f} min)")
+    with ProcessPoolExecutor(max_workers=args.workers) as pool, out.open("a") as fh:
+        futures = [pool.submit(_deal, (ours, theirs, cfg, args.seed, i)) for i in todo]
+        for n, f in enumerate(as_completed(futures), 1):
+            index, share = f.result()
+            fh.write(json.dumps({"deal": index, "share": share}) + "\n")
+            fh.flush()
+            if n % 10 == 0:
+                print(f"  {n}/{len(todo)} ({(time.time() - t) / 60:.0f} min)", flush=True)
+
+    shares = list(_load(out).values())
+    tstat, pv = paired_test([s - 0.5 for s in shares])
+    mean, std = statistics.fmean(shares), statistics.stdev(shares)
+    print(f"{ours.name} vs JassTheRipper/{args.endpoint}: {mean:.2%} ± {std:.2%}  n={len(shares)}  p={pv:.2e}")
     record = {
-        "a": ["shipped"], "b": [f"JassTheRipper/{args.endpoint}"], "deals": args.deals,
+        "a": args.ours or ["shipped"], "b": [f"JassTheRipper/{args.endpoint}"], "deals": len(shares),
         "seed": args.seed, "iterations": ours.determinizations * ours.iterations, "cfg": args.cfg,
-        "a_share": result.a_share, "std": result.std, "p": result.p_value,
-        "se": result.std / (args.deals ** 0.5), "minutes": round(elapsed / 60, 1),
-        "when": time.strftime("%Y-%m-%d %H:%M"),
+        "a_share": mean, "std": std, "p": pv, "se": std / len(shares) ** 0.5,
+        "minutes": round((time.time() - t) / 60, 1), "when": time.strftime("%Y-%m-%d %H:%M"),
     }
-    with args.log.open("a") as fh:
+    with Path("arena/results.jsonl").open("a") as fh:
         fh.write(json.dumps(record) + "\n")
 
 
