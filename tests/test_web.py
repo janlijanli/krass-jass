@@ -464,3 +464,12 @@ def test_a_coiffeur_game_runs_through_the_web_loop_to_the_end():
     finally:
         web.pace = original
     assert table.game.phase is Phase.GAME_OVER and table.game.sheet.complete
+
+
+def test_the_discard_convention_is_a_table_setting_in_every_mode():
+    from web.app import build_config
+
+    for mode in ("schieber", "sidi", "coiffeur"):
+        assert build_config({"mode": mode}).discard_signal == "weakest"
+        assert build_config({"mode": mode, "discard": "sister"}).discard_signal == "sister"
+    assert build_config({"discard": "anything"}).discard_signal == "weakest", "clamped, not trusted"

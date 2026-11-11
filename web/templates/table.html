@@ -102,6 +102,22 @@
         <p class="menu-note" data-i18n="menu.stoeckNote">Stöck is always announced.</p>
       </fieldset>
 
+      <!-- A table convention, not a rule: how a discard is read. Every mode. -->
+      <fieldset>
+        <legend data-i18n="menu.discard">Discards</legend>
+        <div class="chips">
+          <label class="chip">
+            <input type="radio" name="discard" value="weakest" {% if settings.discard != "sister" %}checked{% endif %}>
+            <span data-i18n="menu.discardWeakest">Weakest suit</span>
+          </label>
+          <label class="chip">
+            <input type="radio" name="discard" value="sister" {% if settings.discard == "sister" %}checked{% endif %}>
+            <span data-i18n="menu.discardSister">Colour pair</span>
+          </label>
+        </div>
+        <p class="menu-note" data-i18n="menu.discardNote">Weakest suit: a discard says "not this suit". Colour pair: throw Schaufel to ask for Kreuz, Ecken for Herz and back; if that suit is trump, throw the wanted suit itself.</p>
+      </fieldset>
+
       <!-- Shown only by the offline build, which has an engine on the page to ask. Unlike
            everything else in this form it takes effect immediately, so it says so. -->
       <!-- Test mode: the bot's own belief pool, published so a player can follow the reasoning.

@@ -284,7 +284,8 @@ pub fn ismcts(
                 let ctx = PlayCtx::new(
                     w.hands[w.to_play], live, &w.trick, w.trick_leader, w.to_play,
                     k.at(&w.hands, &w.trick).contract, pos.play.declarer,
-                );
+                )
+                .with_signal(pos.play.sister, pos.play.asked[w.to_play]);
                 let c = pos.play.play_model().sample(&ctx, legal, pos.play.policy_temperature, &mut rng);
                 let existing = present[..n_present].iter().find(|&&(card, _)| card == c);
                 if let Some(&(_, child)) = existing {
@@ -411,7 +412,8 @@ pub fn ismcts(
                     let ctx = PlayCtx::new(
                         w.hands[w.to_play], live, &w.trick, w.trick_leader, w.to_play,
                         k.at(&w.hands, &w.trick).contract, pos.play.declarer,
-                    );
+                    )
+                    .with_signal(pos.play.sister, pos.play.asked[w.to_play]);
                     m.sample(&ctx, legal, pos.play.rollout_temperature, &mut rng)
                 };
                 advance(&mut w, card, k);

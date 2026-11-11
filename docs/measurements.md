@@ -1769,6 +1769,29 @@ check now skips hands sitting exactly on the shove threshold, where summation or
 not shown. This is the question for the browser build, where the tree policy is off: at its cost
 there it would match the native search without it, and probably not beat it by much.
 
+## 5y. Farbpaar: the discard convention the owner plays
+
+*2026-11-11.* The owner asked for the colour-pair discard (`discard_signal = "sister"`,
+`docs/rules-config.md`): throw Schaufel for Kreuz and Ecken for Herz and back, the wanted suit itself
+when its sister is trump, schmieren read as weak, a second discard of another suit as confirmation.
+Played by the convention layer at the usual price (0.01, §5u), read by `read_signals` in both
+implementations. `HOUSE`, 38,400 iterations, 1,000 deals each played twice.
+
+| | share | p |
+|---|---|---|
+| Farbpaar table, play model refitted to Farbpaar self-play vs the shipped model | 49.97% ± 5.28 | 0.85 |
+| Farbpaar vs weakest-suit discards (both with the shipped model) | 50.08% ± 3.05 | 0.39 |
+
+**The refit reads nothing more.** 6,000 rounds of Farbpaar self-play (155,769 decisions, seed 11) and
+four new play-model inputs — a discard of the wanted suit's sister with the boss of it in hand, its
+length, and a lead into the suit the partner asked for, low or high. Fitted, the model reaches 66.5%
+top-1 against the search; in play it is nothing. That is the fifth time reading the table *better*
+has measured null (§5q, §5r): the inputs stay, at zero, in `play_policy_sister.json`.
+
+**The convention itself is free.** Same search, same model; only the discards and the leads after
+them differ, which is why the spread is half the usual. What the owner's table plays is a choice of
+style, and it costs nothing to make it.
+
 ---
 
 ## 6. Open

@@ -91,6 +91,7 @@ def dmcts(
     schedule: list[int] | None = None,
     misere: bool = False,
     misere_declarers: int = -1,
+    discard_sister: bool = False,
 ) -> list[tuple[int, int, float, int]]:
     """Determinized MCTS. Returns `(card, visits, mean_score, determinizations_selecting)`
     per legal move, best first.
@@ -124,6 +125,10 @@ def dmcts(
         if misere_declarers >= 0:
             # The choosing team must take a trick (`coiffeur_match_stroke`).
             extra["misere_declarers"] = misere_declarers
+    if discard_sister:
+        # The table discards by the colour pair: the play model fitted to that, reading what
+        # each partner asked for (`rust/src/convention.rs`).
+        extra["discard_sister"] = True
     if sidi_bid or sidi_auction:
         # Sidi Barrani: the hand's swing at the bid's threshold instead of a share of the cards
         # (`rust/src/objective.rs`), and the auction read into the imagined hands
@@ -234,4 +239,5 @@ def belief_marginals(obs, agent, pool: int = 4096, seed: int = 1) -> tuple[list,
         play["bid_temperature"], weis.get("weis_called"), weis.get("weis_played"),
         play.get("sidi_auction"), play.get("sidi_alpha", 0.0),
         **({"schedule": play["schedule"]} if play.get("schedule") else {}),
+        **({"discard_sister": True} if play.get("discard_sister") else {}),
     )

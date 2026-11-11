@@ -36,6 +36,7 @@ from krass_jass.agent import Agent, DmctsAgent
 from krass_jass.awareness import trick_taker
 from krass_jass.cards import card_list, card_rank, card_suit, format_card, parse_card
 from krass_jass.coiffeur import ROW_NAMES
+from krass_jass.convention import SIGNALS
 from krass_jass.schedule import EXTRA_ROWS
 from krass_jass.game import Game, Phase
 from krass_jass.rules import COIFFEUR, DEFAULT_MULTIPLIERS, HOUSE, SIDI, Contract
@@ -181,6 +182,13 @@ def build_config(settings: dict | None = None):
     and a rules engine driven by unvalidated client input is a rules engine with no rules.
     """
     settings = settings or {}
+    cfg = _build_config(settings)
+    # The discard convention is the table's, in every mode (`krass_jass/convention.py`).
+    signal = settings.get("discard")
+    return cfg.variant(discard_signal=signal) if signal in SIGNALS else cfg
+
+
+def _build_config(settings: dict):
     if settings.get("mode") == "coiffeur":
         # Coiffeur ends with the sheet, not at a target, and its multipliers are the rows':
         # dealt at random from the game seed (`docs/rules-config.md`, "Coiffeur"). The extra
@@ -290,6 +298,7 @@ def create_app() -> FastAPI:
                     # Schieber's, so it shows the Schieber's defaults rather than the Sidi's x1.
                     "weis": cfg.weis_enabled or cfg.sidi or cfg.coiffeur,
                     "coiffeur_rows": list(cfg.coiffeur_extra_rows),
+                    "discard": cfg.discard_signal,
                     "multipliers": {
                         c.name.lower(): (
                             DEFAULT_MULTIPLIERS[c] if cfg.mode != "schieber" else cfg.multiplier(c)
@@ -331,6 +340,7 @@ def create_app() -> FastAPI:
         mult_undenufe: int = Form(4),
         coiffeur_rows: list[str] | None = Form(None),
         coiffeur_rows_sent: str = Form(""),
+        discard: str = Form("weakest"),
     ):
         table = new_table(
             settings={
@@ -346,6 +356,7 @@ def create_app() -> FastAPI:
                 # An unticked checkbox sends nothing, so "none ticked" is told apart from "the
                 # form did not ask" by the hidden field beside them.
                 "rows": coiffeur_rows or [] if coiffeur_rows_sent else None,
+                "discard": discard,
             }
         )
         data = {"game_id": table.game.game_id, "seat": table.human_seat}

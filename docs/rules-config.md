@@ -263,6 +263,35 @@ cross the target in the same round.
 
 ---
 
+## Table conventions
+
+Not rules — the engine checks none of them — but agreed before the first card, so every seat knows
+them. Chosen in the settings panel, in every mode; the bots play them and read them.
+
+`discard_signal` — **default `"weakest"`**. What a discard (neither following nor trumping) says.
+
+- `"weakest"`: throw from the weakest side suit. Read as "not this suit": the partner does not
+  lead it back.
+- `"sister"` — *Farbpaar* (owner, 2026-11-10). Throw the other suit of the same colour as the one
+  you want: Schaufel asks for Kreuz, Kreuz for Schaufel, Ecken for Herz, Herz for Ecken.
+  - **The sister is trump:** throw the wanted suit itself. Ecken trump, a thrown Herz asks for Herz.
+  - **Schmieren is weak evidence.** A card worth ten or more thrown while the thrower's partner is
+    taking the trick counts only until a real discard comes, and is not read as a request.
+  - **A second discard of another suit confirms.** Kreuz 8 first, then Herz 10: Schaufel is wanted,
+    and strongly — the thrower kept Schaufel and let two other suits go.
+  - Throwing the suit one asked for takes the request back.
+
+  The reading is `read_signals` in `krass_jass/convention.py` (`rust/src/convention.rs`). The partner
+  brings the asked suit when it leads — its best card of it, or the lowest. The play model the beliefs
+  and the tree read the table through has four inputs for it (`krass_jass/data/play_policy_sister.json`);
+  refitted to self-play under this convention they measured nothing, so that file is the shipped model
+  with those inputs at zero (`docs/measurements.md` §5y).
+
+  **Measured free:** Farbpaar against `"weakest"` is 50.08% (p = 0.39, §5y). Which the table plays is
+  the owner's choice, not a strength question.
+
+---
+
 ## Open, deferred out of M0
 
 These do not block the engine and are recorded so they are not forgotten:

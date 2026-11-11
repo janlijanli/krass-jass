@@ -31,20 +31,37 @@ import numpy as np  # noqa: E402
 import krass_jass_core as core  # noqa: E402
 
 MAX_LEGAL = 9
-N_FEATURES = 36
+N_FEATURES = 40
+
+
+def is_sister(d: dict) -> bool:
+    """A corpus played under the colour-pair discard convention fills the last four features
+    with what each seat's partner had asked for (`rust/src/convention.rs`); any other leaves
+    them at zero, which is how the model reads a table that does not play it."""
+    return "signal" in d and str(d["signal"]) == "sister"
+
+
+def asked_for(d: dict, i: int) -> int:
+    """The suit decision `i`'s partner had asked for by then, or -1."""
+    history = [(int(s), int(c)) for s, c in d["history"][i] if c >= 0]
+    wanted, strength, _ = core.rs_read_signals(history, int(d["contract"][i]))[int(d["seat"][i]) ^ 2]
+    return wanted if strength >= 2 else -1
 
 
 def featurise(d: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     n = len(d["card"])
+    sister = is_sister(d)
     X = np.zeros((n, MAX_LEGAL, N_FEATURES), dtype=np.float32)
     mask = np.zeros((n, MAX_LEGAL), dtype=bool)
     y = np.zeros(n, dtype=np.int64)
     for i in range(n):
         legal = int(d["legal"][i])
         trick = [int(c) for c in d["trick"][i] if c >= 0]
+        asked = asked_for(d, i) if sister else -1
         feats = core.rs_play_features(
             int(d["hand"][i]), int(d["live"][i]), trick, int(d["trick_leader"][i]),
             int(d["seat"][i]), int(d["contract"][i]), int(d["declarer"][i]), legal,
+            sister, asked,
         )
         cards = [c for c in range(36) if legal >> c & 1]
         X[i, : len(feats)] = feats
@@ -191,6 +208,7 @@ def main() -> None:
         "uniform nll": round(uniform, 4),
         "top-1": round(top1, 3),
         "epoch": epoch,
+        "discard convention": str(d["signal"]) if "signal" in d else "weakest",
     }
     text = to_json(params, meta)
     args.out.write_text(text)
@@ -206,7 +224,7 @@ def main() -> None:
         rs = core.rs_play_log_probs(
             int(d["hand"][i]), int(d["live"][i]), trick, int(d["trick_leader"][i]),
             int(d["seat"][i]), int(d["contract"][i]), int(d["declarer"][i]), int(d["legal"][i]),
-            1.0, text,
+            1.0, text, is_sister(d), asked_for(d, i) if is_sister(d) else -1,
         )
         for k, (_, lp) in enumerate(rs):
             worst = max(worst, abs(np.exp(lp) - p[j, k]))

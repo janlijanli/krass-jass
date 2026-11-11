@@ -19,14 +19,14 @@ export async function loadEngine(url = "krass_jass_core.wasm") {
   return {
     newGame({
       seed, target = 1000, weis = true, weisManual = true, multipliers = [1, 2, 1, 2, 3, 4],
-      mode = "schieber", rows = EXTRA_ROWS,
+      mode = "schieber", rows = EXTRA_ROWS, discard = "weakest",
     }) {
       const lo = seed >>> 0;
       const hi = Math.floor(seed / 2 ** 32) >>> 0;
       // The Coiffeur's extra rows cross as a bitmask, bit i for EXTRA_ROWS[i].
       const extra = EXTRA_ROWS.reduce((bits, row, i) => (rows.includes(row) ? bits | (1 << i) : bits), 0);
       return w.game_new(lo, hi, target, weis ? 1 : 0, weisManual ? 1 : 0, ...multipliers,
-                        { sidi: 1, coiffeur: 2 }[mode] ?? 0, extra);
+                        { sidi: 1, coiffeur: 2 }[mode] ?? 0, extra, discard === "sister" ? 1 : 0);
     },
     free: (h) => w.game_free(h),
     view: (h, seat, acked) => readView(w.game_view(h, seat, acked)),

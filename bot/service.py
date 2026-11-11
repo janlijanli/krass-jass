@@ -193,7 +193,12 @@ def create_app() -> FastAPI:
             misere=request.misere,
         )
 
-        card = for_mode(request.mode).decide(observation)
+        agent_now = for_mode(request.mode)
+        if request.discard_signal != agent_now.cfg.discard_signal:
+            # A copy per request, never a change to the shared agent: the bot stays stateless.
+            agent_now = copy.copy(agent_now)
+            agent_now.cfg = agent_now.cfg.variant(discard_signal=request.discard_signal)
+        card = agent_now.decide(observation)
         # Defence in depth. The engine re-validates every move regardless, but a bot that
         # returns an illegal card should fail here rather than get that far.
         if not legal & (1 << card):

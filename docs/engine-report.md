@@ -550,6 +550,10 @@ them, it agrees with the search on 65.2% of decisions against 61.4%, and wins **
 share, replicated on two seeds (§5w). It ships, and it is the first gain here from a behaviour the
 owner chose rather than one the search found.
 
+**Farbpaar** (owner, 2026-11-11) is a second discard convention behind `discard_signal`, switchable in
+the menu: discard the sister suit of the one wanted. Against the weakest-suit discard it is free
+(50.08%, p = 0.39); a play model refitted to it reads nothing more (49.97%, p = 0.85, §5y).
+
 ---
 
 ## 6. Trump selection

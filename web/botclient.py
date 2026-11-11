@@ -193,6 +193,7 @@ class RemoteAgent(Agent):
             "doubled": obs.doubled,
             "schedule": list(obs.schedule),
             "misere": obs.misere,
+            "discard_signal": self.cfg.discard_signal,
         }
         timeout = obs.time_budget_ms / 1000 + TIMEOUT_MARGIN_S
         try:

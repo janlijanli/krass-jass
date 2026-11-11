@@ -20,7 +20,8 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from concurrent.futures import ProcessPoolExecutor
+import pickle
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -63,7 +64,8 @@ class RecordingAgent(Agent):
         candidates = self.inner.trace(obs)
         if self.inner.conventions:
             forbidden, _ = self.inner._beliefs(obs)
-            card = convention.choose(candidates, obs, forbidden)
+            card = convention.choose(candidates, obs, forbidden, *self.inner.convention_slack,
+                                     signal=self.inner.cfg.discard_signal)
         else:
             card = candidates[0][0]
         visits = [0] * 36
@@ -83,8 +85,9 @@ class RecordingAgent(Agent):
 
 
 def _chunk(args):
-    seed, indices, iterations, belief_pool = args
-    inner = DmctsAgent(determinizations=40, iterations=max(1, iterations // 40), cfg=HOUSE,
+    seed, indices, iterations, belief_pool, signal = args
+    cfg = HOUSE.variant(discard_signal=signal)
+    inner = DmctsAgent(determinizations=40, iterations=max(1, iterations // 40), cfg=cfg,
                        belief_pool=belief_pool)
     rec = RecordingAgent(inner=inner)
     seats = {s: rec for s in range(4)}
@@ -93,9 +96,9 @@ def _chunk(args):
         rec.round_id = i
         # The round is driven here rather than through `play_round` so the observation carries the
         # Weis the table showed and called — the encoder reads both.
-        contract, declarer = choose_contract(hands, leader, seats, HOUSE)
-        _, _, shown, announced = resolve_weis(hands, contract, leader, HOUSE)
-        st = RoundState(contract=contract, hands=list(hands), cfg=HOUSE, leader=leader)
+        contract, declarer = choose_contract(hands, leader, seats, cfg)
+        _, _, shown, announced = resolve_weis(hands, contract, leader, cfg)
+        st = RoundState(contract=contract, hands=list(hands), cfg=cfg, leader=leader)
         while not st.done:
             seat = st.to_play
             obs = build_observation(
@@ -117,20 +120,40 @@ def main() -> None:
     ap.add_argument("--belief-pool", type=int, default=4096,
                     help="worlds the recorded bots weight per decision; smaller is faster")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 1)
+    ap.add_argument("--chunk", type=int, default=0,
+                    help="rounds per chunk written to disk; 0 picks one from the run's size")
+    ap.add_argument("--signal", choices=["weakest", "sister"], default="weakest",
+                    help="the table's discard convention, every seat (krass_jass/convention.py)")
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
     workers = max(1, min(args.workers, args.rounds))
     # Many small chunks rather than one per worker, so progress is visible and a crash late in
     # a long run loses little.
-    step = max(1, args.rounds // (workers * 20))
+    step = args.chunk or max(1, args.rounds // (workers * 20))
     chunks = [list(range(i, min(i + step, args.rounds))) for i in range(0, args.rounds, step)]
-    rows = []
+    # Each chunk is written as it finishes, next to the output, and a rerun skips the ones on
+    # disk: a run of hours must survive a restart of the machine it runs on.
+    parts = args.out.with_suffix(".parts")
+    parts.mkdir(parents=True, exist_ok=True)
+    todo = [(n, c) for n, c in enumerate(chunks) if not (parts / f"{n:04d}.pkl").exists()]
+    print(f"{len(chunks) - len(todo)}/{len(chunks)} chunks already on disk", flush=True)
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        for n, part in enumerate(pool.map(_chunk, [(args.seed, c, args.iterations, args.belief_pool) for c in chunks])):
-            rows.extend(part)
-            if n % 20 == 0:
-                print(f"  {len(rows)} decisions after {n + 1}/{len(chunks)} chunks", flush=True)
+        futures = {
+            pool.submit(_chunk, (args.seed, c, args.iterations, args.belief_pool, args.signal)): n
+            for n, c in todo
+        }
+        for done, fut in enumerate(as_completed(futures)):
+            n = futures[fut]
+            tmp = parts / f"{n:04d}.tmp"
+            with tmp.open("wb") as fh:
+                pickle.dump(fut.result(), fh)
+            tmp.rename(parts / f"{n:04d}.pkl")
+            print(f"  chunk {n} written, {done + 1}/{len(todo)} this run", flush=True)
+    rows = []
+    for n in range(len(chunks)):
+        with (parts / f"{n:04d}.pkl").open("rb") as fh:
+            rows.extend(pickle.load(fh))
 
     cols = list(zip(*rows))
     np.savez_compressed(
@@ -153,6 +176,7 @@ def main() -> None:
         weis_called=np.array(cols[15], dtype=np.int16),
         iterations=args.iterations,
         seed=args.seed,
+        signal=args.signal,
     )
     print(f"wrote {len(rows)} decisions from {args.rounds} rounds to {args.out}")
 

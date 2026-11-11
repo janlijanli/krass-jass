@@ -35,18 +35,29 @@ they make the bot legible without making it weaker.
 2. *Schmieren* — last to play with the partner taking the trick, give it points: the highest
    card that is neither a trump nor the best left of its suit. And never trump the partner's
    trick ("du trumpfst zu viel").
-3. *Verwerfen* — unable to follow and not trumping, throw from the *weakest* side suit, lowest
-   first, never the best card of a suit. The partner reads it as "not this suit". (This
-   replaces an earlier colour-pair convention — throw the sister of the suit you want — which
-   is not what Swiss tables play.)
+3. *Verwerfen* — unable to follow and not trumping. Two ways, chosen at the table
+   (`RulesConfig.discard_signal`):
+
+   - ``"weakest"`` (default): throw from the *weakest* side suit, lowest first, never the best
+     card of a suit. The partner reads it as "not this suit".
+   - ``"sister"`` (*Farbpaar*): throw the other suit of the same colour as the one you want —
+     Schaufel for Kreuz, Ecken for Herz, and back. When that sister is trump, throw the wanted
+     suit itself: Ecken trump, a thrown Herz asks for Herz. Once the signal is given, later
+     discards come from any suit but the wanted one, which *confirms* it: Kreuz 8, then Herz 10,
+     is Schaufel twice over. A card thrown onto the partner's trick for its points (*schmieren*)
+     says little and only counts until a real discard comes.
 4. *Losing the trick anyway* — an opponent is taking it and nothing tied can beat it: spend the
    least.
 
-The bot now *reads* one convention back — the partner's discards, when choosing what to lead.
-It does not yet read the Brettli that shows the Bauer, or anziehen.
+The bot *reads* the partner's discards back when choosing what to lead: under ``"weakest"`` it
+does not lead a thrown suit; under ``"sister"`` it leads the suit asked for, and avoids the
+others thrown (`read_signals`). It does not yet read the Brettli that shows the Bauer, or
+anziehen.
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 from .cards import SUIT_MASK, card_list, card_suit
 from .rules import Contract
@@ -71,6 +82,87 @@ def sister(suit: int) -> int:
     ``♦0 ↔ ♥1`` and ``♠2 ↔ ♣3`` in this deck's indexing, which is what makes it one xor.
     """
     return suit ^ 1
+
+
+#: The two discard conventions a table may agree on — `RulesConfig.discard_signal`.
+SIGNALS = ("weakest", "sister")
+
+#: How much a seat's discards have said, in `Signal.strength`.
+NO_SIGNAL, SCHMIER_ONLY, SIGNALLED, CONFIRMED = 0, 1, 2, 3
+
+
+def signal_target(suit: int, trump: int) -> int:
+    """The suit a discard of `suit` asks for under the colour-pair convention.
+
+    The sister — unless the sister is trump, which nobody asks for by discarding: then the card
+    asks for its own suit (Ecken trump, a thrown Herz wants Herz). An involution either way, so
+    it is also the suit to throw to ask for `suit`.
+    """
+    return suit if trump >= 0 and sister(suit) == trump else sister(suit)
+
+
+@dataclass(frozen=True)
+class Signal:
+    """What one seat's discards have said this round, under the colour-pair reading."""
+
+    wanted: int = -1        #: the suit asked for, -1 for none
+    strength: int = NO_SIGNAL
+    thrown: int = 0         #: 4-bit mask of every suit this seat has discarded
+
+    @property
+    def asked(self) -> int:
+        """The suit asked for, if the evidence is more than a schmier; else -1."""
+        return self.wanted if self.strength >= SIGNALLED else -1
+
+    @property
+    def avoid(self) -> int:
+        """Suits thrown that were not the one asked for — "not this suit"."""
+        return self.thrown & ~(1 << self.wanted) if self.wanted >= 0 else self.thrown
+
+    def observe(self, suit: int, trump: int, schmier: bool) -> "Signal":
+        target = signal_target(suit, trump)
+        thrown = self.thrown | 1 << suit
+        if self.strength == NO_SIGNAL or (self.strength == SCHMIER_ONLY and not schmier):
+            # The first discard is the signal; a schmier is only a weak one, and the next real
+            # discard replaces it.
+            return Signal(target, SCHMIER_ONLY if schmier else SIGNALLED, thrown)
+        if suit == self.wanted and target != self.wanted:
+            # Threw the suit it asked for: out of anything else, or it did not mean it.
+            return Signal(self.wanted, SCHMIER_ONLY, thrown)
+        if schmier:
+            return Signal(self.wanted, self.strength, thrown)
+        # Another suit gone and the wanted one kept: the signal stands, twice over.
+        return Signal(self.wanted, CONFIRMED, thrown)
+
+
+def read_signals(tricks, contract: Contract) -> list[Signal]:
+    """Every seat's discard signal, from `(leader, cards)` tricks in order (the one in play last).
+
+    A discard is a card of neither the led suit nor trump. It is a schmier when the discarder's
+    partner was taking the trick at that moment and the card is worth ten or more.
+    """
+    trump = contract.trump_suit if contract.is_trump else -1
+    values = CARD_VALUES[contract]
+    signals = [Signal() for _ in range(NUM_SEATS)]
+    for leader, cards in tricks:
+        if not cards:
+            continue
+        led = card_suit(cards[0])
+        by_led = STRENGTH[contract][led]
+        best = 0
+        for i, c in enumerate(cards):
+            seat = (leader + i) % NUM_SEATS
+            suit = card_suit(c)
+            if i and suit not in (led, trump):
+                schmier = (leader + best) % 2 == seat % 2 and values[c] >= 10
+                signals[seat] = signals[seat].observe(suit, trump, schmier)
+            if by_led[c] > by_led[cards[best]]:
+                best = i
+    return signals
+
+
+def _tricks(obs):
+    return list(obs.tricks_played) + ([(obs.trick_leader, tuple(obs.trick))] if obs.trick else [])
 
 
 def _top_live(live: int, suit: int, contract: Contract) -> int:
@@ -152,8 +244,7 @@ def partner_discards(obs) -> int:
     partner = obs.seat ^ 2
     trump = obs.contract.trump_suit if obs.contract.is_trump else -1
     mask = 0
-    tricks = list(obs.tricks_played) + ([(obs.trick_leader, tuple(obs.trick))] if obs.trick else [])
-    for leader, cards in tricks:
+    for leader, cards in _tricks(obs):
         if not cards:
             continue
         led = card_suit(cards[0])
@@ -182,12 +273,14 @@ def _lowest(cards, contract: Contract) -> int:
     return min(cards, key=lambda c: (values[c], STRENGTH[contract][card_suit(c)][c]))
 
 
-def _lead(cards, obs, forbidden, live, trump, boss) -> int | None:
+def _lead(cards, obs, forbidden, live, trump, boss, partner: Signal | None) -> int | None:
     contract = obs.contract
     values = CARD_VALUES[contract]
     declaring = (obs.declarer_seat & 1) == (obs.seat & 1)
     out_of_trump = opponents_out_of_trump(forbidden, obs.hand | obs.played, obs.seat, contract)
-    discarded = partner_discards(obs)
+    # Under the colour-pair reading a thrown suit may be the one asked for (its sister is
+    # trump), so "not this suit" is every thrown suit but that one.
+    discarded = partner.avoid if partner is not None else partner_discards(obs)
 
     # 1. The opponents are out of trump: the best card left in a side suit is a trick.
     if out_of_trump and boss:
@@ -220,6 +313,14 @@ def _lead(cards, obs, forbidden, live, trump, boss) -> int | None:
             best = max(range(4), key=lambda s: (s != trump) * (_suit_strength(obs.hand, live, s, contract) + 10))
             return min(brettli, key=lambda c: (card_suit(c) != best, values[c], -c))
 
+    # 3b. Farbpaar — the partner asked for a suit: bring it. The best card of it if held (the
+    #     trick is ours either way), otherwise the lowest, so the partner's winner takes it.
+    if partner is not None and partner.asked >= 0 and partner.asked != trump:
+        asked = [c for c in cards if card_suit(c) == partner.asked]
+        if asked:
+            mine = [c for c in asked if c in boss]
+            return max(mine, key=lambda c: (values[c], -c)) if mine else _lowest(asked, contract)
+
     # 4. Cash from the top — aces, then kings as each becomes the best left — avoiding a suit
     #    the partner threw away.
     side = [c for c in boss if card_suit(c) != trump]
@@ -238,7 +339,7 @@ def _lead(cards, obs, forbidden, live, trump, boss) -> int | None:
     return None
 
 
-def _follow(cards, obs, live, trump, boss) -> int | None:
+def _follow(cards, obs, live, trump, boss, mine: Signal | None) -> int | None:
     contract = obs.contract
     values = CARD_VALUES[contract]
     led = card_suit(obs.trick[0])
@@ -275,9 +376,19 @@ def _follow(cards, obs, live, trump, boss) -> int | None:
     #    first, never the best card left of a suit.
     throws = [c for c in cards if card_suit(c) not in (led, trump) and c not in boss]
     if throws:
-        weakest = min(sorted({card_suit(c) for c in throws}),
+        keep = -1
+        if mine is not None:
+            # Farbpaar. Signal given: throw anything but the suit asked for, which confirms it.
+            # Not yet: ask for the suit this hand wants, by throwing its target.
+            keep = mine.asked if mine.asked >= 0 else wanted_suit(obs.hand, obs.unseen, contract)
+            if mine.asked < 0 and keep >= 0:
+                ask = [c for c in throws if card_suit(c) == signal_target(keep, trump)]
+                if ask:
+                    return _lowest(ask, contract)
+        rest = [c for c in throws if card_suit(c) != keep] or throws
+        weakest = min(sorted({card_suit(c) for c in rest}),
                       key=lambda s: _suit_strength(obs.hand, live, s, contract))
-        return _lowest([c for c in throws if card_suit(c) == weakest], contract)
+        return _lowest([c for c in rest if card_suit(c) == weakest], contract)
 
     # 4. An opponent is taking the trick and nothing tied can beat it: spend the least.
     if winner != partner and all(by_led[c] <= best_strength for c in cards):
@@ -286,11 +397,11 @@ def _follow(cards, obs, live, trump, boss) -> int | None:
 
 
 def choose(candidates, obs, forbidden, vote_slack: float = VOTE_SLACK,
-           score_slack: float = SCORE_SLACK) -> int:
+           score_slack: float = SCORE_SLACK, signal: str = "weakest") -> int:
     """The card to play, given what the search returned.
 
     Returns the search's own first choice unless a convention applies to a move it rated the
-    same.
+    same. `signal` is the table's discard convention, one of `SIGNALS`.
     """
     if not candidates:
         raise ValueError("no candidates")
@@ -304,6 +415,9 @@ def choose(candidates, obs, forbidden, vote_slack: float = VOTE_SLACK,
     live = obs.hand | obs.unseen
     trump = obs.contract.trump_suit if obs.contract.is_trump else -1
     boss = {c for c in cards if _top_live(live, card_suit(c), obs.contract) == 1 << c}
-    pick = (_lead(cards, obs, forbidden, live, trump, [c for c in cards if c in boss])
-            if not obs.trick else _follow(cards, obs, live, trump, boss))
+    signals = read_signals(_tricks(obs), obs.contract) if signal == "sister" else None
+    pick = (_lead(cards, obs, forbidden, live, trump, [c for c in cards if c in boss],
+                  signals[obs.seat ^ 2] if signals else None)
+            if not obs.trick else
+            _follow(cards, obs, live, trump, boss, signals[obs.seat] if signals else None))
     return fallback if pick is None else pick

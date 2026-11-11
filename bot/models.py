@@ -12,6 +12,8 @@ game replays bit-for-bit even though the bots roll their own dice.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -129,6 +131,9 @@ class PlayCardRequest(BaseModel):
     schedule: list[int] = Field(default_factory=list, max_length=9)
     #: Coiffeur Misère: each team is credited with what the other took.
     misere: bool = False
+    #: The table's discard convention (`RulesConfig.discard_signal`), agreed before the first
+    #: card and public, so it comes with every request like the mode.
+    discard_signal: Literal["weakest", "sister"] = "weakest"
 
 
 class PlayCardResponse(BaseModel):
