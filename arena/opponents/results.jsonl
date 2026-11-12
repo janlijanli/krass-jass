@@ -1,0 +1,1 @@
+{"a": ["shipped"], "b": ["dl4g", "--bot", "dl4g", "--c", "8", "--time-budget", "2", "--workers", "3"], "seed": 1, "iterations": 153600, "cfg": "eval", "a_share": 0.6046683348498635, "std": 0.12501529723154745, "p": 0.0, "deals": 100, "raw_share": 0.5786184210526316, "se": 0.012501529723154745, "errors": 0, "illegal": 1, "minutes": 94.3, "when": "2026-11-11 21:29"}

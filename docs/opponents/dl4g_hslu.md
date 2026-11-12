@@ -6,8 +6,8 @@
   numpy 1.25.2 + pandas) behind `arena/opponents/jasskit_bridge.py`. Nothing of it is imported by us.
 - **Runnable:** yes. It is all code, with no weights, and its ML trump models are not used by the
   served bot. 4th place in its HSLU tournament (README).
-- **Status: not measured.** The session's permission classifier refused to execute the opponent
-  code (see `README.md`).
+- **Status: measured, 2026-11-12.** Our bot wins clearly: **60.5% ± 12.5%, n = 100, p < 1e-15**
+  at C = 8, 3 workers x 2 s a move.
 
 ## What it plays
 
@@ -55,4 +55,47 @@ threshold of 68 and its contract mix.
 
 ## Numbers
 
-None yet.
+`python -m arena.opponents.jasskit --bot dl4g --deals 100 --seed 1 --start 1 --workers 2`. Our shipped
+bot (40 x 3,840) against C = 8, 3 workers x 2 s, on `EVAL` rules, double rounds on the same seed:
+
+| | |
+|---|---|
+| our share of points (multiplied, as every arena number) | **60.47% ± 12.50%** (std over deals), n = 100, paired p < 1e-15 |
+| our share of raw card points (what they play for) | 57.86% |
+| opponent errors / fallbacks | 0 of ~3,600 calls |
+| illegal cards | 1, a jass-kit rule bug (below) |
+| time | ~2 h (100 deals, 1.2 min a deal) |
+
+**Diagnosis.** It loses on both sides of the table, more so when it declares:
+
+| declaring side | rounds | our share of the round | declarer's raw points | declarer under 79 |
+|---|---|---|---|---|
+| we declare | 100 | 72.6% | 110.6 | 15% |
+| they declare | 100 | 42.7% | 86.7 | 34% |
+
+- **Trump choice is its weakest part.** The Graf heuristic shoves from forehand in **82%** of rounds
+  (we shove in 61%). When it does declare, it falls short of half the points a third of the time.
+  Its Undenufe calls fail 7 of 11 times (mean 70.6 raw points). Its Obenabe calls fail 6 of 14.
+  Its suit contracts average 88-95 raw points; ours average 106-113.
+- **Our Obenabe/Undenufe.** We declare them in half our rounds (21 Obe + 29 Une of 100). That is the
+  2026-10 fitted selector CLAUDE.md asks to check against human play. Against this opponent they fail
+  (declarer under 79) more often than our suit calls: 20% against ~10%. They still average the same raw
+  points (111.7 against 109.5) and the same share of the round (73%), so at x3/x4 they pay. Three of
+  our five worst deals turn on one of them:
+  - deal 58 (19.7%): shoved to, we called Undenufe holding DA DK DQ H10 H9 H8 S7 S6 C8 and made 31.
+  - deal 68 (37.3%): forehand Obenabe on DA D8 D7 HK H7 SK S10 CA C8, two aces and no long suit. Made 64.
+  - deal 90 (38.5%): forehand Obenabe on DA D6 H7 SA SK S8 CA C8 C6, three aces and nothing behind them.
+    Made 62.
+  These are worth a look by whoever owns trump selection: three aces with no length is a thin Obenabe.
+- **The card play is not where it loses most.** Defending our contracts it concedes 72.6% of the round;
+  declaring its own it keeps 57.3%, but a third of those contracts it should not have called. Uniform determinization (no voids) and a win/lose payoff cost it points, but less
+  than its bidding does.
+
+**The illegal card is a jass-kit bug, in both kits.** `RuleSchieber.get_valid_cards` keeps the *lower*
+of two trumps already in the trick as the undertrump bar, and compares them by card index, not trump
+rank. With H10 and HJ (the Puur) on the table under Hearts, it lets a player under-trump the Puur with
+H9. dl4g did this once (`.runs/opp-dl4g-illegal.log`). Our engine refused the card and played our
+lowest legal card for it. Every jass-kit bot shares this rule, so expect rare cases of it elsewhere.
+
+Not run: the tournament budget (15 workers x 9.75 s, ~10 h for 100 deals here). The margin is 8 standard
+errors, so a 25x budget is unlikely to turn it around, but it would narrow it.
