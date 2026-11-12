@@ -1,8 +1,8 @@
 # Nolonar/HSLU_JassBot — "CasualTea": casualT (flat MC, 9 s) and specialT (play network)
 
-**Status: set up, not run.** Two adapter entries are in `arena/opponents/registry.py`
-(`nolonar-casualT`, `nolonar-specialT`, the `tf` venv), but running new opponent code was refused
-by this session's permission classifier.
+**casualT: our bot takes 59.7% ± 11.3% of the points (n = 100 deals, p < 1e-15).** No illegal
+cards, no fallbacks; two mapping mismatches, both the undertrump rules difference.
+**specialT:** see below.
 
 - Source: github.com/Nolonar/HSLU_JassBot @ `6415b43` (2021-11-18).
 - Licence: **none**: all rights reserved. Run locally as an opponent only.
@@ -21,9 +21,41 @@ by this session's permission classifier.
 - **Trump** (both): logistic regression on the hand.
 - Rules: jass-kit Schieber.
 
-## How to run it
+## How it was run
 
-    python -m arena.opponents.run --opponent nolonar-specialT --deals 400 --seed 1 --workers 4
-    python -m arena.opponents.run --opponent nolonar-casualT --deals 100 --seed 1 --workers 4
+    # venv: $OPPONENTS_DIR/venvs/tf (Python 3.11, tensorflow-cpu 2.15 / Keras 2, numpy 1.26, jass-kit 2.0.5)
+    python -m arena.opponents.run --opponent nolonar-casualT --deals 100 --seed 1 --workers 3
+    python -m arena.opponents.run --opponent nolonar-specialT --deals 100 --seed 1 --workers 3
 
-casualT: ~36 moves a deal x 9 s, ~5 min of its time a deal per worker, ~2 h for 100 deals.
+Our bot `build([], 153_600, EVAL)`, `EVAL` rules, double rounds, same seed both halves, paired
+test. The pickled logistic regression loads in scikit-learn 1.x.
+
+## casualT
+
+152 minutes on 3 workers; it spends 117 s a half, ours 18 s.
+
+| | |
+|---|---|
+| our share | **59.68%** ± 11.34% (std), se 1.13% |
+| deals | 100 |
+| p | < 1e-15 |
+| fallbacks / illegal cards | 0 / 0 |
+| mapping mismatches | 2 — jass-kit allows an undertrump our strict rule forbids |
+
+| | rounds | our share |
+|---|---:|---:|
+| we declare | 100 | 73.8% |
+| they declare | 100 | **42.1%** |
+| they declare, shoved | 63 | 44.3% |
+| they declare, own choice | 37 | 38.0% |
+
+**The strongest trump choice of the group.** It is the only measured opponent that wins its own
+contracts clearly: we take 42% of them, against 47-57% for every other bot. It shoves in 63% of
+forehand hands, close to our 61%, and calls Obenabe/Undenufe in 42 of 100 contracts. We lose its
+Hearts (37%) and Undenufe (37%) hardest; deal 93, its shoved Undenufe x4, is a match against us
+(0:628). Its card play is still the weak side: the rollouts are not legal play.
+
+Why we still win by ~10 points: our contracts (74%), where its card play has to defend.
+
+Worst deal (58, 23.6%): our shoved partner calls Undenufe x4 and loses 124:504. This is the same
+hand as our worst deal against Rico and Mcapozzolo (`dl4g-group-b.md`).
