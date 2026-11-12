@@ -12,7 +12,7 @@ of theirs is imported by our code. Our bot is the shipped one (`build([], 153_60
 | [RubenNunez](rubennunez.md) | 15 random rollouts, no world dealt | none | yes, crashes on 23% of moves | **67.1%** ± 12.3 | 100 | < 1e-15 |
 | [sobrinth](sobrinth.md) | greedy | GPL-3.0 | yes | **74.2%** ± 11.6 | 100 | < 1e-15 |
 | [theoliver7](theoliver7.md) | DMCTS, C++ kernel, 100 x 0.9 s on all cores; DNN trump | none | needs jasscpp built; not run | — | | |
-| [FAIKUE](faikue.md) | threaded DMCTS 9 s, broken sampler; jass-kit 1.0 API | none | needs a v1 bridge; not run | — | | |
+| [FAIKUE](faikue.md) | threaded DMCTS 9 s, broken sampler; jass-kit 1.0 API | none | yes (v1 bridge, Cython build) | **71.8%** ± 14.0 | 100 | < 1e-15 |
 | [TedMANNERs](tedmanners.md) | ISMCTS, rule-based rollouts, 5 s | GPL-3.0 | yes | **70.1%** ± 11.6 | 100 | < 1e-15 |
 | [xXTime-OnXx](xxtime.md) | heuristics + one-world flat MC, 9.5 s | none | yes | **65.7%** ± 11.6 | 100 | < 1e-15 |
 | [Nolonar casualT](nolonar.md) | flat MC 9 s, illegal rollouts; logistic-regression trump | none | yes | **59.7%** ± 11.3 | 100 | < 1e-15 |
