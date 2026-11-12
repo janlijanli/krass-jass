@@ -1792,6 +1792,36 @@ has measured null (§5q, §5r): the inputs stay, at zero, in `play_policy_sister
 them differ, which is why the spread is half the usual. What the owner's table plays is a choice of
 style, and it costs nothing to make it.
 
+## 5z. Against a foreign bot: JassTheRipper, and do the reading gains survive it?
+
+*2026-11-12.* Every gain since §5o was measured against our own bot, and the play model the beliefs
+and the tree policy read the table through was fitted to it. Against a bot that plays differently,
+"reading the table" could have been only "recognising ourselves". JassTheRipper (Niklaus' DMCTS from
+the Fribourg/HSLU thesis, `runs-100000` = fixed budget at its HSLU-server strength, rule-based trump) is
+the first foreign opponent strong enough to ask. `arena/jass_the_ripper.py`, `EVAL`, 400 double deals on
+seed 1, all three arms on the same deals, so arm against arm is paired by deal.
+
+| our bot | share vs JassTheRipper | n |
+|---|---|---|
+| shipped (153,600, beliefs, tree policy) | **54.88% ± 10.51** | 400 |
+| beliefs off (`belief_alpha = bid_alpha = 0`) | 53.86% ± 10.99 | 400 |
+| tree policy off | 54.36% ± 11.35 | 400 |
+
+| paired, by deal | difference | p |
+|---|---|---|
+| shipped − beliefs off | **+1.02 ± 0.51** (se) | 0.047 |
+| shipped − tree policy off | +0.52 ± 0.47 (se) | 0.27 |
+
+**The reading gains are not self-recognition.** Weighting worlds by the other seats' plays and bid is
+worth +1.02 against a bot we never fitted to — the size §5o measured against ourselves (+1.3). The tree
+policy leans the same way as §5p's +0.86 and does not resolve at this n. Neither shrinks to nothing, so
+fitting the play model on a mix of self-play and foreign games is not needed for robustness.
+
+JassTheRipper's server is not thread-safe (calls serialised) and falls back to a random legal card in
+0.47% of its searches (149 of 31,787, an internal error); no card it played was illegal under our rules.
+The other 21 opponents are in `docs/opponents/README.md`; they all point at trump selection, not card
+play (in progress on branch `claude/trump-multipliers`).
+
 ---
 
 ## 6. Open

@@ -31,4 +31,8 @@ configuration it played the HSLU tournament server with — and rule-based trump
 |---|---|---|---|
 | shipped vs JassTheRipper/runs-100000 | **54.88% ± 10.51** | 400 | ≈ 0 |
 
-Beliefs off and tree policy off against it, on the same deals, follow (`.runs/jtr-chain.sh`).
+| beliefs off | 53.86% ± 10.99 | 400 | |
+| tree policy off | 54.36% ± 11.35 | 400 | |
+
+Paired by deal: beliefs are worth **+1.02 ± 0.51** (p = 0.047) against it, the tree policy +0.52 ± 0.47
+(p = 0.27) — `docs/measurements.md` §5z. Fallbacks: 149 of 31,787 searches (0.47%).
