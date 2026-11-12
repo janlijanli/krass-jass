@@ -28,10 +28,19 @@ def main() -> None:
     ap.add_argument("--run", default="1653237674")
     ap.add_argument("--port", type=int, default=9910)
     ap.add_argument("--iterations", type=int, default=100)
+    ap.add_argument("--threads", type=int, default=1, help="TensorFlow intra-op threads")
     ap.add_argument("--policy", action="store_true", help="the raw policy network, no search")
     args = ap.parse_args()
     sys.path.insert(0, str(args.checkout))
     logging.basicConfig(level=logging.WARNING)
+
+    import tensorflow as tf
+
+    # The SavedModels were written on a GPU; on CPU, Grappler's remapper fuses BatchNorm+Tanh
+    # into an op with no CPU kernel ("Fusion is not implemented: [FusedBatchNorm,Tanh]").
+    tf.config.optimizer.set_experimental_options({"remapping": False})
+    tf.config.threading.set_intra_op_parallelism_threads(args.threads)
+    tf.config.threading.set_inter_op_parallelism_threads(1)
 
     from jass_mu_zero.agent.agent_from_cpp import AgentFromCpp
     from jass_mu_zero.environment.networking.worker_config import WorkerConfig
