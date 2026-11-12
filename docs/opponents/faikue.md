@@ -23,13 +23,6 @@ cards, no fallbacks, no mapping mismatches.
 
 ## How it was run
 
-<<<<<<< HEAD
-A `PlayerRound`-based twin of `arena/opponents/jasskit_bridge_b.py` (fields `dealer, player, trump,
-forehand, declared_trump, hand, tricks, trick_first_player, trick_winner, nr_played_cards, ...`
-in `jass/base/player_round.py`), `cython` to build the `.pyx`, Python 3.11 + `numpy<1.24`
-(`np.int`). At 9 s a move it is ~5 min of its own time a deal per worker: 100 deals is ~2.5 h on
-4 workers.
-=======
 The bridge's `--api v1` mode builds a jass-kit 1.0 `PlayerRound` (`jass_type="SCHIEBER_1000"`,
 the forehand flag as None/False/True) and calls `select_trump` / `play_card`; legal cards come
 from `PlayerRound.get_valid_cards()`. `mcts_cythonized.pyx` was compiled in place with
@@ -63,4 +56,3 @@ after greedy sobrinth (we keep 83% in our own contracts).
 
 Worst deal (58, 28.0%): our shoved partner's Undenufe x4, 124:504 — the same hand as against
 Rico, Mcapozzolo and Nolonar.
->>>>>>> origin/claude/opponent-dl4g-b
