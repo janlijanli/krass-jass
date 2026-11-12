@@ -31,6 +31,12 @@ Our shipped bot (153,600 iterations) against each, double rounds, same seed both
 | kurtoid (DL4G) | Bockchain trump, one sample | EVAL | 65.6% | 100 |
 | jass-bot (tramasys, DL4G) | one-ply heuristic, C++ | EVAL | 65.5% | 200 |
 | dl4g rule-based (DL4G) | Graf trump, greedy | EVAL | 63.8% | 100 |
+| FAIKUE (DL4G) | DMCTS, broken sampler | EVAL | 71.8% | 100 |
+| TedMANNERs (DL4G) | ISMCTS, 5 s | EVAL | 70.1% | 100 |
+| xXTime (DL4G) | heuristics + one-world Monte Carlo | EVAL | 65.7% | 100 |
+| theoliver7 (DL4G) | DMCTS on jasscpp, 400 worlds | EVAL | 62.4% (interim, stopped by owner) | 49 |
+| Nolonar casualT (DL4G) | flat Monte Carlo, 9 s | EVAL | 59.7% | 100 |
+| Nolonar specialT (DL4G) | play network | EVAL | 59.1% | 100 |
 | jassager (DL4G) | ISMCTS, void-aware | EVAL | 59.7% | 100 |
 | AlessioVerardo | PIMC | suits x1 | 56.3% ± 9.2 | 400 |
 | JassTheRipper | DMCTS, Fribourg/HSLU | EVAL | 54.88% ± 10.5 | 400 |
