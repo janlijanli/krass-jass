@@ -1,7 +1,7 @@
 # xXTime-OnXx/dl4g-jass-bot — heuristics, then flat Monte Carlo for 9.5 s
 
-**Status: set up, not run.** The adapter entry is in `arena/opponents/registry.py` (`xxtime`, the
-`tf` venv), but running new opponent code was refused by this session's permission classifier.
+**Result: our bot takes 65.7% ± 11.6% of the points (n = 100 deals, p < 1e-15).** No illegal
+cards, no fallbacks; one mapping mismatch, the undertrump rules difference.
 
 - Source: github.com/xXTime-OnXx/dl4g-jass-bot @ `3a73859` (2025-01-05).
 - Licence: **none**: all rights reserved. Run locally as an opponent only.
@@ -22,11 +22,33 @@
   otherwise the best of the four suits — it **never chooses Obenabe or Undenufe**.
 - Rules: jass-kit Schieber.
 
-## How to run it
+## How it was run
 
-`tf` venv (Python 3.11, tensorflow-cpu 2.15 / Keras 2, numpy 1.26, jass-kit 2.0.5).
+    # venv: $OPPONENTS_DIR/venvs/tf (Python 3.11, tensorflow-cpu 2.15 / Keras 2, numpy 1.26, jass-kit 2.0.5)
+    python -m arena.opponents.run --opponent xxtime --deals 100 --seed 1 --workers 3
 
-    python -m arena.opponents.run --opponent xxtime --deals 100 --seed 1 --workers 4
+Our bot `build([], 153_600, EVAL)`, `EVAL` rules, double rounds, same seed both halves, paired
+test. 105 minutes on 3 workers; it spends 75 s a half (its heuristics skip the search on some
+moves), ours 18.6 s.
 
-At 9.5 s on the moves where its heuristics do not fire, budget ~3-4 min of its time a deal per
-worker: ~1.5 h for 100 deals on 4 workers.
+## Numbers
+
+| | |
+|---|---|
+| our share | **65.65%** ± 11.61% (std), se 1.16% |
+| deals | 100 |
+| p | < 1e-15 |
+| fallbacks / illegal cards | 0 / 0 |
+| mapping mismatches | 1 — jass-kit allows an undertrump our strict rule forbids |
+
+| | rounds | our share |
+|---|---:|---:|
+| we declare | 100 | 74.0% |
+| they declare | 100 | 53.4% |
+
+It **never shoved** (0 of 100 forehand hands: P(shove) never passed 0.8) and, as the source says,
+never called Obenabe or Undenufe: 31 Clubs, 33 Hearts, 19 Diamonds, 17 Spades. Its own contracts
+come out near level (46-57% for us per suit); it is strongest in its Spades.
+
+Worst deal (9, 32.9%): our shoved partner calls Obenabe and loses it 78:393 (x3). Deals 58 and 28
+are shoved Undenufe calls that lost against other opponents too (`rico.md`, `tedmanners.md`).

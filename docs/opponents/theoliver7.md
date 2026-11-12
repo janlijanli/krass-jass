@@ -1,8 +1,8 @@
 # theoliver7/hslu-dl4g — DMCTS (C++ kernel) + DNN trump
 
-**Status: triaged, not run.** The strongest-looking bot of DL4G group B, and the one to spend
-time on next. Running new opponent code was refused by this session's permission classifier
-after the first four opponents had been started, so it was not built here.
+**Interim result, stopped by the owner: our bot takes 62.4% ± 11.1% of the points
+(n = 49 of 100 planned deals, p = 5e-15).** No illegal cards, no fallbacks; one mapping mismatch,
+the undertrump rules difference.
 
 - Source: github.com/theoliver7/hslu-dl4g @ `0421b80` (2023-11-09).
 - Licence: **none** (no licence file): all rights reserved. Run locally as an opponent only.
@@ -28,16 +28,44 @@ after the first four opponents had been started, so it was not built here.
   Without the model it falls back to Graf's trump table, shoving at <= 68.
 - Rules: jass-kit's Schieber (no multipliers in their scoring, no Weis).
 
-## How to run it (not done here)
+## How it was run
 
-1. Build `jasscpp` from jass-kit-cpp with pybind11 into a Python 3.11 venv with
-   `tensorflow-cpu==2.15` (Keras 2 loads the SavedModel), `numpy<2`, `jass-kit==2.0.5`.
-2. `model_location` is hard-coded to `/home/localadmin/dl4g/notebooks/models/v7`: pass the
-   checkout's own path through the agent expression.
-3. Add to `arena/opponents/registry.py`, e.g.
-   `agent="players.determinization_mcts_cpp_agent:DeterminizationCppMCTSAgent(determinizations=100, cutoff_time=0.9, model_location='notebooks/models/v7')"`.
-4. It already uses every core per move, so run with `--workers 1`, or (fairer to its clock and
-   much faster for us) convert the time limit to an iteration budget and say so.
+1. `jasscpp` built from github.com/thomas-koller/jass-kit-cpp (no licence file) with CMake + make
+   into `$OPPONENTS_DIR/jass-kit-cpp/build/source/jasscpp.cpython-311-x86_64-linux-gnu.so`,
+   outside our repository; the registry puts that directory on the bridge's `sys.path`.
+2. The trump model `notebooks/models/v7` has a `keras_metadata.pb` corrupted by CRLF line endings
+   at commit time (Keras: parse error). A copy with CRLF -> LF repaired is at
+   `$OPPONENTS_DIR/theoliver7-models/v7`; their checkout is untouched. With it the network loads
+   (without it the bot silently falls back to the Graf table).
+3. Configuration **dmcts5**: 400 worlds x 0.1 s, one of the four it serves. It spreads the worlds
+   over `cpu_count() + 1` processes, so it gets the whole machine and runs with one worker. dmcts2
+   (100 x 0.9 s) would have been ~2.5x slower.
 
-Expected cost at `dmcts2` on 4 cores: ~36 of its moves a deal x 18 s, ~11 min a deal, ~18 h for
-100 deals. `dmcts5` (400 x 0.1 s, ~8 s a move) is ~8 h.
+        # venv: $OPPONENTS_DIR/venvs/old (Python 3.11, numpy 1.23.5, tensorflow-cpu 2.12, jass-kit 2.0.5)
+        python -m arena.opponents.run --opponent theoliver7 --deals 100 --seed 1 --workers 1
+
+Our bot `build([], 153_600, EVAL)`, `EVAL` rules, double rounds, same seed both halves, paired
+test. ~4.3 min a deal; it spends 111 s a half, ours 18 s. **Stopped by the owner at 49 deals**
+(~3.5 h); the run file resumes from there if it is ever wanted.
+
+## Numbers (interim, n = 49)
+
+| | |
+|---|---|
+| our share | **62.35%** ± 11.06% (std), se 1.58% |
+| deals | 49 (of 100 planned; stopped by the owner) |
+| p | 5.3e-15 |
+| fallbacks / illegal cards | 0 / 0 |
+| mapping mismatches | 1 — jass-kit allows an undertrump our strict rule forbids |
+
+| | rounds | our share |
+|---|---:|---:|
+| we declare | 49 | 73.7% |
+| they declare | 49 | 48.1% |
+
+It **never shoved** (0 of 49 forehand hands; the network's shove class never won). Its own
+contracts come out level (48% for us), its Obenabe the strongest (34% for us, n = 8). Our own
+contracts hold at 74%, as against the other search bots: its card play is a real DMCTS, but at
+0.1 s a world it is not close to ours.
+
+Worst deal (36, 38.5%): our shoved partner's Undenufe, 264:364.
