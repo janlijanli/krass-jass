@@ -300,3 +300,21 @@ def test_the_rust_round_refuses_an_illegal_card():
         pytest.skip("this deal has no illegal card in hand to try")
     with pytest.raises(ValueError):
         core.rs_replay_round(int(Contract.HEARTS), hands, 0, [illegal[0]])
+
+
+#: Tables the scaled shove threshold has to agree on: house, flat, chibre (♠×2), and one odd one.
+SCALE_TABLES = [MULTS, [1] * 6, [1, 1, 2, 1, 1, 1], [3, 1, 4, 1, 5, 9]]
+
+
+@pytest.mark.parametrize("mults", SCALE_TABLES)
+@pytest.mark.parametrize("scale", [False, True])
+def test_trump_selection_agrees_on_other_tables(mults, scale):
+    """The table-scaled shove threshold (`DmctsAgent.trump_scale`) in both implementations."""
+    cfg = HOUSE.variant(multipliers={Contract(i): m for i, m in enumerate(mults)})
+    rng = random.Random(23)
+    for _ in range(400):
+        hand = random_hand(rng)
+        for is_forehand in (True, False):
+            py = select_trump(hand, is_forehand, cfg, scale=scale)
+            rs = core.rs_select_trump(hand, is_forehand, mults, scale)
+            assert (-1 if py == SHOVE else int(py)) == rs, (mults, scale, is_forehand, py, rs)

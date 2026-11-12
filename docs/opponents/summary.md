@@ -118,6 +118,19 @@ looks like a weak defence. Measured like for like, it isn't one:
 The defence share mostly reflects how good the declarer's *hand* is, and that is set by the bidding.
 It is not a separate weakness.
 
+## Update, 2026-11-12: the multiplier-aware threshold (`docs/measurements.md` §5aa)
+
+- **Item 1 below is built and on** (`DmctsAgent.trump_scale`, the owner's call). The shove threshold
+  scales with the table's multiplier sum. It is exactly 1.0 on the house table.
+- **JassFormer, chibre:** **+0.38% ± 0.18** of share against the shipped selector, n = 400, p = 0.032.
+  Our shove rate drops from 78% to 70%. On the 50.88% row above, that puts us near 51.3%.
+- **Flat self-play:** +0.27% ± 0.19, n = 1,000, p = 0.15. That is what the offline pricing predicts.
+- **MuZero itself was not re-run:** its setup was refused in that session.
+- **The gain is smaller than the ~1 point hoped for.** Offline, a threshold refit per table would
+  add about another +0.4 to +1.3 points per declared round.
+- **Item 2:** the self-play labels show the partner's Obe/Une calls are not overcalled (+108 over its
+  best suit on `EVAL`). Nothing to change from them.
+
 ## How we could improve: assessment, in order of expected value
 
 1. **Make the trump selector multiplier-aware. Cheap, and the one clear gain.**

@@ -21,7 +21,9 @@ the dated record behind it.**
 
 **Trump selection is in and tuned.** Rule-based, with weights fitted against simulated
 contract values (`arena/contracts.py`, `arena/fit_trump.py`): 58% of whole games against the
-hand-written weights (`docs/measurements.md` §5n). It now calls Obenabe/Undenufe about half
+hand-written weights (`docs/measurements.md` §5n). The shove threshold scales with the table's
+multiplier sum (exactly 1 on the house table), so a flat or chibre Schieber table no longer shoves
+three hands in four (§5aa, on since 2026-11-12). It now calls Obenabe/Undenufe about half
 the time — check that against human play before trusting it further.
 
 M2 is done (FastAPI + WebSocket, bots in containers, the card fan, and a serverless wasm build).
