@@ -14,7 +14,7 @@ of theirs is imported by our code. Our bot is the shipped one (`build([], 153_60
 | [theoliver7](theoliver7.md) | DMCTS, C++ kernel, 100 x 0.9 s on all cores; DNN trump | none | needs jasscpp built; not run | — | | |
 | [FAIKUE](faikue.md) | threaded DMCTS 9 s, broken sampler; jass-kit 1.0 API | none | needs a v1 bridge; not run | — | | |
 | [TedMANNERs](tedmanners.md) | ISMCTS, rule-based rollouts, 5 s | GPL-3.0 | yes | **70.1%** ± 11.6 | 100 | < 1e-15 |
-| [xXTime-OnXx](xxtime.md) | heuristics + one-world flat MC, 9.5 s | none | set up; not run | — | | |
+| [xXTime-OnXx](xxtime.md) | heuristics + one-world flat MC, 9.5 s | none | yes | **65.7%** ± 11.6 | 100 | < 1e-15 |
 | [Nolonar](nolonar.md) | casualT flat MC 9 s / specialT play network | none | set up; not run | — | | |
 
 Ranked by what they are, strongest-looking first: theoliver7 (real DMCTS with a fast kernel),
