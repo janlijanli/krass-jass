@@ -1,9 +1,9 @@
 # Opponent: jass-mu-zero (MuZero for the Schieber)
 
-*2026-11-11. Status: **runnable in principle — weights are published — but not yet measured.**
-The session that set it up was not permitted to compile or run the opponent's code (see "What
-blocked the measurement"). Everything on our side is written and tested; the run is one command
-once the opponent's venv is built.*
+*2026-11-12. Status: **measured.** Our shipped bot (40 × 3,840 = 153,600 iterations) beats the
+author's strongest configuration, MCTS-100-S, by **1.9 points under its own rules** (flat
+multipliers, 400 double-round deals, p = 5e-4) and by **5.3 points under ours** (100 deals,
+p = 1e-6). A clear win, but not a large one: it is the closest opponent we have measured.*
 
 ## What it is
 
@@ -121,18 +121,72 @@ server log and no `card-illegal` lines.
 
 ## Numbers
 
-**None yet.** The measurement was not run (below).
+EVAL rules otherwise (no Weis, no Stöck, no match bonus), double rounds, the same game seed for both
+halves, paired t-test on per-deal shares; seed 1. Opponent: run 1653237674, 100 iterations, greedy.
 
-## What blocked the measurement
+| rules | deals | our share | std (per deal) | p | errors | illegal cards | wall time |
+|---|---|---|---|---|---|---|---|
+| `flat` (every contract ×1, its game) | 400 | **51.86%** | 10.66% | 4.7e-4 | 0 | 1 | 104 min for the last 300 |
+| `eval` (our multipliers) | 100 | **55.32%** | 10.98% | 1.3e-6 | 0 | 0 | 37 min |
 
-The cloud session's auto-mode permission classifier refused, twice, to compile jass-kit-cpp
-(`pip install .` and a plain out-of-tree `cmake --build`), classing it as running code from an
-external repository. Without `jasscpp` neither their observation features nor their search load,
-so the server cannot start. Building and running the opponent needs that permission granted (a
-Bash allow rule for the build and for `mzvenv/bin/python arena/opponents/mu_zero_server.py`), or
-the steps above run by hand.
+The flat run's four blocks of 100 read 52.6, 51.6, 51.5, 51.7: stable, so the first 100 slightly
+flattered us. `eval` was left at 100 deals because it was decided there (≈ 5 standard errors).
 
-## What to look for when it runs
+The one illegal card (deal in the last 300, flat): Spades trump, trick ♥A ♠6 ♠9, it tried ♠7 —
+an undertrump while holding hearts, illegal under jass-kit's rules as well — and was replaced by our
+lowest legal card. One in ~14,400 of its card moves; the protocol worked: no parser errors, no
+timeouts.
+
+Cost: ~1.3 s a move per server for its 100 latent iterations on one TF thread (slower than the
+0.3–1 s guessed above), ~21 s a deal with four servers and our bot on the remaining cores.
+
+### Where the points are (flat, 400 deals = 400 halves declared by each side)
+
+| declarer | contract | halves | our share |
+|---|---|---|---|
+| ours | Undenufe | 101 | 63.9% |
+| ours | Obenabe | 72 | 66.1% |
+| ours | Hearts / Diamonds / Spades / Clubs | 63 / 61 / 54 / 49 | 75.1 / 73.8 / 74.6 / 77.2% |
+| **ours** | **all** | 400 | **70.6%** |
+| theirs | Clubs / Spades / Hearts / Diamonds | 122 / 93 / 86 / 50 | 34.6 / 28.1 / 36.6 / 30.5% |
+| theirs | Undenufe / Obenabe | 26 / 23 | 33.7 / 37.1% |
+| **theirs** | **all** | 400 | **33.1%** (it takes 66.9%) |
+
+Shove rate as forehand: ours 74.2%, theirs 64.8%.
+
+## Diagnosis
+
+- **The whole margin is in declaring.** As declarer we take 70.6% of our half, it takes 66.9% of
+  its own; half that 3.7-point gap is the 1.9-point margin per deal. Read per contract, *our trump
+  suits* are where we are strongest (74–77%); our **Obenabe/Undenufe** are much weaker (64–66%) and
+  we call them **43% of the time** (173/400) against its 12% (49/400). Under flat scoring that is
+  the cost of a habit; under our multipliers (×3, ×4) the same calls are where the eval margin
+  comes from. This is the open question in `CLAUDE.md` — "it now calls Obenabe/Undenufe about half
+  the time" — met by an independent opponent: the trump weights were fitted against our own bot
+  under our multipliers, and a strong different opponent in a flat game does not reward them.
+- **Defending it is close to even with how it defends us.** Its suit contracts against us hold
+  us to 28–37%; it is not weak on defence — the "no determinisation, no beliefs" expectation of a
+  large defending edge did **not** show. Its latent search reads hidden cards about as well as our
+  belief-weighted worlds do over a deal.
+- **It shoves.** 65% of forehand hands (ours 74%). The research note that MCTS trump selection
+  "rarely learns to shove" is about MCTS over determinisations; a MuZero trained through the shove
+  action learned it fine.
+- **The deals we lose most are our Undenufe / Obenabe after a shove** next to its match:
+
+  | deal | our share | our half | its half |
+  |---|---|---|---|
+  | 359 | 17.2% | Undenufe (shoved) 54–103 | Spades 0–157 (match) |
+  | 89 | 19.4% | Spades (shoved) 61–96 | Hearts 0–157 (match) |
+  | 58 | 20.4% | Undenufe (shoved) 31–126 | Spades 33–124 |
+  | 280 | 22.3% | Undenufe (shoved) 70–87 | Clubs (shoved) 0–157 (match) |
+  | 179 | 22.6% | Obenabe (shoved) 50–107 | Diamonds (shoved) 21–136 |
+
+  Four of five lost deals contain one of our shoved Obenabe/Undenufe calls with the partner's
+  hand; in 58 and 359 the "declarer" team took well under half its own contract. The next
+  measurement worth having is the trump selector refitted (or its Obe/Une weights shrunk) under
+  flat multipliers and re-run against this opponent — a change to our bot's play, so not made here.
+
+## What we looked for (kept for the record)
 
 - `flat` vs `eval`: if we win clearly under `eval` but not under `flat`, the margin is its bidding
   not knowing our multipliers, not card play.
