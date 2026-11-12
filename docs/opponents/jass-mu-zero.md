@@ -196,3 +196,10 @@ Shove rate as forehand: ours 74.2%, theirs 64.8%.
 - It has no determinisation and no belief model: its hidden-card reasoning is whatever the
   representation network learned. Defending (where reading the declarer's hand matters most) is
   where we should expect our largest edge.
+
+
+## With the table-scaled shove threshold (§5aa, on since 2026-11-12)
+
+Flat table, seed 1, the same 100 deals as the run before it: **53.79% ± 11.10** (was 53.12%), paired
+**+0.67 ± 0.61** (p = 0.28). Our forehand shoves 58% instead of 74%. Same sign as the flat self-play
+(+0.27) and JassFormer (+0.38, p = 0.032); not resolved at n = 100.
