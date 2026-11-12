@@ -48,3 +48,12 @@ def test_trumpf_history_marks_a_shove():
     msgs = trumpf_history(0x1FF, False)
     assert msgs[1] == {"type": "BROADCAST_TRUMPF", "data": {"mode": "SCHIEBE"}}
     assert msgs[-1] == {"type": "REQUEST_TRUMPF", "data": True}
+
+
+def test_pyschieber_vocabulary_round_trips():
+    from arena.opponents.pyschieber import our_card_ps, our_trumpf_ps, ps_card, ps_trumpf
+
+    assert all(our_card_ps(ps_card(c)) == c for c in range(36))
+    assert all(our_trumpf_ps(ps_trumpf(Contract(k))) == Contract(k) for k in range(6))
+    assert our_trumpf_ps("SCHIEBEN") == SHOVE
+    assert ps_card(0) == "<ROSE:Ass>" and ps_card(3) == "<ROSE:Under>" and ps_card(8) == "<ROSE:6>"

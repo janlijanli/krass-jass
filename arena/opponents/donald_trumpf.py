@@ -49,8 +49,9 @@ class DonaldTrumpf(Agent):
         # it read only the bridge, its own checkout and its one dependency — no writes, no
         # child processes, no workers.
         os.environ["NODE_PATH"] = self.node_path
-        reads = ",".join((BRIDGE, self.client, self.node_path))
-        return ask(("unshare", "-n", "node", "--permission", f"--allow-fs-read={reads}",
+        # A directory grant needs the `/*` form; a bare directory path grants nothing below it.
+        return ask(("unshare", "-n", "node", "--permission", f"--allow-fs-read={BRIDGE}",
+                    f"--allow-fs-read={self.client}/*", f"--allow-fs-read={self.node_path}/*",
                     BRIDGE, self.client), messages)
 
     def select_trump(self, hand: int, is_forehand: bool):
