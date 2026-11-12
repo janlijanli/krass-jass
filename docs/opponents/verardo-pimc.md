@@ -2,8 +2,8 @@
 
 **Result (2026-11-12), on the suit-only ×1 table: our shipped card play takes 56.32% ± 9.20% of the
 points, n = 400 double rounds, t = 13.7 (p ≈ 1e-42), with 0 bridge errors and 0 illegal cards.** A
-clear win, but our bidding was handicapped on this table (below). A second arm with that corrected
-is queued.
+clear win. Restoring our usual shove rate (second arm) gives 56.79% ± 8.97%, which is +0.47 ± 0.30
+points on the same deals, p = 0.12, not significant.
 
 ## What it is
 
@@ -90,6 +90,10 @@ declared clubs and won 99:58.
 Card play itself is not the problem: we win 72.7% of our own contracts, and PIMC keeps 60.1% of its
 own, against the 81.8% / 46.3% luegl managed.
 
-**Second arm (queued):** `--suits-shove -0.137`, a threshold fitted on other deals (seeds 7–8) to
-give the usual 53% shove rate on this table (53.75% on the match deals). It isolates how much of the
-margin the bidding handicap cost. The result goes here and to `arena/opponents/results.jsonl`.
+**Second arm:** `--suits-shove -0.137`, a threshold fitted on other deals (seeds 7–8) to give the
+usual 53% shove rate on this table (53.8% in the match). Result: **56.79% ± 8.97%, n = 400**. Paired
+against the first arm deal by deal: **+0.47 ± 0.30 points (se), p = 0.12.** We now declare 73.6% of
+our own contracts (72.7% before), and the defence is unchanged at 39.9%. The over-shoving was real but
+cheap here. The 13-point gap between how well we play our contracts (73.6%) and how well PIMC plays
+its own (60.1%) is where the margin comes from, and our share of PIMC's contracts (39.9%) is where the
+margin stops growing.
