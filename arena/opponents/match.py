@@ -75,6 +75,12 @@ def opponent(name: str, cfg) -> BridgeAgent:
         return BridgeAgent(cfg=cfg, name="verardo-pimc", python=str(EXT / "venvs/luegl/bin/python"),
                            server=str(SERVERS / "verardo_pimc_server.py"),
                            args=(str(EXT / "AlessioVerardo_jass-reinforcement-learning"),), log_dir=LOG_DIR)
+    if name.startswith("fr8803"):  # fr8803 = their "Game" model; fr8803:<model> for another
+        model = name.partition(":")[2] or "Game"
+        return BridgeAgent(cfg=cfg, name="fr8803-" + model.replace(" ", "_"),
+                           python=str(EXT / "venvs/tf/bin/python"), server=str(SERVERS / "fr8803_server.py"),
+                           args=(str(EXT / "FR8803_JassOpenAIGym"), model), log_dir=LOG_DIR,
+                           env={"TF_CPP_MIN_LOG_LEVEL": "3"})
     if name == "standin":
         # Our own random-legal server: tests the bridge and this runner, runs no external code.
         return BridgeAgent(cfg=cfg, name="standin", python=sys.executable,
@@ -82,7 +88,8 @@ def opponent(name: str, cfg) -> BridgeAgent:
     raise SystemExit(f"unknown opponent {name!r}")
 
 
-OPPONENTS = ("luegl", "verardo-pimc", "standin")
+OPPONENTS = ("luegl", "verardo-pimc", "fr8803", "fr8803:Round", "fr8803:Trick", "fr8803:Hybrid",
+             "fr8803:Hybrid random", "standin")
 
 # -- one deal ----------------------------------------------------------------------------------
 
@@ -243,7 +250,7 @@ def main() -> None:
         ours = suits_only(ours)
     theirs = opponent(args.opponent, cfg)
     tag = "-".join(args.ours) or "shipped"
-    out = args.out or Path(f".runs/opp-{args.opponent}-{args.seed}-{tag}.jsonl")
+    out = args.out or Path(f".runs/opp-{theirs.name}-{args.seed}-{tag}.jsonl")
     out.parent.mkdir(parents=True, exist_ok=True)
     before = count_events(LOG_DIR, theirs.name)
     done = _rows(out)

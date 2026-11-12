@@ -1,9 +1,8 @@
 # luegl/JassAI: PPO bot (Kantonsschule Uetikon am See, 2026)
 
-**Status: runnable, not yet measured.** Running the opponent's code in this cloud session was
-refused by the session's permission classifier ("code from external"). The adapter, the server and
-the runner are written and the plumbing is tested end to end against a stand-in (below). The match
-itself still has to be run, either in a session that allows it or on the owner's machine.
+**Result (2026-11-11): our shipped bot takes 69.93% ± 11.85% of the points, n = 400 double rounds,
+p < 1e-16 (t ≈ 33.6), with 0 bridge errors and 0 illegal cards in 14,800 opponent calls.** A clear
+win, on both sides of the table. The first 100 deals alone give 70.29% ± 11.73%.
 
 ## What it is
 
@@ -67,4 +66,28 @@ deal (two seats × 9 tricks × 2 rounds). 100 deals is about 20–30 minutes on 
 
 ## Numbers
 
-Not yet measured (see Status). The result line goes to `arena/opponents/results.jsonl`.
+`python -m arena.opponents.match luegl --deals 400 --seed 1`: `EVAL` rules (no Weis, Stöck or match
+bonus; default multipliers), double rounds with the same seed in both halves, and a paired test
+against 50%. It took 65 minutes on 4 cores. Checkpoint `rl_checkpoint_latest.pt` (episode 170,000).
+
+| | rounds | our share of the points |
+|---|---|---|
+| **all** | 800 | **69.9%** (per-deal mean; std 11.9%) |
+| we declare | 400 | 81.8% |
+| they declare | 400 | 53.7%: we win their own contracts too |
+| we declare after our shove | 218 | 79.0% |
+
+- **Trump.** It never shoves (0 of its 400 forehand calls, as its six-output trump net implies) and
+  never declared Obenabe in 400 calls: clubs 96, diamonds 96, hearts 100, spades 79, Undenufe 29. We
+  shove 54.5% of the time from forehand.
+- **Per contract, when it declares**, our share is 51.9–56.8% in every contract. It plays its own
+  contracts no better than we defend them.
+- **When we declare**, we lost the round to them in only 13 of 400 rounds. Six of the 13 were
+  Undenufe after a shove (6 of 59, 10.2%; the other contracts lose 0–8%), and at ×3 they are the
+  costliest. Deal 301 (the worst, 26.8%): our forehand shoves ♦A Q 10 8 ♥K 8 ♠9 ♣K 8, and the partner
+  calls Undenufe on ♦9 6 ♥A J ♠A K 8 6 ♣Q, which has only two sixes and three aces/kings. That is
+  132:496. It is a lead for the trump weights (CLAUDE.md already asks for the Undenufe rate to be
+  checked against human play), not a card-play problem.
+
+No further diagnosis was needed: the margin is far above the 52% bar. `--replay N` prints any deal
+trick by trick.
