@@ -7,8 +7,8 @@
   `models/rl_models/*.pth`. Venv: `venvs/jassager`, Python 3.12, jass-kit 2.0.5 from PyPI,
   torch 2.5.1, pandas, scikit-learn, as its `requirements.txt` pins. The CPU-only torch index was
   blocked by the proxy, so the PyPI (CUDA) wheel is installed. It runs on CPU.
-- **Status: not measured.** The session's permission classifier refused to execute the opponent
-  code (see `README.md`).
+- **Status: measured, 2026-11-12.** Our bot wins clearly against both: **59.7% ± 11.0%** against
+  FullMCTS and **67.5% ± 12.2%** against the CNN variant, n = 100 each, p < 1e-15, at 2 s a move.
 
 ## What it plays
 
@@ -44,4 +44,41 @@ result.
 
 ## Numbers
 
-None yet.
+`--start 3 --workers 3` (three single-threaded servers, three deals at a time), 2 s a move, our shipped
+bot (40 x 3,840), `EVAL` rules, double rounds on the same seed:
+
+| | FullMCTS (`jassager`) | MCTSCNNRollout, c = 1.3 (`jassager-cnn`) |
+|---|---|---|
+| our share of points (multiplied) | **59.73% ± 10.98%**, n = 100, p < 1e-15 | **67.53% ± 12.16%**, n = 100, p < 1e-15 |
+| our share of raw card points | 58.56% | 66.36% |
+| our share when we declare / they declare | 70.8% / 45.5% | 78.7% / 54.3% |
+| their declarations under 79 raw | 45 of 100 | 65 of 100 |
+| their shoves from forehand | 1 of 100 | 1 of 100 (ours: 61 of 100) |
+| opponent errors / fallbacks | 0 | 0 |
+| illegal cards | 0 | 1, the jass-kit undertrump bug |
+| time | ~50 min | ~52 min |
+
+FullMCTS is the stronger of the two, so it is the result: **59.7%**. The CNN leaf value makes its
+card play clearly worse (it keeps 70 raw points on its own contracts against FullMCTS's 82, and lets
+us take 120 on ours against 108).
+
+**Diagnosis: it never shoves.** Trump is chosen by the same ISMCTS as the cards, with push as one
+more action. It pushed once in 100 forehand rounds; we push in 61. So it declares every weak hand
+itself, and **45% of its contracts fall short of half the points** (65% for the CNN variant): Obenabe
+5 of 8, Diamonds 10 of 21, Hearts 14 of 30. That is our CLAUDE.md's "MCTS-based trump selection
+underperforms because it rarely learns to shove", reproduced on someone else's bot. A likely reason, not
+checked in its code: in a determinized tree, a push is valued by the partner's best contract on each
+imagined deal, which a random rollout plays badly.
+
+**Its card play is decent.** It is the only one of these bots with void-aware determinization and a
+points reward, the same objective as ours. Defending our contracts it concedes 70.8% (dl4g concedes
+72.6%). Its worst-deal wins against us are on its own good hands (deal 89: its Hearts makes 264 of
+314 multiplied points). In our five worst deals, our contract made under half three times (deals 42,
+14, 36; two of those were shoved to us). That is no pattern worth chasing on its own.
+
+**The illegal card** is the jass-kit undertrump bug again (`dl4g_hslu.md`): Spades trump, the trick
+H8 S10 SA, and the CNN variant under-trumped the ace with SQ while holding Hearts. The kit measured
+SQ against S10, the lower of the two trumps in the trick, not against SA.
+
+Not run: the documented 9.5 s a move (~4 h for 100 deals here, 3 at a time). A 5x budget would sharpen
+its card play, but not its trump choice, which is where it loses.
