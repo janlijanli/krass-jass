@@ -48,7 +48,7 @@ import statistics
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -416,12 +416,15 @@ class SuitsOnly(Agent):
     inner: Agent = None
     cfg: RulesConfig = EVAL
     name: str = "ours"
-    replaced: list = field(default_factory=list)
+    #: When set, this agent bids for ours (`--our-bid jassformer`): isolates our card play.
+    bidder: Agent | None = None
 
     def decide(self, obs) -> int:
         return self.inner.decide(obs)
 
     def select_trump(self, hand: int, is_forehand: bool):
+        if self.bidder is not None:
+            return self.bidder.select_trump(hand, is_forehand)
         choice = self.inner.select_trump(hand, is_forehand)
         if choice == SHOVE or Contract(choice).is_trump:
             return choice
@@ -575,6 +578,8 @@ def main() -> None:
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--ours", nargs="*", default=[], help="DmctsAgent field=value pairs, as arena.ab")
     ap.add_argument("--out", type=Path, help="per-deal results, one JSON line each; a rerun resumes")
+    ap.add_argument("--our-bid", choices=["ours", "jassformer"], default="ours",
+                    help="chibre only: who bids for our side (jassformer = our card play, their bid)")
     ap.add_argument("--report", type=Path, help="report an --out file and stop")
     ap.add_argument("--show", type=int, help="with --report: print this deal trick by trick")
     ap.add_argument("--no-record", action="store_true", help="do not append to results.jsonl")
@@ -588,11 +593,14 @@ def main() -> None:
 
     cfg = CFGS[args.cfg]
     tag = "-".join(args.ours) or "shipped"
+    if args.our_bid != "ours":
+        tag += f"-bid_{args.our_bid}"
     Path(".runs").mkdir(exist_ok=True)
     inner = build(args.ours, 153_600, cfg)  # 40 x 3,840, as served, unless --ours says otherwise
-    ours = SuitsOnly(inner=inner, cfg=cfg) if args.cfg == "chibre" else inner
     log = Path(f".runs/jassformer-{args.cfg}-{args.seed}-{tag}.log")
     theirs = JassFormer(cfg=cfg, model=args.model, log=str(log))
+    bidder = theirs if args.our_bid == "jassformer" else None
+    ours = SuitsOnly(inner=inner, cfg=cfg, bidder=bidder) if args.cfg == "chibre" else inner
     out = args.out or Path(f".runs/jassformer-{args.cfg}-{args.seed}-{tag}.jsonl")
     done = _load(out)
     todo = [i for i in range(args.deals) if i not in done]
@@ -612,7 +620,7 @@ def main() -> None:
     if args.no_record:
         return
     record = {
-        "a": args.ours or ["shipped"], "b": ["JassFormer-v2"], "cfg": args.cfg, "seed": args.seed,
+        "a": (args.ours or ["shipped"]) + ([f"bid={args.our_bid}"] if args.our_bid != "ours" else []), "b": ["JassFormer-v2"], "cfg": args.cfg, "seed": args.seed,
         "iterations": inner.determinizations * inner.iterations, **res,
         "illegal": errs.get("illegal", 0), "errors": errs.get("error", 0),
         "minutes": round((time.time() - t) / 60, 1), "when": time.strftime("%Y-%m-%d %H:%M"),
