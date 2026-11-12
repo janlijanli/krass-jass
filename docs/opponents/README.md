@@ -5,16 +5,14 @@ Checked 2026-11-11 on branch `claude/opponent-challenge`. Clones live outside th
 is in this repository. Harness: `arena/opponents/common.py` (logged double round, resumable per-deal
 file, `--report` with a per-contract / declaring-side breakdown).
 
-**Nothing below has been measured yet.** In this session the sandbox's auto-mode classifier refused
-every command that executes the cloned code ("Code from External"), including a run with no network
-namespace and Node's read-only permission model. Running them needs the owner to allow it (a Bash
-permission rule, or running the command below by hand). Our side of the harness is tested without
-them (`tests/test_opponents_common.py`).
+Running the cloned code needed the owner's permission (the session's auto-mode classifier refuses it
+otherwise); granted 2026-11-11 for DonaldTrumpf and pyschieber. Opponents run sandboxed: no network
+namespace, and for Node the permission model's read-only grant to its own checkout.
 
 | Repo | Licence | What it is | Verdict |
 |---|---|---|---|
-| edualc/DonaldTrumpf | MIT | Hand-written rule bot, JS, 4th Zühlke 2017 | **Adapter written** (`arena/opponents/donald_trumpf.py`), not yet run. See `donald_trumpf.md`. |
-| Murthy10/pyschieber | MIT | Python Schieber engine; players: random, greedy, `ChallengePlayer` (rule-based, card counter, per-mode strategies, shoves when no mode scores > 54) | Measure next. `ChallengePlayer` is a real strategy; greedy/random are floor rungs only. Generator-based (`yield card`, then `allowed`), stateful via `move_made`; drive it from a replayed history in its own Python process as the JS bridge does. |
+| edualc/DonaldTrumpf | MIT | Hand-written rule bot, JS, 4th Zühlke 2017 | **Measured: we take 66.95% ± 12.48%, n = 400, p < 1e-300.** See `donald_trumpf.md`. |
+| Murthy10/pyschieber | MIT | Python Schieber engine; players: random, greedy, `ChallengePlayer` (rule-based, card counter, per-mode strategies, shoves when no mode scores > 54) | Adapter `arena/opponents/pyschieber.py`; 400-deal run in progress. `ChallengePlayer` is a real strategy; greedy/random are floor rungs only. Generator-based (`yield card`, then `allowed`), stateful via `move_made`; drive it from a replayed history in its own Python process as the JS bridge does. |
 | Xavier0301/JassMCTS | **none** (all rights reserved: run locally only) | EPFL CS-108 "Javass" + MCTS players (`MctsPlayer`, `ImprovedMctsPlayer`, root/leaf-parallel), default 10,000 iterations, Java, no build file (Eclipse zip) | Runnable in principle (`javac` over `src/`), but **Javass is not Schieber**: trump is drawn at random among the four suits, there is no Obenabe/Undenufe and no shoving. Only its card play in suit contracts can be measured; it needs a table with suit contracts only on both sides, which our engine has no flag for. Lower priority. |
 | urbanetter/jassy | MIT (composer.json; no LICENSE file) | PHP card-play strategies (`Simple`, `Bock`, `TeamMate`, `Trump`) with knowledge modules (voids, Bock, team-mate signals); still active (2026-04) | Needs PHP ≥ 8.5, container has 8.3. No trump-selection code found: card play only. Measure after pyschieber, with our selector bidding for it. |
 | edualc/schieber | GPL-3.0 | Python Schieber, 225 lines | **No strategy**: `choose_trumpf` and `choose_card` are `random.choice` (marked TODO). Skip. |

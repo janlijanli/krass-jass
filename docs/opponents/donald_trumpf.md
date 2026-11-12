@@ -1,8 +1,7 @@
 # DonaldTrumpf (edualc/DonaldTrumpf)
 
-**Status: adapter written and our side tested; not yet measured** — executing the cloned bot was
-refused by the session's auto-mode classifier (see `README.md`). Everything below the "Numbers" line
-is to be filled in by the run.
+**Result: our shipped bot wins clearly, 66.95% ± 12.48% of the points, n = 400 double rounds,
+p < 1e-300.** Measured 2026-11-11; no illegal cards, no bridge errors, no fallbacks.
 
 ## What it is
 
@@ -56,7 +55,54 @@ the logged double round gives the same share as `arena.arena.double_round` deal 
 
 ## Numbers
 
-Not measured. Expected on reading the code: a clear win for us. It never shoves, it calls trump from
-fixed weights, and its play is a decision list — the rung our `rule-based` agent already stands on.
-Run it and check that; if we do *not* clear 52%, `--report` breaks the result down by who chose,
-contract, and shove rate.
+`python -m arena.opponents.donald_trumpf --deals 400 --seed 1`: shipped bot (`build([], 153_600, EVAL)`,
+40 × 3,840) against DonaldTrumpf, `EVAL` rules, double rounds on one seed, paired test. 64.5 minutes on
+4 cores (~10 s a deal).
+
+| | |
+|---|---|
+| Our share | **66.95%** ± 12.48% (std over deals), se 0.62% |
+| n | 400 deals (800 rounds) |
+| p | < 1e-300 (paired, against 50%) |
+| Opponent errors / illegal cards / fallbacks | 0 / 0 / 0 |
+| Deals we lost (< 50%) | 32 of 400; 16 below 45% |
+
+Smoke round first: 2 deals, no illegal cards in ~70 of its card decisions, which a wrong seat or hand
+reconstruction would not survive.
+
+## Where the points came from
+
+From `--report .runs/donald_trumpf-1-eval-shipped.jsonl` (points are per half, after multipliers):
+
+| who chose | contract | n | our pts | their pts | our share |
+|---|---|---:|---:|---:|---:|
+| we | all | 400 | 322.4 | 82.3 | 79.7% |
+| we | Clubs | 48 | 261.8 | 52.2 | 83.4% |
+| we | Diamonds | 47 | 116.9 | 40.1 | 74.5% |
+| we | Hearts | 62 | 258.4 | 55.6 | 82.3% |
+| we | Obenabe | 79 | 401.7 | 69.3 | 85.3% |
+| we | Spades | 43 | 120.6 | 36.4 | 76.8% |
+| we | Undenufe | 121 | 479.0 | 149.0 | 76.3% |
+| it | all | 400 | 163.6 | 154.4 | 51.4% |
+| it | Clubs | 84 | 157.1 | 156.9 | 50.0% |
+| it | Diamonds | 73 | 78.8 | 78.2 | 50.2% |
+| it | Hearts | 81 | 144.8 | 169.2 | 46.1% |
+| it | Obenabe | 19 | 302.5 | 168.5 | 64.2% |
+| it | Spades | 74 | 80.0 | 77.0 | 51.0% |
+| it | Undenufe | 69 | 334.6 | 293.4 | 53.3% |
+
+Shove rate: ours 54.5% as forehand; its 0% (it has no shove path).
+
+Reading it:
+- **Nearly all of the margin is in the rounds we declare** (79.7%). Defending its contracts we still
+  take 51.4%: it declares, never shoves, and still does not out-score us on its own trump. Its
+  contract choice is the weak part; its card play holds its own in suit contracts it chose (50.0%
+  / 50.2% / 51.0%, 46.1% in Hearts).
+- **Our Undenufe is our weakest contract against it** (76.3%, 121 of our 400 calls, 30%), and
+  it is where our worst deals come from: in #301, #93 and #28 (26–30% share) our shoved-to partner
+  called Undenufe (×4) and lost it 132–496, 192–436, 196–432. CLAUDE.md already flags that the fitted
+  selector calls Obenabe/Undenufe about half the time and should be checked against human play;
+  these deals are concrete cases to look at (`deal_spec(1, i, None)`, seed 1).
+
+Nothing here suggests a change to our card play: we win by 17 points of share against a bot
+built for the challenge.
