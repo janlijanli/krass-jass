@@ -49,6 +49,7 @@ class JassKitBot(Agent):
     agent: str = ""                    #: "module:expression" building the jass-kit Agent
     path: tuple[str, ...] = ()         #: extra sys.path entries, relative to repo
     cwd: str = ""                      #: working directory, relative to repo
+    api: str = "v2"                    #: "v1" for bots on the 2018 jass-kit 1.0 (PlayerRound)
     env: dict = field(default_factory=dict)
     cfg: RulesConfig = EVAL
     log_dir: str = ".runs/opponents"
@@ -61,7 +62,7 @@ class JassKitBot(Agent):
             Path(self.log_dir).mkdir(parents=True, exist_ok=True)
             err = open(Path(self.log_dir) / f"{self.name}-{os.getpid()}.stderr", "a")
             cmd = [self.python, "-u", str(BRIDGE), "--repo", self.repo, "--agent", self.agent,
-                   "--cwd", self.cwd, "--path", *self.path]
+                   "--cwd", self.cwd, "--api", self.api, "--path", *self.path]
             env = {**os.environ, "CUDA_VISIBLE_DEVICES": "-1", "TF_CPP_MIN_LOG_LEVEL": "3",
                    "PYTHONHASHSEED": "0", **self.env}
             env.pop("PYTHONPATH", None)

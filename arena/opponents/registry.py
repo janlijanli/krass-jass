@@ -45,8 +45,20 @@ OPPONENTS: dict[str, dict] = {
     "xxtime": dict(python=TF, repo=f"{EXT}/xXTime-OnXx-dl4g-jass-bot",
                    agent="mcts_ucb_dltrump:AgentDLTrumpUCBMCTSSchieber()"),
     # ISMCTS with heuristic rollouts, 5 s a move ("migrosoft_ismcts"); rule-based trump.
-    "tedmanners": dict(python=TF, repo=f"{EXT}/TedMANNERs-dl4g-jass-bot",
+    "tedmanners": dict(python=OLD, repo=f"{EXT}/TedMANNERs-dl4g-jass-bot",
                        agent="jass.agents.agent_monte_carlo:AgentMonteCarlo(5.0)"),
+    # DMCTS with jass-kit-cpp's simulator (jasscpp, built with CMake from
+    # github.com/thomas-koller/jass-kit-cpp into $OPPONENTS_DIR/jass-kit-cpp/build/source), worlds
+    # spread over cpu_count()+1 processes, each searched for cutoff_time s; Keras trump network v7.
+    # Served as dmcts5 = 400 worlds x 0.1 s (dmcts2 = 100 x 0.9 s).
+    "theoliver7": dict(python=OLD, repo=f"{EXT}/theoliver7-hslu-dl4g",
+                       path=(f"{EXT}/jass-kit-cpp/build/source",),
+                       agent="players.determinization_mcts_cpp_agent:DeterminizationCppMCTSAgent("
+                             f"determinizations=400, cutoff_time=0.1, model_location='{EXT}/theoliver7-models/v7')"),
+    # "DeAentlibuecher": 10 threads, each UCT on one dealt world for 9 s (Cython build of
+    # mcts_cythonized.pyx), visits summed; rule-based trump. The 2018 jass-kit 1.0 API.
+    "faikue": dict(python=OLD, repo=f"{EXT}/FAIKUE-DL4G/source", api="v1",
+                   agent="jass.player.mcts.mcts_player:MCTSPlayer()"),
 }
 
 

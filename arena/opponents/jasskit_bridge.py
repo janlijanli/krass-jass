@@ -38,6 +38,9 @@ def main() -> None:
     ap.add_argument("--path", nargs="*", default=[], help="extra sys.path entries, relative to --repo")
     ap.add_argument("--cwd", default="", help="working directory, relative to --repo (model paths)")
     ap.add_argument("--agent", required=True, help="module:expression, e.g. my_agent:MyAgent()")
+    ap.add_argument("--api", choices=("v2", "v1"), default="v2",
+                    help="v2: jass-kit 2.x GameObservation / action_trump / action_play_card; "
+                         "v1: the 2018 jass-kit 1.0 PlayerRound / select_trump / play_card")
     args = ap.parse_args()
 
     answers = os.fdopen(os.dup(1), "w", buffering=1)
@@ -48,20 +51,32 @@ def main() -> None:
         sys.path.insert(0, p)
 
     import numpy as np
-    from jass.game.game_observation import GameObservation
-    from jass.game.rule_schieber import RuleSchieber
 
-    rule = RuleSchieber()
+    if args.api == "v2":
+        from jass.game.game_observation import GameObservation as View
+        from jass.game.rule_schieber import RuleSchieber
+
+        rule = RuleSchieber()
+    else:
+        from jass.base.player_round import PlayerRound
+        from jass.base.rule_schieber import RuleSchieber
+
+        rule = RuleSchieber()
+
+        def View():  # noqa: N802 - stands in for the v2 class
+            return PlayerRound(jass_type="SCHIEBER_1000", rule=rule)
 
     module, _, expr = args.agent.partition(":")
     agent = eval(expr, vars(importlib.import_module(module)))
 
-    def observation(msg: dict) -> GameObservation:
-        obs = GameObservation()
+    def observation(msg: dict):
+        obs = View()
         obs.dealer = msg["dealer"]
         obs.player = obs.player_view = msg["player"]
         obs.trump = msg.get("trump", -1)
         obs.forehand = msg["forehand"]
+        if args.api == "v1":  # v1 spells the flag None (may shove) / False (shoved) / True
+            obs.forehand = {-1: None, 0: False, 1: True}[obs.forehand]
         obs.declared_trump = msg.get("declared_trump", -1)
         obs.hand[msg["hand"]] = 1
         first = msg.get("first", [])
@@ -75,7 +90,12 @@ def main() -> None:
         for i, (w, pts) in enumerate(zip(winners, points)):
             obs.trick_winner[i] = w
             obs.trick_points[i] = pts
-            obs.points[w % 2] += pts
+            if args.api == "v2":
+                obs.points[w % 2] += pts
+            elif w % 2 == 0:
+                obs.points_team_0 += pts
+            else:
+                obs.points_team_1 += pts
         obs.nr_tricks, obs.nr_cards_in_trick = divmod(obs.nr_played_cards, 4)
         obs.current_trick = obs.tricks[obs.nr_tricks] if obs.nr_played_cards < 36 else None
         return obs
@@ -85,15 +105,18 @@ def main() -> None:
         try:
             obs = observation(msg)
             if msg["kind"] == "trump":
-                out = {"trump": int(agent.action_trump(obs))}
+                choose = agent.action_trump if args.api == "v2" else agent.select_trump
+                out = {"trump": int(choose(obs))}
             else:
                 # The mapping check, on jass-kit's side of the line: its own legal cards, the seat
                 # it reconstructs as next to play, and its winner of every finished trick.
-                valid = [int(c) for c in np.flatnonzero(rule.get_valid_cards_from_obs(obs))]
+                legal = rule.get_valid_cards_from_obs(obs) if args.api == "v2" else obs.get_valid_cards()
+                valid = [int(c) for c in np.flatnonzero(legal)]
                 seat = (obs.trick_first_player[obs.nr_tricks] - obs.nr_cards_in_trick) % 4
                 winners = [int(rule.calc_winner(obs.tricks[i], obs.trick_first_player[i], obs.trump))
                            for i in range(obs.nr_tricks)]
-                out = {"card": int(agent.action_play_card(obs)), "valid": valid,
+                play = agent.action_play_card if args.api == "v2" else agent.play_card
+                out = {"card": int(play(obs)), "valid": valid,
                        "seat_ok": bool(seat == obs.player and winners == list(obs.trick_winner[:obs.nr_tricks]))}
         except Exception as e:  # report and carry on: the adapter falls back and logs it
             traceback.print_exc()
