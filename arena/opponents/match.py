@@ -48,19 +48,27 @@ CFGS = {"eval": EVAL, "house": HOUSE.variant(target_score=None), "suits": SUITS}
 class SuitsOnly(DmctsAgent):
     """Our bot, bidding only suit contracts: the best-scoring suit by our trump weights, shoving
     from forehand when that suit's score is under the shove threshold. Card play is unchanged.
-    Arena-only — this is the table's rule, not a change to how our bot plays."""
+    Arena-only — this is the table's rule, not a change to how our bot plays.
+
+    The fitted threshold is in multiplied points and was set against the best of six contracts, so
+    on this table it shoves far more than usual (81% of forehands against 53% under `EVAL`).
+    `shove_threshold` overrides it; -0.137 restores the 53% (fitted on seeds 7–8, 4,000 forehands)."""
+
+    shove_threshold: float | None = None
 
     def select_trump(self, hand: int, is_forehand: bool):
         w = load_weights(self.trump_weights or None)
         scores = score_all(hand, self.cfg, w)
         best = max((c for c in scores if c.is_trump), key=lambda c: (scores[c], -int(c)))
-        if is_forehand and scores[best] < w["shove_threshold"]["value"]:
+        threshold = w["shove_threshold"]["value"] if self.shove_threshold is None else self.shove_threshold
+        if is_forehand and scores[best] < threshold:
             return SHOVE
         return best
 
 
-def suits_only(agent: DmctsAgent) -> SuitsOnly:
-    return SuitsOnly(**{f.name: getattr(agent, f.name) for f in fields(agent) if f.init})
+def suits_only(agent: DmctsAgent, shove_threshold: float | None = None) -> SuitsOnly:
+    kw = {f.name: getattr(agent, f.name) for f in fields(agent) if f.init}
+    return SuitsOnly(**kw, shove_threshold=shove_threshold)
 EXT = Path(os.environ.get("KJ_EXT", "/home/user/ext"))
 SERVERS = Path(__file__).resolve().parent / "servers"
 LOG_DIR = ".runs/opponents"
@@ -233,6 +241,7 @@ def main() -> None:
     ap.add_argument("--out", type=Path)
     ap.add_argument("--report", type=Path, nargs="+")
     ap.add_argument("--diagnose", type=Path)
+    ap.add_argument("--suits-shove", type=float, help="--cfg suits only: our shove threshold")
     ap.add_argument("--replay", type=int, metavar="DEAL", help="print one deal trick by trick")
     args = ap.parse_args()
     if args.report:
@@ -247,9 +256,11 @@ def main() -> None:
     cfg = CFGS[args.cfg]
     ours = build(args.ours, args.iterations, cfg)  # 40 x 3,840 as served, unless told otherwise
     if args.cfg == "suits":
-        ours = suits_only(ours)
+        ours = suits_only(ours, args.suits_shove)
     theirs = opponent(args.opponent, cfg)
     tag = "-".join(args.ours) or "shipped"
+    if args.suits_shove is not None:
+        tag += f"-shove{args.suits_shove:g}"
     out = args.out or Path(f".runs/opp-{theirs.name}-{args.seed}-{tag}.jsonl")
     out.parent.mkdir(parents=True, exist_ok=True)
     before = count_events(LOG_DIR, theirs.name)
@@ -274,7 +285,8 @@ def main() -> None:
     print(f"{ours.name} vs {args.opponent}: {mean:.2%} ± {std:.2%}  n={len(shares)}  p={pv:.2e}  "
           f"(this run: {ev['calls']} calls, {ev['errors']} errors, {ev['illegal']} illegal)")
     record = {
-        "a": args.ours or ["shipped"], "b": [args.opponent], "deals": len(shares), "seed": args.seed,
+        "a": (args.ours or ["shipped"]) + ([f"suits_shove={args.suits_shove:g}"] if args.suits_shove is not None else []),
+        "b": [args.opponent], "deals": len(shares), "seed": args.seed,
         "iterations": ours.determinizations * ours.iterations, "cfg": args.cfg, "a_share": mean,
         "std": std, "p": pv, "se": std / len(shares) ** 0.5, "opponent_calls": ev["calls"],
         "opponent_errors": ev["errors"], "opponent_illegal": ev["illegal"],
