@@ -12,6 +12,13 @@ can be tuned and reviewed without touching code.
 points for *both* teams, so it multiplies your **edge**, not your score. Undenufe at ×4 with
 a mediocre hand is a bad idea, not a good one worth four times as much. Contracts are
 therefore compared on `(score - baseline) * multiplier`.
+
+**The shove threshold is in the same multiplied points**, and it was fitted on one table (the
+house multipliers, 1/1/2/2/3/4). On a table whose multipliers are smaller — every contract ×1, or
+chibre's suits with ♠×2 — every edge shrinks and the fixed threshold shoves three hands in four.
+`table_scale` puts the threshold in the table's own units: it scales with the table's mean
+multiplier, and is exactly 1 on the table it was fitted to. On by default since 2026-11-12 (owner,
+`docs/measurements.md` §5z); `scale=False` is the old fixed threshold, kept for measurement.
 """
 
 from __future__ import annotations
@@ -117,22 +124,42 @@ def score_all(hand: int, cfg: RulesConfig, weights: dict | None = None) -> dict[
     return {c: (score - baseline) * cfg.multiplier(c) for c, score in raw.items()}
 
 
+def table_scale(cfg: RulesConfig, weights: dict | None = None) -> float:
+    """The table's mean contract multiplier over the one the threshold was fitted on.
+
+    The shove threshold is a value in multiplied points: what forehand expects from shoving, in
+    the units the edges are in. Scaling every multiplier by k scales both, so the threshold has
+    to scale with the table; the mean multiplier is the simplest measure of the table that does.
+    """
+    w = weights or load_weights()
+    # Sums of integers, so the house table's scale is exactly 1.0 and nothing there changes.
+    return sum(cfg.multiplier(Contract(c)) for c in range(6)) / w["shove_threshold"]["fit_multiplier_sum"]
+
+
+def shove_threshold(cfg: RulesConfig, weights: dict | None = None, scale: bool = True) -> float:
+    w = weights or load_weights()
+    value = w["shove_threshold"]["value"]
+    return value * table_scale(cfg, w) if scale else value
+
+
 def select_trump(
     hand: int,
     is_forehand: bool,
     cfg: RulesConfig,
     weights: dict | None = None,
+    scale: bool = True,
 ) -> Contract | str:
     """Pick a contract, or `SHOVE`.
 
     Only forehand may shove, and only to a partner who must then choose — so this never
     returns `SHOVE` when `is_forehand` is false, or the bidding would not terminate.
+    `scale` (on by default) puts the shove threshold in the table's units (`table_scale`).
     """
     w = weights or load_weights()
     scores = score_all(hand, cfg, w)
     best = max(scores, key=lambda c: (scores[c], -int(c)))
 
-    if is_forehand and scores[best] < w["shove_threshold"]["value"]:
+    if is_forehand and scores[best] < shove_threshold(cfg, w, scale):
         return SHOVE
     return best
 

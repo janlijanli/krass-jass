@@ -320,6 +320,11 @@ class DmctsAgent(Agent):
     #: Measurement only — it lets the arena play two bidders against each other without
     #: editing the file both implementations read.
     trump_weights: str = ""
+    #: Put the shove threshold in the table's units (`krass_jass.trump.table_scale`). Identical on
+    #: the house table it was fitted to; on a flat or chibre table it stops forehand shoving three
+    #: hands in four. **On** since 2026-11-12 (owner, `docs/measurements.md` §5z); off is the old
+    #: fixed threshold, kept for measurement.
+    trump_scale: bool = True
     #: Weight on the belief network (`rust/src/beliefnet.rs`) in the same world pool. **0 — off.**
     #: Offline it adds ~0.03 oracle-equivalent on top of plays and bid at weight 1; in play that
     #: measured 50.15%, p = 0.24, over 2,000 deals (`docs/measurements.md` §5q).
@@ -336,10 +341,11 @@ class DmctsAgent(Agent):
     value_model: str = ""
 
     def select_trump(self, hand: int, is_forehand: bool) -> Contract | str:
-        if self.trump_weights and self.trump_policy != "random":
+        if (self.trump_weights or not self.trump_scale) and self.trump_policy != "random":
             from .trump import load_weights
 
-            return select_trump(hand, is_forehand, self.cfg, load_weights(self.trump_weights))
+            return select_trump(hand, is_forehand, self.cfg,
+                                load_weights(self.trump_weights or None), scale=self.trump_scale)
         return super().select_trump(hand, is_forehand)
 
     def _declarers_make(self, seat, hand, history, contract, declarer, bid, auction, seed) -> float:

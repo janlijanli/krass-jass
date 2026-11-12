@@ -1792,6 +1792,94 @@ has measured null (§5q, §5r): the inputs stay, at zero, in `play_policy_sister
 them differ, which is why the spread is half the usual. What the owner's table plays is a choice of
 style, and it costs nothing to make it.
 
+## 5z. Against a foreign bot: JassTheRipper, and do the reading gains survive it?
+
+*2026-11-12.* Every gain since §5o was measured against our own bot, and the play model the beliefs
+and the tree policy read the table through was fitted to it. Against a bot that plays differently,
+"reading the table" could have been only "recognising ourselves". JassTheRipper (Niklaus' DMCTS from
+the Fribourg/HSLU thesis, `runs-100000` = fixed budget at its HSLU-server strength, rule-based trump) is
+the first foreign opponent strong enough to ask. `arena/jass_the_ripper.py`, `EVAL`, 400 double deals on
+seed 1, all three arms on the same deals, so arm against arm is paired by deal.
+
+| our bot | share vs JassTheRipper | n |
+|---|---|---|
+| shipped (153,600, beliefs, tree policy) | **54.88% ± 10.51** | 400 |
+| beliefs off (`belief_alpha = bid_alpha = 0`) | 53.86% ± 10.99 | 400 |
+| tree policy off | 54.36% ± 11.35 | 400 |
+
+| paired, by deal | difference | p |
+|---|---|---|
+| shipped − beliefs off | **+1.02 ± 0.51** (se) | 0.047 |
+| shipped − tree policy off | +0.52 ± 0.47 (se) | 0.27 |
+
+**The reading gains are not self-recognition.** Weighting worlds by the other seats' plays and bid is
+worth +1.02 against a bot we never fitted to — the size §5o measured against ourselves (+1.3). The tree
+policy leans the same way as §5p's +0.86 and does not resolve at this n. Neither shrinks to nothing, so
+fitting the play model on a mix of self-play and foreign games is not needed for robustness.
+
+JassTheRipper's server is not thread-safe (calls serialised) and falls back to a random legal card in
+0.47% of its searches (149 of 31,787, an internal error); no card it played was illegal under our rules.
+The other 21 opponents are in `docs/opponents/README.md`; they all point at trump selection, not card
+play — §5aa.
+
+---
+
+## 5aa. Trump on foreign tables: the shove threshold, scaled to the table
+
+*2026-11-12. Branch `claude/trump-multipliers`. `DmctsAgent.trump_scale` — **on**, by the owner's decision
+the same day, in both implementations (the server bot and the offline build's `bot_bid`).*
+
+The selector compares `(edge − baseline) × multiplier` with a fixed shove threshold (3.022), and both
+are in multiplied points fitted on the house table (multipliers sum to 13). On a table with smaller
+multipliers every edge shrinks while the threshold stays put, so forehand shoves far too often:
+
+| Table (20,000 random deals) | forehand shoves | Obe/Une, all calls | forehand's calls | partner's calls |
+|---|---|---|---|---|
+| `EVAL`/`HOUSE` 1,2,1,2,3,4 | 51.5% | 51.5% | 57.4% | 46.0% |
+| flat, all ×1 (jass-mu-zero) | 73.2% | 44.8% | 32.4% | 49.4% |
+| chibre, suits only, ♠×2 (JassFormer) | 78.0% | — | — | — |
+| suits ×1 (PIMC) | 81.1% | — | — | — |
+
+**The change.** `threshold × (sum of the table's six multipliers) / 13`
+(`krass_jass.trump.table_scale`, `rust/src/trump.rs`, `fit_multiplier_sum` in the weights JSON). The
+scale is exactly 1.0 on the house table, so **nothing the owner plays changes**. Flat gets 1.395, chibre
+1.627. The weights are unchanged. Not a rules flag: it is not a variant, it is a units bug.
+
+**Offline** (`arena/trump_tables.py`: 16,000 deals, 2,000 hands from `arena/contracts.py`, every call
+priced and re-multiplied per table; points per declared round, ± clustered by hand):
+
+| Table | shipped | scaled | scaled − shipped | best single threshold − shipped (held out) | best − scaled |
+|---|---|---|---|---|---|
+| `EVAL` | 135.82 | 135.82 | 0 | −0.25 ± 0.49 (thr 3.70) | — |
+| flat | 57.48 (shove 71%) | 58.34 (51%) | **+0.86 ± 0.35** | +1.21 ± 0.40 (2.00) | +0.44 ± 0.33 |
+| chibre | 68.68 (78%) | 70.81 (68%) | **+2.13 ± 0.41** | +2.94 ± 0.81 (−0.10) | +0.70 ± 0.56 |
+| suits ×1 | 53.83 (80%) | 55.88 (68%) | **+2.06 ± 0.30** | +3.40 ± 0.60 (−0.10) | +1.34 ± 0.42 |
+
+The house threshold is still the best one on the house table. On suits-only tables the scaling
+undershoots: the best threshold there is ~0 (shove ~54%). Dropping Obenabe/Undenufe removes the two
+highest multipliers, so the mean over *allowed* contracts would be the next step, but it is still
+1.25/2.17 → 1.74, not 0. This is left for a refit, not patched.
+
+**In play** (`arena/opponents/bid_ab.py`, bid-only paired A/B, 153,600 iterations, double rounds,
+same seed. Card play does not read the selector, so deals whose bids agree differ by exactly 0 and only
+the differing ones are played):
+
+| Opponent, table | n | bids differ | A − B (share) | p |
+|---|---|---|---|---|
+| shipped bot, `EVAL` | — | 0 by construction | 0 | — |
+| JassFormer v2, chibre | 400 | 34 | **+0.38% ± 0.18** | **0.032** |
+| shipped bot, flat | 1,000 | 200 | +0.27% ± 0.19 | 0.15 |
+
+The flat result is the size the offline numbers predict (+0.86 per declared round ≈ +0.27% of a
+double round's points). jass-mu-zero (flat) could not be run in this session: its setup was refused by
+the sandbox. pyschieber and DonaldTrumpf were measured on `EVAL`, where the change is a no-op.
+
+**The shoved-to partner's Obenabe/Undenufe** (the summary's §3 lead). Against the partner's best suit
+on the same deals, the partner's no-trump calls are worth **+107.8 ± 4.6** on `EVAL` (n = 3,852) and
++9.7 ± 1.4 on flat. In self-play they are not overcalled, so there is nothing to A/B on that decision
+from these labels. The disasters in the opponent runs are a tail against foreign defenders, which this
+labelling, by our own bot, cannot see.
+
 ---
 
 ## 6. Open

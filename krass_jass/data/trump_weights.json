@@ -76,7 +76,9 @@
   },
   "shove_threshold": {
     "_comment": "Forehand shoves when the best available edge is below this. Shoving is valuable and PLAN.md §3.1 notes search-based selectors underperform largely because they never learn to do it.",
-    "value": 3.022
+    "value": 3.022,
+    "_comment_sum": "The threshold is in multiplied points, fitted on a table whose six multipliers sum to this (EVAL/HOUSE: 1+1+2+2+3+4). With table scaling on, another table's threshold is value * its multiplier sum / this, so a flat or chibre table shoves as often as the house table does (docs/measurements.md §5z).",
+    "fit_multiplier_sum": 13
   },
   "_fit": "Tuned by arena/fit_trump.py against 48000 simulated deals; held-out gain 34.83 +- 1.83 per round in multiplied point difference."
 }
