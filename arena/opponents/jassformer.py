@@ -431,7 +431,7 @@ class SuitsOnly(Agent):
         w = load_weights(getattr(self.inner, "trump_weights", "") or None)
         scores = score_all(hand, self.inner.cfg, w)
         best = max((Contract(s) for s in range(4)), key=lambda c: (scores[c], -int(c)))
-        threshold = shove_threshold(self.inner.cfg, w, getattr(self.inner, "trump_scale", False))
+        threshold = shove_threshold(self.inner.cfg, w, getattr(self.inner, "trump_scale", True))
         if is_forehand and scores[best] < threshold:
             return SHOVE
         return best

@@ -1794,7 +1794,8 @@ style, and it costs nothing to make it.
 
 ## 5z. Trump on foreign tables: the shove threshold, scaled to the table
 
-*2026-11-12. Branch `claude/trump-multipliers`, candidate `DmctsAgent.trump_scale` — **off**.*
+*2026-11-12. Branch `claude/trump-multipliers`. `DmctsAgent.trump_scale` — **on**, by the owner's decision
+the same day, in both implementations (the server bot and the offline build's `bot_bid`).*
 
 The selector compares `(edge − baseline) × multiplier` with a fixed shove threshold (3.022), and both
 are in multiplied points fitted on the house table (multipliers sum to 13). On a table with smaller

@@ -203,13 +203,13 @@ pub fn shove_threshold(rules: &Rules, scale: bool) -> f64 {
 }
 
 /// Pick a contract, or `SHOVE`. Never shoves off forehand, or the bidding would not
-/// terminate.
+/// terminate. The shove threshold is in the table's units (`table_scale`), as in Python.
 pub fn select_trump(hand: u64, is_forehand: bool, rules: &Rules) -> usize {
-    select_trump_scaled(hand, is_forehand, rules, false)
+    select_trump_scaled(hand, is_forehand, rules, true)
 }
 
-/// `select_trump`, with the shove threshold in the table's units when `scale` is on
-/// (`DmctsAgent.trump_scale`; off by default until measured).
+/// `select_trump`, with the shove threshold in the table's units when `scale` is on (the
+/// default since 2026-11-12, `DmctsAgent.trump_scale`); off is the old fixed threshold.
 pub fn select_trump_scaled(hand: u64, is_forehand: bool, rules: &Rules, scale: bool) -> usize {
     let scores = score_all(hand, rules);
     let mut best = 0usize;

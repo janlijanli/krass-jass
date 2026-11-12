@@ -17,8 +17,8 @@ therefore compared on `(score - baseline) * multiplier`.
 house multipliers, 1/1/2/2/3/4). On a table whose multipliers are smaller — every contract ×1, or
 chibre's suits with ♠×2 — every edge shrinks and the fixed threshold shoves three hands in four.
 `table_scale` puts the threshold in the table's own units: it scales with the table's mean
-multiplier, and is exactly 1 on the table it was fitted to. Off by default (`scale=False`), behind
-`DmctsAgent.trump_scale`, until it has been measured (`docs/measurements.md` §5z).
+multiplier, and is exactly 1 on the table it was fitted to. On by default since 2026-11-12 (owner,
+`docs/measurements.md` §5z); `scale=False` is the old fixed threshold, kept for measurement.
 """
 
 from __future__ import annotations
@@ -136,7 +136,7 @@ def table_scale(cfg: RulesConfig, weights: dict | None = None) -> float:
     return sum(cfg.multiplier(Contract(c)) for c in range(6)) / w["shove_threshold"]["fit_multiplier_sum"]
 
 
-def shove_threshold(cfg: RulesConfig, weights: dict | None = None, scale: bool = False) -> float:
+def shove_threshold(cfg: RulesConfig, weights: dict | None = None, scale: bool = True) -> float:
     w = weights or load_weights()
     value = w["shove_threshold"]["value"]
     return value * table_scale(cfg, w) if scale else value
@@ -147,13 +147,13 @@ def select_trump(
     is_forehand: bool,
     cfg: RulesConfig,
     weights: dict | None = None,
-    scale: bool = False,
+    scale: bool = True,
 ) -> Contract | str:
     """Pick a contract, or `SHOVE`.
 
     Only forehand may shove, and only to a partner who must then choose — so this never
     returns `SHOVE` when `is_forehand` is false, or the bidding would not terminate.
-    `scale` puts the shove threshold in the table's units (`table_scale`).
+    `scale` (on by default) puts the shove threshold in the table's units (`table_scale`).
     """
     w = weights or load_weights()
     scores = score_all(hand, cfg, w)
