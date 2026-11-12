@@ -10,6 +10,7 @@ side and this module stays the same for all of them:
         "declarer": s, "trick": [card, ...], "trick_leader": s,
         "tricks_played": [[leader, [c0, c1, c2, c3]], ...]}
     <- {"card": card}
+    <- {"error": "..."}   (either op: the server could not answer; logged, and we fall back)
 
 Cards are our indices, ``suit * 9 + rank`` with suits ``"DHSC"`` and ranks ``"AKQJT9876"``.
 Contracts are `Contract` values: 0-3 the trump suit, 4 Obenabe, 5 Undenufe. Seats are ours:
@@ -98,7 +99,10 @@ class BridgeAgent(Agent):
             line = proc.stdout.readline()
         if not line:
             raise RuntimeError(f"{self.name} server exited (code {proc.poll()})")
-        return json.loads(line)
+        reply = json.loads(line)
+        if "error" in reply:  # the server caught an exception of its own
+            raise RuntimeError(f"{self.name} server: {reply['error']}")
+        return reply
 
     def _log(self, kind: str, record: dict) -> None:
         Path(self.log_dir).mkdir(parents=True, exist_ok=True)
