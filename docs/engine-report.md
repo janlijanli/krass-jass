@@ -698,6 +698,18 @@ strength over speed, a few seconds a move is acceptable.
 
 ## 10. Open work, with the size of the question
 
+**Foreign bots, and the decision that followed (owner, 2026-11-12).** 22 other Jass bots — rule-based
+challenge entries, HSLU course bots, PPO/DQN, JassTheRipper, MuZero, a transformer — were seated at
+our table (`docs/opponents/README.md`). We beat all of them; the closest are JassFormer v2 on its own
+chibre table (50.88%) and MuZero flat (51.86%), card play alone ~52% against the best. The reading
+gains hold against a foreign bot (§5z), and the one systematic finding, the shove threshold on other
+multiplier tables, is fixed (§5aa). **The model is not adapted further on these results:** what is
+left is small (a per-table threshold refit, +0.4 to +1.3 a declared round offline) or would tune us to
+those particular bots rather than to people. **No recording of the owner's games either** (owner's
+decision). The open question that matters — strength against humans — therefore waits for external
+human game records (see below and `docs/opponents/summary.md`).
+
+
 | question | why it matters | what it takes |
 |---|---|---|
 | belief network at γ = 1 | offline +0.03, in play 50.15% (p = 0.24) | ~6,000 deals to resolve +0.2; not worth it unless the network improves |
@@ -705,7 +717,7 @@ strength over speed, a few seconds a move is acceptable.
 | no-trump share of the tuned selector | largest unexplained behaviour change | human games, or a stronger defensive bot to re-price contracts |
 | tree policy at equal time | +0.39 and +0.31 leans, neither significant (§5x) | ~3,000 more deals for a third of a point; decides the browser build |
 | why the ceiling does not narrow | 57.86% today, 57.35% before four gains (§5x) | partner play and the 8 points beliefs cannot reach — neural-plan D, or human data |
-| any measurement against people | the only strength that matters to a player | an instrumented app, not an arena |
+| any measurement against people | the only strength that matters to a player | external human game records (the owner decided against recording their own games, 2026-11-12) |
 | learning past the search | beliefs from learned models were the only learned gain | expert iteration on self-play, if a GPU is available |
 | more from convention self-play | one retrain on convention play was worth +0.45 (§5w); the corpus was 12,000 rounds | a larger corpus, or a model with more than 32 hidden units |
 

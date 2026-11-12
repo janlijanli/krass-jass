@@ -171,6 +171,10 @@ Do not design around an assumed answer to anything else here. Ask.
 - **Farbpaar** (`RulesConfig.discard_signal = "sister"`, menu switch) is the owner's discard
   convention: throw the sister suit of the one wanted, the suit itself when the sister is trump.
   Free against the weakest-suit discard (50.08%, p = 0.39); a play model refitted to it is null (§5y).
+- **Foreign bots are beaten, all 22** (`docs/opponents/README.md`); closest JassFormer 50.88% (chibre)
+  and MuZero 51.86% (flat). Beliefs hold against a foreign bot (+1.02 vs JassTheRipper, §5z). The owner
+  decided (2026-11-12): **no further model changes on these results, and no recording of their games** —
+  strength against humans waits for external human game records.
 - **The play model reads the conventions now** (§5w). Refitted to 12,000 rounds of self-play in which
   every seat plays them, it agrees with the search on 65.2% of decisions (61.4% before) and is worth
   **+0.45** of a round's share, replicated. Re-take it whenever how the bots play changes.

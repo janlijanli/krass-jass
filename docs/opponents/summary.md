@@ -170,3 +170,15 @@ It is not a separate weakness.
 **In one line:** the card play beats every bot we could run. The two near-misses come from bidding
 on tables our trump weights were not fitted to. Make the trump selector multiplier-aware, then
 re-measure JassFormer and MuZero.
+
+
+## Decision, 2026-11-12 (owner)
+
+- **The trump fix ships** (`trump_scale`, §5aa): free on the house table, +0.38 against JassFormer on
+  chibre (p = 0.032), +0.67 against MuZero flat (n = 100, n.s.), +0.27 flat self-play (n.s.).
+- **Item 3 is closed:** against JassTheRipper the beliefs are worth +1.02 (p = 0.047) and the tree policy
+  +0.52 (n.s.), the sizes measured against ourselves (§5z). No mixed self-play/foreign play model.
+- **The model is not adapted further on these results.** The remaining levers are small or would fit
+  us to these bots, not to people.
+- **The owner's games are not recorded.** Measuring against humans needs outside records, e.g. the
+  schieber.ch logs the FHNW project trained on, or the human games HSLU's DL4G course works with.
