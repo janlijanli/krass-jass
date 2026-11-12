@@ -36,7 +36,7 @@ from dataclasses import dataclass, fields  # noqa: E402
 
 from krass_jass.agent import DmctsAgent  # noqa: E402
 from krass_jass.rules import EVAL, HOUSE, SHOVE, Contract  # noqa: E402
-from krass_jass.trump import load_weights, score_all  # noqa: E402
+from krass_jass.trump import load_weights, score_all, shove_threshold  # noqa: E402
 
 #: `suits`: the table for an opponent whose engine knows suit trumps only (no Obenabe/Undenufe):
 #: EVAL with every contract x1, and our bidding restricted to the suits (`SuitsOnly`).
@@ -60,7 +60,8 @@ class SuitsOnly(DmctsAgent):
         w = load_weights(self.trump_weights or None)
         scores = score_all(hand, self.cfg, w)
         best = max((c for c in scores if c.is_trump), key=lambda c: (scores[c], -int(c)))
-        threshold = w["shove_threshold"]["value"] if self.shove_threshold is None else self.shove_threshold
+        threshold = (shove_threshold(self.cfg, w, self.trump_scale) if self.shove_threshold is None
+                     else self.shove_threshold)
         if is_forehand and scores[best] < threshold:
             return SHOVE
         return best

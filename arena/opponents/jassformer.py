@@ -62,7 +62,7 @@ from krass_jass.rules import EVAL, SHOVE, Contract, RulesConfig  # noqa: E402
 from krass_jass.state import RoundState  # noqa: E402
 from krass_jass.tables import STRENGTH  # noqa: E402
 from krass_jass.trick import trick_winner  # noqa: E402
-from krass_jass.trump import load_weights, score_all  # noqa: E402
+from krass_jass.trump import load_weights, score_all, shove_threshold  # noqa: E402
 
 MODEL_URL = "https://github.com/jberclaz/jass/releases/download/jassformer-v2/jassformer.onnx"
 MODEL_SHA256 = "032533d5296e4a607dc16522eea597bce10fa386343c5d63fa348729ad2e3de8"
@@ -431,7 +431,8 @@ class SuitsOnly(Agent):
         w = load_weights(getattr(self.inner, "trump_weights", "") or None)
         scores = score_all(hand, self.inner.cfg, w)
         best = max((Contract(s) for s in range(4)), key=lambda c: (scores[c], -int(c)))
-        if is_forehand and scores[best] < w["shove_threshold"]["value"]:
+        threshold = shove_threshold(self.inner.cfg, w, getattr(self.inner, "trump_scale", False))
+        if is_forehand and scores[best] < threshold:
             return SHOVE
         return best
 

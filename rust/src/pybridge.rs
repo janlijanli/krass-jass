@@ -995,10 +995,10 @@ fn rs_read_signals(history: Vec<(usize, usize)>, contract: usize) -> Vec<(i32, u
 
 /// Returns the contract index, or -1 for a shove.
 #[pyfunction]
-#[pyo3(signature = (hand, is_forehand, multipliers=None))]
-fn rs_select_trump(hand: u64, is_forehand: bool, multipliers: Option<Vec<i32>>) -> i64 {
+#[pyo3(signature = (hand, is_forehand, multipliers=None, scale=false))]
+fn rs_select_trump(hand: u64, is_forehand: bool, multipliers: Option<Vec<i32>>, scale: bool) -> i64 {
     let rules = build_rules(multipliers, true, false, true, true, true, 5, 100, true, true, None);
-    let action = select_trump(hand, is_forehand, &rules);
+    let action = crate::trump::select_trump_scaled(hand, is_forehand, &rules, scale);
     if action == SHOVE {
         -1
     } else {

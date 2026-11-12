@@ -125,3 +125,36 @@ def test_random_trump_policy_actually_differs_from_the_rules():
         if rules.select_trump(hand, False) != rand.select_trump(hand, False):
             disagreements += 1
     assert disagreements > 100
+
+
+def test_table_scale_is_exactly_one_on_the_house_table():
+    """The scaled shove threshold must not change a single call on the table it was fitted to."""
+    from krass_jass.rules import EVAL, HOUSE
+    from krass_jass.trump import table_scale
+
+    assert table_scale(HOUSE) == 1.0
+    assert table_scale(EVAL) == 1.0
+
+
+def test_table_scale_restores_the_shove_rate_on_a_flat_table():
+    """With every contract x1 the fixed threshold shoves about three hands in four; scaled, the
+    flat table shoves about as often as the house table does."""
+    import random
+
+    from krass_jass.rules import HOUSE, Contract
+    from krass_jass.trump import select_trump
+
+    flat = HOUSE.variant(multipliers={c: 1 for c in Contract})
+    rng = random.Random(5)
+    hands = []
+    for _ in range(2000):
+        deck = list(range(36))
+        rng.shuffle(deck)
+        hands.append(sum(1 << c for c in deck[:9]))
+
+    def rate(cfg, scale):
+        return sum(select_trump(h, True, cfg, scale=scale) == SHOVE for h in hands) / len(hands)
+
+    house, fixed, scaled = rate(HOUSE, False), rate(flat, False), rate(flat, True)
+    assert fixed > house + 0.1
+    assert abs(scaled - house) < 0.1, (house, fixed, scaled)

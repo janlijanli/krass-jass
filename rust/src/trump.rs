@@ -31,6 +31,8 @@ pub struct Weights {
     pub top_run_per_card: f64,
     pub baseline: f64,
     pub shove_threshold: f64,
+    /// The sum of the six multipliers of the table the threshold was fitted on.
+    pub fit_multiplier_sum: f64,
 }
 
 const RANK_KEYS: [&str; NUM_RANKS] = ["A", "K", "Q", "J", "T", "9", "8", "7", "6"];
@@ -88,6 +90,11 @@ pub fn weights() -> &'static Weights {
             baseline: number_after(find_object(text, "baseline"), "value").unwrap_or(0.0),
             shove_threshold: number_after(find_object(text, "shove_threshold"), "value")
                 .unwrap_or(0.0),
+            fit_multiplier_sum: number_after(
+                find_object(text, "shove_threshold"),
+                "fit_multiplier_sum",
+            )
+            .unwrap_or(13.0),
         }
     })
 }
@@ -177,9 +184,33 @@ pub fn score_all(hand: u64, rules: &Rules) -> [f64; NUM_CONTRACTS] {
     out
 }
 
+/// The table's mean contract multiplier over the one the shove threshold was fitted on. Twin of
+/// `krass_jass.trump.table_scale`: the threshold is in multiplied points, so it scales with the
+/// table, and this is exactly 1 on the house table.
+pub fn table_scale(rules: &Rules) -> f64 {
+    // Sums of integers, so the house table's scale is exactly 1.0 and nothing there changes.
+    rules.multipliers.iter().map(|&m| m as f64).sum::<f64>() / weights().fit_multiplier_sum
+}
+
+/// The shove threshold, in the table's units when `scale` is on.
+pub fn shove_threshold(rules: &Rules, scale: bool) -> f64 {
+    let value = weights().shove_threshold;
+    if scale {
+        value * table_scale(rules)
+    } else {
+        value
+    }
+}
+
 /// Pick a contract, or `SHOVE`. Never shoves off forehand, or the bidding would not
 /// terminate.
 pub fn select_trump(hand: u64, is_forehand: bool, rules: &Rules) -> usize {
+    select_trump_scaled(hand, is_forehand, rules, false)
+}
+
+/// `select_trump`, with the shove threshold in the table's units when `scale` is on
+/// (`DmctsAgent.trump_scale`; off by default until measured).
+pub fn select_trump_scaled(hand: u64, is_forehand: bool, rules: &Rules, scale: bool) -> usize {
     let scores = score_all(hand, rules);
     let mut best = 0usize;
     for contract in 1..NUM_CONTRACTS {
@@ -188,7 +219,7 @@ pub fn select_trump(hand: u64, is_forehand: bool, rules: &Rules) -> usize {
             best = contract;
         }
     }
-    if is_forehand && scores[best] < weights().shove_threshold {
+    if is_forehand && scores[best] < shove_threshold(rules, scale) {
         return SHOVE;
     }
     best
