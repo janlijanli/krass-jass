@@ -54,7 +54,8 @@ into tricks it cannot win.
 
 Every move the bridge also returns jass-kit's own legal set, the seat it reconstructs as next to
 play, and its winner of every finished trick; all three agreed with our engine on every move except
-two legal sets. Both are the undertrump: jass-kit (all versions used here) allows undertrumping a
+two legal sets. Both are the undertrump: jass-kit (its vendored 2020 copy here, and pip's 2.0.5 in the Mcapozzolo
+and RubenNunez runs) allows undertrumping a
 trick when the player could follow suit or discard instead; our engine applies the strict rule
 (`strict_undertrump`, `docs/rules-config.md`). One of those two moves the bot actually played,
 which is the one illegal card above.

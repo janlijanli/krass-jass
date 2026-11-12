@@ -1,6 +1,8 @@
 # RubenNunez/deep-jass — "agent_final": random rollouts without a deal
 
-**Result: see the Numbers section (filled in when the run finishes).**
+**Result: our bot takes 67.1% ± 12.3% of the points (n = 100 deals, p < 1e-15) — but 813 of its
+~3,600 card plays (23%) crashed inside its own code and were played by our fallback.** Not a
+faithful measurement of what its authors intended; it is what the repository does.
 
 - Source: github.com/RubenNunez/deep-jass @ `0507e6c` (2021-12-15).
 - Licence: **none**: all rights reserved. Run locally as an opponent only.
@@ -27,6 +29,23 @@
     # venv: $OPPONENTS_DIR/venvs/old (Python 3.11, numpy 1.23.5, scikit-learn 1.2.2, matplotlib)
     python -m arena.opponents.run --opponent rubennunez --deals 100 --seed 1 --workers 3
 
+Our bot `build([], 153_600, EVAL)`, `EVAL` rules, double rounds, same seed both halves, paired
+test. 21 minutes on 3 workers.
+
 ## Numbers
 
-(pending)
+| | |
+|---|---|
+| our share | **67.14%** ± 12.28% (std), se 1.23% |
+| deals | 100 |
+| p | < 1e-15 |
+| fallbacks (its own exceptions) | 813 of ~3,600 card plays, ~23% |
+| illegal cards | 0 |
+| mapping mismatches | 1 — the undertrump rules difference (see `sobrinth.md`) |
+
+| | rounds | our share |
+|---|---:|---:|
+| we declare | 100 | 78.4% |
+| they declare | 100 | 55.6% |
+
+It never shoved (0 of 100) and called Obenabe/Undenufe in half its contracts (49 of 100).
