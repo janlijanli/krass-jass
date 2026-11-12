@@ -2,7 +2,8 @@
 
 **casualT: our bot takes 59.7% ± 11.3% of the points (n = 100 deals, p < 1e-15).** No illegal
 cards, no fallbacks; two mapping mismatches, both the undertrump rules difference.
-**specialT:** see below.
+**specialT: our bot takes 59.1% ± 10.5% (n = 100, p < 1e-15)**; one undertrump, logged and
+replaced by our fallback card.
 
 - Source: github.com/Nolonar/HSLU_JassBot @ `6415b43` (2021-11-18).
 - Licence: **none**: all rights reserved. Run locally as an opponent only.
@@ -59,3 +60,26 @@ Why we still win by ~10 points: our contracts (74%), where its card play has to 
 
 Worst deal (58, 23.6%): our shoved partner calls Undenufe x4 and loses 124:504. This is the same
 hand as our worst deal against Rico and Mcapozzolo (`dl4g-group-b.md`).
+
+## specialT
+
+21 minutes on 3 workers; it spends 1.1 s a half.
+
+| | |
+|---|---|
+| our share | **59.12%** ± 10.46% (std), se 1.05% |
+| deals | 100 |
+| p | < 1e-15 |
+| fallbacks | 0 |
+| illegal cards | 1 — an undertrump (Spades trump, it played the 8 under the King while able to discard); our fallback played |
+| mapping mismatches | 1 — the same move |
+
+| | rounds | our share |
+|---|---:|---:|
+| we declare | 100 | 74.1% |
+| they declare | 100 | 41.9% |
+
+**The play network is as strong as the 9 s search** (59.1% against 59.7%, and the trump calls are
+identical: same model, same deals). It makes the same point twice: what keeps Nolonar ahead of
+the rest of the group is its trump choice, not its card play. Our contracts come out the same
+against both (74%).

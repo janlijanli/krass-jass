@@ -16,7 +16,7 @@ of theirs is imported by our code. Our bot is the shipped one (`build([], 153_60
 | [TedMANNERs](tedmanners.md) | ISMCTS, rule-based rollouts, 5 s | GPL-3.0 | yes | **70.1%** ± 11.6 | 100 | < 1e-15 |
 | [xXTime-OnXx](xxtime.md) | heuristics + one-world flat MC, 9.5 s | none | yes | **65.7%** ± 11.6 | 100 | < 1e-15 |
 | [Nolonar casualT](nolonar.md) | flat MC 9 s, illegal rollouts; logistic-regression trump | none | yes | **59.7%** ± 11.3 | 100 | < 1e-15 |
-| [Nolonar specialT](nolonar.md) | play network; logistic-regression trump | none | running | — | | |
+| [Nolonar specialT](nolonar.md) | play network; logistic-regression trump | none | yes | **59.1%** ± 10.5 | 100 | < 1e-15 |
 
 Ranked by what they are, strongest-looking first: theoliver7 (real DMCTS with a fast kernel),
 TedMANNERs (true ISMCTS, heuristic rollouts), FAIKUE (DMCTS but inconsistent worlds), then the
