@@ -10,8 +10,8 @@
   touches onto the current kit: `hand`, `tricks`, `current_trick`, `trick_first_player`,
   `nr_tricks`, `trump`, `player`, `forehand` (None until declared), `rule`, `get_valid_cards()`.
   Venv: `venvs/kit` (numpy only) plus the jass-kit-py checkout.
-- **Status: not measured.** The session's permission classifier refused to execute the opponent
-  code (see `README.md`).
+- **Status: measured, 2026-11-12.** Our bot wins clearly: **65.6% ± 12.1%, n = 100, p < 1e-15**.
+  The shim held: 0 errors, 0 illegal cards.
 
 ## What it plays
 
@@ -37,4 +37,21 @@ python -m arena.opponents.jasskit --report .runs/opp-kurtoid-1-shipped.jsonl
 
 ## Numbers
 
-None yet.
+`--deals 100 --start 2 --workers 4`, our shipped bot (40 x 3,840), `EVAL` rules, double rounds on the
+same seed:
+
+| | |
+|---|---|
+| our share of points (multiplied) | **65.61% ± 12.14%**, n = 100, paired p < 1e-15 |
+| our share of raw card points | 62.52% |
+| our share when we declare / they declare | 77.2% / 48.6% |
+| their declarations under 79 raw | 43 of 100 |
+| their shoves from forehand | 65 of 100 (ours: 61) |
+| opponent errors / fallbacks, illegal cards | 0, 0 |
+| time | 15 min |
+
+**Diagnosis.** A floor, as expected: a single random completion per card is close to greedy. Its
+Bockchain trump rule is not bad: it shoves about as often as we do, and its Spades/Hearts/Obenabe calls
+make 80-92 raw. Its Clubs and Diamonds fail most (13 of 19, 15 of 26). Defending, it lets us take 117
+raw, so the card play is where it loses. Our worst deal is again a shoved Undenufe at x4 (deal 58, the
+same hand as in `jass-bot.md`).

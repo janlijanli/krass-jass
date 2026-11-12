@@ -7,8 +7,7 @@
   no weights. It needs CMake >= 3.30 (PyPI `cmake`) and cpp-httplib v0.57.1 and nlohmann/json v3.12.0,
   cloned at those tags because the proxy blocks the tarball host. The build changes nothing in their
   source; only the copy's CMake standard line differs, to let the flag through.
-- **Status: not built, not measured.** The session's permission classifier refused to compile it
-  (see `README.md`).
+- **Status: measured, 2026-11-12.** Our bot wins clearly: **65.5% ± 12.0%, n = 200, p < 1e-15**.
 
 ## What it plays
 
@@ -51,4 +50,29 @@ so a seat-mapping error would surface as errors, not as quiet misplay.
 
 ## Numbers
 
-None yet.
+`--deals 200 --start 2 --workers 4`, our shipped bot (40 x 3,840), `EVAL` rules, double rounds on the
+same seed:
+
+| | |
+|---|---|
+| our share of points (multiplied) | **65.47% ± 12.00%**, n = 200, paired p < 1e-15 |
+| our share of raw card points | 62.56% |
+| our share when we declare / they declare | 76.3% / 49.6% |
+| their declarations under 79 raw | 101 of 200 |
+| opponent errors / fallbacks, illegal cards | 0, 0 (its own legality check holds) |
+| time | 32 min |
+
+200 deals rather than 400: the margin is 18 standard errors, and a larger n would only narrow it.
+
+**Diagnosis.** It loses both ways, as a no-lookahead bot should:
+
+- **Card play.** Defending our contracts it lets us take 115.9 raw points on average (dl4g allows
+  110.6, jassager 108.4). It plays one ply, with no picture of the other hands beyond the cards already played.
+- **Trump choice.** Half its declarations make under 79: Diamonds 34 of 51, Clubs 24 of 44. It
+  shoves from forehand in 31% of rounds (we shove in 56%). **It almost never plays Obenabe or
+  Undenufe**: 0 and 4 calls in 200 rounds, against 46 and 56 of ours. Read from the code, not measured: its high-card table for them
+  probably rarely beats the trump table's `2*len*(len-1)` length bonus. The four Undenufe it did call made 112
+  raw on average.
+- Our worst deals are our own shoved Undenufe/Obenabe going down at x4/x3 (deals 58, 9, 36), the same
+  thin-Obe/Une pattern noted in `dl4g_hslu.md`. Deal 9: shoved to, we called Obenabe and took 0 of
+  471.
