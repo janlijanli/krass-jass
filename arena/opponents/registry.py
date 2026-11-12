@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 
-from arena.opponents.jasskit import JassKitBot
+from arena.opponents.jasskit_b import JassKitBot
 
 EXT = os.environ.get("OPPONENTS_DIR", "/home/user/ext")
 LIGHT = f"{EXT}/venvs/light/bin/python"  # 3.12: numpy, jass-kit 2.0.5, scikit-learn, onnxruntime

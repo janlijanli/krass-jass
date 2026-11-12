@@ -1,7 +1,7 @@
 # HSLU DL4G student bots, group B — summary
 
 Nine repositories from HSLU's "Deep Learning for Games" module, all built on Thomas Koller's
-jass-kit (GPL-3.0). Each runs in its own venv behind `arena/opponents/jasskit_bridge.py`; nothing
+jass-kit (GPL-3.0). Each runs in its own venv behind `arena/opponents/jasskit_bridge_b.py`; nothing
 of theirs is imported by our code. Our bot is the shipped one (`build([], 153_600, EVAL)`);
 `EVAL` rules, double rounds, same seed for both halves, paired test, seed 1.
 

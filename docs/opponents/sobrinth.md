@@ -4,7 +4,7 @@
 
 - Source: github.com/sobrinth/dl4g-bot @ `011f0c5` (2020-10-09).
 - Licence: **GPL-3.0** (the repository is a fork of jass-kit-py, plus `dominik/`). Run in its own
-  venv through `arena/opponents/jasskit_bridge.py`; nothing of it is imported by our code.
+  venv through `arena/opponents/jasskit_bridge_b.py`; nothing of it is imported by our code.
 - Weights: none needed.
 
 ## What it plays (`dominik/jass4fun_agent.py`, `Jass4FunAgent`)

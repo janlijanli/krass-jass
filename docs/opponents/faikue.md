@@ -24,7 +24,7 @@ session's permission classifier before that was attempted.
 
 ## How to run it (not done here)
 
-A `PlayerRound`-based twin of `arena/opponents/jasskit_bridge.py` (fields `dealer, player, trump,
+A `PlayerRound`-based twin of `arena/opponents/jasskit_bridge_b.py` (fields `dealer, player, trump,
 forehand, declared_trump, hand, tricks, trick_first_player, trick_winner, nr_played_cards, ...`
 in `jass/base/player_round.py`), `cython` to build the `.pyx`, Python 3.11 + `numpy<1.24`
 (`np.int`). At 9 s a move it is ~5 min of its own time a deal per worker: 100 deals is ~2.5 h on
