@@ -171,3 +171,90 @@ high either way, which is the bidder's problem (step 4), not the double's.
 
 Compute on this Mac: step 4's data is roughly one night (≈20k hands × six contracts × a few
 completions at a reduced budget); each A/B is ≈2.5 h; step 6's recording ≈2 h.
+
+## A second bidding style: «Gspürsch mi, füehlsch mi» (owner, 2026-11-12)
+
+Asked for by the owner: bots that do not announce card counts by the bid's height, but feel their
+way towards each other over several rounds of bidding, with parity in a minor part. The counting
+language above stays the default and is called **«Aggressiv»** in the menu (`"count"`); this one is
+`"feel"`. The owner's decisions on the draft: the player's own bids are read in the partner's
+style; parity stays, weakly; open gently — low bids, never straight to the maximum; a step of 20 or
+more says much stronger; doubling and the knock are unchanged; «Aggressiv» stays the default.
+
+**The language.** In the counting language the *height* carries the message, so one bid says it
+all. Here a bid is normally **the cheapest step** (the standing bid + 10) and the message is
+**which contract, and how often**. The height is what the partnership has said together.
+
+| call | means |
+|---|---|
+| first bid in a contract | "my best game" — strength 3 or more in it, and three trumps |
+| raising the partner's contract | "it fits" — the Bauer, the Nell or three trumps (an ace / a six for Obenabe / Undenufe), strength 2 or more |
+| a new contract over the partner's | "not yours — but here I have something" |
+| the same contract again | "more than I said": one more point of strength per bid |
+| a step of 20 or more | much stronger: two points more than the plain step would say |
+| pass | "I have said everything" — never a refusal, a seat may come back in |
+
+*Strength* in a contract: Bauer 2, Nell 1, trump ace 1, every trump from the fourth 1, every side
+ace 1; Obenabe an ace 1, a king beside its ace 1; Undenufe the mirror image. A seat bids a contract
+only while its strength covers what its bids there would then have said — that is what stops two
+partners bidding each other up — and never above the lid, **30 + 10 × (its own strength + what the
+partner has shown in the contract)**. With the partner in a contract that fits and nothing left to
+say, it passes; without a fit it names its own best game.
+
+**Parity, a hint only.** A seat jumping into a trump suit it has not named has two jumps to choose
+from, +20 and +30: with the Bauer it takes the odd one. Nothing else is said by odd or even.
+
+Unchanged from the counting style: never outbid the opponents in a contract they named; 157 and
+257 are outside the language; doubling (the estimate below 0.25) and the knock (off).
+
+The numbers are starting values, not fitted: `krass_jass/data/sidi_feel.json`, read by
+`sidi_bidding.py` and compiled into `sidi_bidding.rs`. Edit the JSON, not either copy.
+
+**Where it lives.** A style belongs to a team, not to the round's rules, and it is not an agent
+setting either: `RulesConfig.sidi_bid_styles`, one entry a seat, is what the *table* plays. It is
+public — a pair says what it plays — and holds no card, so it travels with the auction: in
+`Observation.bid_styles`, as the `styles` argument of `sidi_call` / `sidi_knock`, in the bot
+service's requests, and in the first record of the event log when any seat is not counting. A bot
+bids by its own seat's entry and reads **each bid in its bidder's style** (`rust/src/sidi_read.rs`,
+`Bid::style`); the doubling estimate inherits that. The menu sets the partner's team (the player's
+seat with it) and the opponents.
+
+**Reading it** (weights on worlds, never filters). A felt bid is a floor, not a count: what the
+seat's bids in the contract have said so far is the least it holds there — 0.7 a point short for a
+first bid or a jump, 0.2 for a repeat; a raise without the fit card costs 1.0; fewer than three
+trumps in a suit named as one's own 0.7 a card; the parity hint 0.5 (the counting style: 2.0). The
+height itself says nothing, the opponents push it as much as the bidder. A pass is not read yet —
+`sidi_auction` carries bids only.
+
+**Two implementations.** `tests/test_sidi_bidding.py` holds Python and Rust to the same call over
+random auctions in both styles and at tables where the teams differ; the reader and the event log
+are covered there too. `wasm_api.rs` takes the styles as a bitmask in `game_new`, so the offline
+build seats the same bots.
+
+**Profile** (3,000 auctions, bidders only, no play):
+
+| table | declaring side bids twice or more | median bid | who declares |
+|---|---|---|---|
+| all «Aggressiv» | 59% | 90–100 | each team half |
+| all «Gspürsch mi» | 80% | 70 | each team half |
+| «Gspürsch mi» against «Aggressiv» | — | 80 / 90 | **«Aggressiv» 87%** |
+
+The first two rows are what was asked for. The third follows from it: a team that feels its way is
+outbid by one that names its number at once, so at a mixed table it rarely declares, and declaring
+is worth points. **That deficit is intended** (owner, 2026-11-12) — the style is the gentler
+opponent or partner to choose, not a stronger bidder. Do not tune it away. Not measured in points
+yet.
+
+**Measuring** (`arena/sidi_ab.py --style-a / --style-b / --told-a / --told-b`; 1,000 double hands,
+38,400 iterations, paired on points written). Predictions written before any run — the first was
+made before the profile above and is already doubtful:
+
+| run | prediction |
+|---|---|
+| feel vs count, each read correctly | −10 a hand for feel (−25 to +5). After the profile: expect clearly worse, the counting team declares 87% of hands. A loss here is intended, the run only says how large |
+| at a feel table, `sidi_alpha` 1 vs 0 | +10 to +15: less than the +32, the claims are softer |
+| feel bidders read as if they counted (`--told-a count`), vs read correctly | a loss of 5 or more — the price of misreading a style, and the nearest thing to a human who bids freely |
+
+`sidi_double_below` was tuned against counting bidders and is re-taken at a feel table. **None of
+these has been run.** Three runs started on 2026-11-12 were stopped before any finished; the owner
+decided not to restart them (2026-11-13).

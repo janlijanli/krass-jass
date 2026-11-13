@@ -37,6 +37,9 @@ EXPECTED_FIELDS = {
     "auction",
     "bid_value",
     "doubled",
+    # The bidding style each seat speaks ("count" / "feel"). A pair says what it plays, so it
+    # is public, and it is four words — never a card.
+    "bid_styles",
     # Coiffeur's extra rows: the contract each trick is played in. The chooser named the game
     # aloud, so it is public, and it is nine contracts — never a card.
     "schedule",

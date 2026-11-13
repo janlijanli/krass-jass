@@ -308,6 +308,21 @@ def test_sidi_games_produce_identical_event_streams(seed):
     assert {"thrown_in", "double_answered", "round_scored", "game_over"} <= kinds
 
 
+def test_the_bidding_styles_open_both_event_streams_alike():
+    """`sidi_bid_styles` is public table setup: both engines say it in their first event when a
+    seat is not counting, and say nothing when every seat is."""
+    from krass_jass.rules import SIDI
+
+    styles = ("feel", "count", "feel", "count")
+    py = Game(cfg=SIDI.variant(sidi_bid_styles=styles), seed=5)
+    rs = core.RsGame(5, target_score=2000, sidi=True, sidi_bid_styles=[1, 0, 1, 0])
+    first_py, first_rs = py_events(py)[0], rs_events(rs)[0]
+    assert first_py == first_rs
+    assert list(styles) in first_py.values() or list(styles) in first_py.get("payload", {}).values()
+    plain = rs_events(core.RsGame(5, target_score=2000, sidi=True))[0]
+    assert "bid_styles" not in str(plain)
+
+
 # --- Coiffeur ---------------------------------------------------------------
 
 

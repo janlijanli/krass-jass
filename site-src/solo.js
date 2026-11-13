@@ -45,6 +45,10 @@ const settings = () => {
     mode: ["schieber", "coiffeur"].includes(mode) ? mode : "sidi",
     // The Coiffeur's extra rows, the ones ticked.
     rows: [...form.querySelectorAll('input[name="coiffeur_rows"]:checked')].map((i) => i.value),
+    // Sidi: the bidding style of the partner's team (the player's seat with it) and of the
+    // opponents, by seat — the player sits at 0.
+    bidStyles: [0, 1, 2, 3].map((seat) =>
+      value(seat % 2 === 0 ? "bid_partner" : "bid_opponents") === "feel" ? "feel" : "count"),
     target: Number(value("target") || 1000),
     weis: value("weis") !== "off",
     // The table's discard convention, every mode.
@@ -115,6 +119,15 @@ function resume() {
   }
   if (handle !== null) engine.free(handle);
   handle = restored;
+  // The menu shows the bidding styles the resumed game is played in.
+  const styles = saved.settings?.bidStyles;
+  if (Array.isArray(styles)) {
+    const form = document.getElementById("mode-settings");
+    for (const [name, seat] of [["bid_partner", 2], ["bid_opponents", 1]]) {
+      const input = form?.querySelector(`input[name="${name}"][value="${styles[seat]}"]`);
+      if (input) input.checked = true;
+    }
+  }
   acked = saved.acked ?? 0;
   knockDeclined = saved.knockDeclined ?? null;
   botsKnockedKey = saved.botsKnockedKey ?? null;

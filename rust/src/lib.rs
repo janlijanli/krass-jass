@@ -207,7 +207,7 @@ fn play_out_many(
     rollout_temperature=0.0, tree_policy=false, policy_temperature=1.0, belief_gamma=0.0, known=None, play_model_json=None,
     value_net=false, value_model_json=None,
     sidi_bid=0, sidi_declarers=0, sidi_doubled=false, sidi_auction=None, sidi_alpha=0.0,
-    schedule=None, misere=false, misere_declarers=-1, discard_sister=false
+    schedule=None, misere=false, misere_declarers=-1, discard_sister=false, sidi_styles=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dmcts(
@@ -286,6 +286,8 @@ fn dmcts(
     // The table discards by the colour pair (`convention.rs`): the play model fitted to that,
     // reading what each seat's partner asked for.
     discard_sister: bool,
+    // Sidi: the bidding style of each seat, for reading its bids (`sidi_read.rs`).
+    sidi_styles: Option<Vec<u8>>,
 ) -> PyResult<Vec<(usize, u64, f64, u32)>> {
     if hand & unseen != 0 {
         return Err(PyValueError::new_err("hand and unseen must be disjoint"));
@@ -395,11 +397,9 @@ fn dmcts(
             value_net,
             value_model: value_model_json
                 .map(|t| std::sync::Arc::new(crate::valuenet::ValueNet::from_json(&t))),
-            sidi_auction: sidi_auction
-                .unwrap_or_default()
-                .into_iter()
-                .map(|(seat, contract, value)| crate::sidi_read::Bid { seat: seat & 3, contract, value })
-                .collect(),
+            sidi_auction: crate::sidi_read::bids_from(
+                sidi_auction.unwrap_or_default(), sidi_styles.as_deref(),
+            ),
             sidi_alpha,
             sister: false,
             asked: [-1; NUM_SEATS],

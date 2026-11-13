@@ -473,3 +473,20 @@ def test_the_discard_convention_is_a_table_setting_in_every_mode():
         assert build_config({"mode": mode}).discard_signal == "weakest"
         assert build_config({"mode": mode, "discard": "sister"}).discard_signal == "sister"
     assert build_config({"discard": "anything"}).discard_signal == "weakest", "clamped, not trusted"
+
+
+def test_the_menu_sets_the_sidi_bidding_style_of_each_team():
+    """Owner, 2026-11-12: one choice for the partner, one for the opponents; «Aggressiv»
+    ("count") unless chosen, and the player's own seat is read in the partner's style."""
+    from web.app import build_config
+
+    assert build_config({"mode": "sidi"}).sidi_bid_styles == ("count",) * 4
+    cfg = build_config({"mode": "sidi", "bid_partner": "feel"})
+    assert cfg.sidi_bid_styles == ("feel", "count", "feel", "count")
+    cfg = build_config({"mode": "sidi", "bid_opponents": "feel", "bid_partner": "nonsense"})
+    assert cfg.sidi_bid_styles == ("count", "feel", "count", "feel")
+    # The player's seat decides which seats are "partner": seated at 1, the partner is 3.
+    cfg = build_config({"mode": "sidi", "bid_partner": "feel"}, human_seat=1)
+    assert cfg.sidi_bid_styles == ("count", "feel", "count", "feel")
+    # Not a Sidi setting anywhere else.
+    assert build_config({"mode": "schieber", "bid_partner": "feel"}).sidi_bid_styles == ("count",) * 4

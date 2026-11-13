@@ -88,6 +88,7 @@ def dmcts(
     sidi_doubled: bool = False,
     sidi_auction: list[tuple[int, int, int]] | None = None,
     sidi_alpha: float = 0.0,
+    sidi_styles: list[int] | None = None,
     schedule: list[int] | None = None,
     misere: bool = False,
     misere_declarers: int = -1,
@@ -137,6 +138,9 @@ def dmcts(
             sidi_bid=sidi_bid, sidi_declarers=sidi_declarers, sidi_doubled=sidi_doubled,
             sidi_auction=sidi_auction or [], sidi_alpha=sidi_alpha,
         )
+        if sidi_styles:
+            # Each seat's bidding style, so every bid is read in its bidder's language.
+            extra["sidi_styles"] = sidi_styles
     return _core.dmcts(
         seat=seat,
         hand=hand,
@@ -206,6 +210,7 @@ def sidi_make_probability(
     samples: int = 400,
     alpha: float = 1.0,
     seed: int = 0,
+    styles: tuple = (),
 ) -> tuple[float, float]:
     """Sidi: `(P(the declarers reach the bid), their expected points)` from `seat`'s view.
 
@@ -213,9 +218,12 @@ def sidi_make_probability(
     out with the play model. See `rust/src/sidi_estimate.rs`.
     """
     require()
+    from .sidi_bidding import style_codes
+
+    codes = style_codes(styles)
     return _core.rs_sidi_make_probability(
         seat, hand, list(history), leader, int(contract), declarer, bid, list(auction),
-        samples=samples, alpha=alpha, seed=seed,
+        samples=samples, alpha=alpha, seed=seed, **({"styles": codes} if codes else {}),
     )
 
 
@@ -240,4 +248,5 @@ def belief_marginals(obs, agent, pool: int = 4096, seed: int = 1) -> tuple[list,
         play.get("sidi_auction"), play.get("sidi_alpha", 0.0),
         **({"schedule": play["schedule"]} if play.get("schedule") else {}),
         **({"discard_sister": True} if play.get("discard_sister") else {}),
+        **({"sidi_styles": play["sidi_styles"]} if play.get("sidi_styles") else {}),
     )

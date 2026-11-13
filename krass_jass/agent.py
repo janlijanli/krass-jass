@@ -108,15 +108,18 @@ class Agent:
             return Contract(random.Random(hand ^ 0x5DEECE66D).choice(list(options))).name
         return coiffeur_select.choose_block(hand, [Contract(c) for c in options], self.cfg).name
 
-    def sidi_call(self, hand: int, auction: tuple, seat: int) -> str:
-        """Sidi Barrani: one call in the auction, in its wire form. The auction is public."""
-        return sidi_bidding.choose_call(hand, auction, seat, self.cfg)
+    def sidi_call(self, hand: int, auction: tuple, seat: int, styles: tuple = ()) -> str:
+        """Sidi Barrani: one call in the auction, in its wire form. The auction is public, and
+        so is `styles`: the bidding style each seat speaks (`RulesConfig.sidi_bid_styles`)."""
+        return sidi_bidding.choose_call(
+            hand, auction, seat, self.cfg, style=sidi_bidding.style_of(styles, seat)
+        )
 
     def sidi_double(self, obs: Observation) -> bool:
         """Sidi Barrani: the question after the lead — double the declarers' bid?"""
         return sidi_bidding.double_after_lead(obs.hand, obs.contract, obs.bid_value)
 
-    def sidi_knock(self, hand: int, auction: tuple, seat: int) -> bool:
+    def sidi_knock(self, hand: int, auction: tuple, seat: int, styles: tuple = ()) -> bool:
         """Sidi Barrani: double the standing bid without waiting for this seat's turn.
 
         At a table you knock the moment you hear the bid. The caller asks every opponent of the
@@ -348,14 +351,16 @@ class DmctsAgent(Agent):
                                 load_weights(self.trump_weights or None), scale=self.trump_scale)
         return super().select_trump(hand, is_forehand)
 
-    def _declarers_make(self, seat, hand, history, contract, declarer, bid, auction, seed) -> float:
+    def _declarers_make(
+        self, seat, hand, history, contract, declarer, bid, auction, seed, styles=()
+    ) -> float:
         p, _ = native.sidi_make_probability(
             seat, hand, history, declarer, contract, declarer, bid, _sidi_bids(auction),
-            samples=self.sidi_double_samples, alpha=self.sidi_alpha, seed=seed,
+            samples=self.sidi_double_samples, alpha=self.sidi_alpha, seed=seed, styles=styles,
         )
         return p
 
-    def sidi_call(self, hand: int, auction: tuple, seat: int) -> str:
+    def sidi_call(self, hand: int, auction: tuple, seat: int, styles: tuple = ()) -> str:
         from .auction import Call
 
         double = None
@@ -366,11 +371,16 @@ class DmctsAgent(Agent):
             bidder, call = high
             # Deterministic for the position, as every decision here must be.
             seed = hash((hand, len(auction), seat)) & 0xFFFF_FFFF
-            p = self._declarers_make(seat, hand, [], call.contract, bidder, call.value, auction, seed)
+            p = self._declarers_make(
+                seat, hand, [], call.contract, bidder, call.value, auction, seed, styles
+            )
             double = p < self.sidi_double_below
-        return sidi_bidding.choose_call(hand, auction, seat, self.cfg, double=double)
+        return sidi_bidding.choose_call(
+            hand, auction, seat, self.cfg, double=double,
+            style=sidi_bidding.style_of(styles, seat),
+        )
 
-    def sidi_knock(self, hand: int, auction: tuple, seat: int) -> bool:
+    def sidi_knock(self, hand: int, auction: tuple, seat: int, styles: tuple = ()) -> bool:
         standing = _sidi_standing(auction, seat)
         if standing is None or not self.sidi_knock_anytime:
             return False
@@ -381,13 +391,13 @@ class DmctsAgent(Agent):
             if own is not None and min(own[1], 150) > standing[1]:
                 return False
         if not self.sidi_double_model:
-            return super().sidi_knock(hand, auction, seat)
+            return super().sidi_knock(hand, auction, seat, styles)
         contract, value = standing
         bidder = next(s for s, text in reversed(auction) if text == f"{contract.name} {value}")
         seed = hash((hand, len(auction), seat, "knock")) & 0xFFFF_FFFF
-        return self._declarers_make(seat, hand, [], contract, bidder, value, auction, seed) < (
-            self.sidi_double_below
-        )
+        return self._declarers_make(
+            seat, hand, [], contract, bidder, value, auction, seed, styles
+        ) < self.sidi_double_below
 
     def sidi_double(self, obs: Observation) -> bool:
         if not self.sidi_double_model:
@@ -395,7 +405,7 @@ class DmctsAgent(Agent):
         history = [((obs.trick_leader + i) % 4, c) for i, c in enumerate(obs.trick)]
         p = self._declarers_make(
             obs.seat, obs.hand, history, obs.contract, obs.declarer_seat, obs.bid_value,
-            obs.auction, obs.decision_seed,
+            obs.auction, obs.decision_seed, obs.bid_styles,
         )
         return p < self.sidi_double_below
 
@@ -550,7 +560,10 @@ class DmctsAgent(Agent):
             "value_net": self.value_net,
             "value_model_json": _read_text(self.value_model) if self.value_model else None,
             **(
-                {"sidi_auction": _sidi_bids(obs.auction), "sidi_alpha": self.sidi_alpha}
+                {
+                    "sidi_auction": _sidi_bids(obs.auction), "sidi_alpha": self.sidi_alpha,
+                    "sidi_styles": sidi_bidding.style_codes(obs.bid_styles),
+                }
                 if self.cfg.sidi
                 else {}
             ),

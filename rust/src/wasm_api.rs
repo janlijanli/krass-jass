@@ -64,13 +64,21 @@ pub extern "C" fn game_new(
     mode: u32,
     extra_rows: u32,
     discard_sister: u32,
+    bid_styles: u32,
 ) -> u32 {
     // Sidi Barrani (mode 1) brings its own scoring — every contract x1, no Weis, no Stöck — so
     // the Schieber's multipliers and Weis switch from the settings do not apply to it. Nor to
     // the Coiffeur (mode 2), which ends with the sheet; `extra_rows` has bit i set for each of
     // `schedule::EXTRA_ROWS` played, as the server's form ticks them.
     let rules = if mode == 1 {
-        Rules { target_score, weis_manual: weis_manual != 0, ..Rules::sidi() }
+        // `bid_styles` has bit i set for each seat that bids «Gspürsch mi, füehlsch mi»
+        // (`sidi_bidding::FEEL`) rather than the counting style.
+        Rules {
+            target_score,
+            weis_manual: weis_manual != 0,
+            sidi_bid_styles: std::array::from_fn(|i| ((bid_styles >> i) & 1) as u8),
+            ..Rules::sidi()
+        }
     } else if mode == 2 {
         Rules {
             coiffeur_extra_rows: std::array::from_fn(|i| extra_rows & (1 << i) != 0),
@@ -233,7 +241,9 @@ fn sidi_bids(game: &Game) -> Vec<Bid> {
         a.calls
             .iter()
             .filter_map(|&(seat, c)| match c {
-                Call::Bid { contract, value } => Some(Bid { seat, contract, value }),
+                Call::Bid { contract, value } => {
+                    Some(Bid { seat, contract, value, style: game.rules.sidi_bid_styles[seat & 3] })
+                }
                 _ => None,
             })
             .collect()
@@ -304,7 +314,8 @@ pub extern "C" fn bot_call(handle: u32, seat: u32) -> i32 {
             .map(|(bidder, contract, value)| {
                 declarers_make(game, seat, hand, &[], contract, bidder, value) < SIDI_DOUBLE_BELOW
             });
-        call_code(crate::sidi_bidding::choose_call(hand, &auction.calls, seat, double))
+        let style = game.rules.sidi_bid_styles[seat & 3];
+        call_code(crate::sidi_bidding::choose_call(hand, &auction.calls, seat, double, style))
     })
 }
 

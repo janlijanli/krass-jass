@@ -121,11 +121,12 @@ class RemoteAgent(Agent):
             log.warning("bot %s block choice failed (%s); choosing by rule here", self.label, exc)
             return super().coiffeur_block(hand, options)
 
-    def sidi_call(self, hand: int, auction: tuple, seat: int) -> str:
+    def sidi_call(self, hand: int, auction: tuple, seat: int, styles: tuple = ()) -> str:
         payload = {
             "hand": [format_card(c) for c in card_list(hand)],
             "auction": [{"seat": s, "call": c} for s, c in auction],
             "seat": seat,
+            "bid_styles": list(styles),
         }
         try:
             response = self.client().post("/sidi_call", json=payload, timeout=TIMEOUT_MARGIN_S)
@@ -136,11 +137,12 @@ class RemoteAgent(Agent):
             log.warning("bot %s sidi call failed (%s); passing", self.label, exc)
             return "PASS"   # the engine re-validates; a pass is always legal
 
-    def sidi_knock(self, hand: int, auction: tuple, seat: int) -> bool:
+    def sidi_knock(self, hand: int, auction: tuple, seat: int, styles: tuple = ()) -> bool:
         payload = {
             "hand": [format_card(c) for c in card_list(hand)],
             "auction": [{"seat": s, "call": c} for s, c in auction],
             "seat": seat,
+            "bid_styles": list(styles),
         }
         try:
             response = self.client().post("/sidi_knock", json=payload, timeout=TIMEOUT_MARGIN_S)
@@ -191,6 +193,7 @@ class RemoteAgent(Agent):
             "auction": [{"seat": s, "call": c} for s, c in obs.auction],
             "bid_value": obs.bid_value,
             "doubled": obs.doubled,
+            "bid_styles": list(obs.bid_styles),
             "schedule": list(obs.schedule),
             "misere": obs.misere,
             "discard_signal": self.cfg.discard_signal,

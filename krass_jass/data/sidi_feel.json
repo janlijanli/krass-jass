@@ -1,0 +1,15 @@
+{
+  "_comment": "The second Sidi bidding style, 'Gspuersch mi, fuehlsch mi' (docs/sidi-plan.md). Starting values (2026-11-12), not fitted. Read by krass_jass/sidi_bidding.py and include_str!'d into rust/src/sidi_bidding.rs: edit this file, not either copy.",
+  "open": 3,
+  "raise": 2,
+  "jump": 2,
+  "lid_base": 30,
+  "min_trumps": 3,
+  "bauer": 2,
+  "nell": 1,
+  "trump_ace": 1,
+  "long_from": 4,
+  "side_ace": 1,
+  "top": 1,
+  "second": 1
+}

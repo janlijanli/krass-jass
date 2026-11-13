@@ -125,6 +125,12 @@ class RulesConfig:
     sidi_double_after_lead: bool = True
     #: A double during the auction ends it.
     sidi_double_ends_auction: bool = True
+    #: The bidding style each seat speaks, by seat: `"count"` — the counting language, «Aggressiv»
+    #: in the menu and the default (owner, 2026-11-12) — or `"feel"`, «Gspürsch mi, füehlsch mi».
+    #: A table convention, not a rule: every call stays legal whatever the style. It is public —
+    #: a pair says what it plays — so it goes to every seat with the auction, and the bots read
+    #: each bid in its bidder's style (`krass_jass/sidi_bidding.py`, `rust/src/sidi_read.rs`).
+    sidi_bid_styles: tuple[str, ...] = ("count", "count", "count", "count")
 
     # -- Coiffeur (docs/rules-config.md, "Coiffeur"). The trick-taking is the Schieber's; the
     # choosing, the scoring and the game end are the sheet's (`krass_jass/coiffeur.py`).

@@ -16,7 +16,12 @@ use crate::cards::format_card;
 #[derive(Clone, Debug)]
 pub enum Payload {
     /// `multipliers` is the Coiffeur's sheet; its game has no target, written `null`.
-    GameStarted { target_score: i32, multipliers: Option<[i32; crate::coiffeur::ALL_ROWS]> },
+    GameStarted {
+        target_score: i32,
+        multipliers: Option<[i32; crate::coiffeur::ALL_ROWS]>,
+        /// Sidi: the bidding style of each seat, when any is not the default.
+        bid_styles: Option<[u8; 4]>,
+    },
     RoundStarted { round: u32, dealer: usize, forehand: usize },
     HandDealt { seat: usize, cards: Vec<usize> },
     Bid { seat: usize, action: String },
@@ -161,8 +166,13 @@ impl Event {
     pub fn to_json(&self) -> String {
         let head = format!("{{\"seq\":{},\"type\":\"{}\"", self.seq, self.type_name());
         let body = match &self.payload {
-            Payload::GameStarted { target_score, multipliers: None } => {
-                format!("\"target_score\":{target_score}")
+            Payload::GameStarted { target_score, multipliers: None, bid_styles } => {
+                let styles = bid_styles.map_or(String::new(), |s| {
+                    let names: Vec<&str> =
+                        s.iter().map(|&k| if k == 1 { "\"feel\"" } else { "\"count\"" }).collect();
+                    format!(",\"bid_styles\":[{}]", names.join(","))
+                });
+                format!("\"target_score\":{target_score}{styles}")
             }
             Payload::GameStarted { multipliers: Some(m), .. } => {
                 let parts: Vec<String> = m.iter().map(|v| v.to_string()).collect();

@@ -478,7 +478,7 @@ fn rs_belief_pool(
 #[pyo3(signature = (seat, hand, unseen, trick, trick_leader, contract, forbidden, declarer, history,
     pool=4096, seed=1, belief_alpha=1.0, bid_alpha=1.0, policy_temperature=1.0, bid_temperature=3.0,
     weis_called=None, weis_played=None, sidi_auction=None, sidi_alpha=0.0, model_json=None,
-    schedule=None, discard_sister=false))]
+    schedule=None, discard_sister=false, sidi_styles=None))]
 #[allow(clippy::too_many_arguments)]
 fn rs_belief_marginals(
     py: Python<'_>,
@@ -504,6 +504,7 @@ fn rs_belief_marginals(
     model_json: Option<String>,
     schedule: Option<Vec<i64>>,
     discard_sister: bool,
+    sidi_styles: Option<Vec<u8>>,
 ) -> PyResult<(Vec<(usize, f32, f32, f32)>, f64)> {
     use crate::announce::Announcements;
     use crate::belief::{PlayInfo, Pool};
@@ -543,11 +544,8 @@ fn rs_belief_marginals(
     info.policy_temperature = policy_temperature;
     info.bid_temperature = bid_temperature;
     info.sidi_alpha = sidi_alpha;
-    info.sidi_auction = sidi_auction
-        .unwrap_or_default()
-        .into_iter()
-        .map(|(s, contract, value)| crate::sidi_read::Bid { seat: s & 3, contract, value })
-        .collect();
+    info.sidi_auction =
+        crate::sidi_read::bids_from(sidi_auction.unwrap_or_default(), sidi_styles.as_deref());
     info.model = model_json.map(|t| std::sync::Arc::new(crate::playmodel::PlayModel::from_json(&t)));
     let info = info.with_discard_signal(discard_sister, contract);
 
@@ -800,7 +798,7 @@ fn rs_reward(
 /// Sidi: `(P(the declarers reach the bid), their expected points)` as seen from `seat` —
 /// `sidi_estimate.rs`. What a bot doubles on.
 #[pyfunction]
-#[pyo3(signature = (seat, hand, history, leader, contract, declarer, bid, auction, samples=400, alpha=1.0, seed=0))]
+#[pyo3(signature = (seat, hand, history, leader, contract, declarer, bid, auction, samples=400, alpha=1.0, seed=0, styles=None))]
 #[allow(clippy::too_many_arguments)]
 fn rs_sidi_make_probability(
     py: Python<'_>,
@@ -815,11 +813,9 @@ fn rs_sidi_make_probability(
     samples: usize,
     alpha: f32,
     seed: u64,
+    styles: Option<Vec<u8>>,
 ) -> (f64, f64) {
-    let bids: Vec<crate::sidi_read::Bid> = auction
-        .into_iter()
-        .map(|(seat, contract, value)| crate::sidi_read::Bid { seat, contract, value })
-        .collect();
+    let bids = crate::sidi_read::bids_from(auction, styles.as_deref());
     py.allow_threads(|| {
         let q = crate::sidi_estimate::Question {
             seat: seat & 3, hand, history: &history, leader: leader & 3, contract,
@@ -831,15 +827,17 @@ fn rs_sidi_make_probability(
 
 /// Sidi: the rule bidder's call — `sidi_bidding.rs`, held to `krass_jass/sidi_bidding.py`.
 #[pyfunction]
-#[pyo3(signature = (hand, auction, seat, double=None))]
-fn rs_sidi_choose_call(hand: u64, auction: Vec<(usize, String)>, seat: usize, double: Option<bool>) -> PyResult<String> {
+#[pyo3(signature = (hand, auction, seat, double=None, style=0))]
+fn rs_sidi_choose_call(
+    hand: u64, auction: Vec<(usize, String)>, seat: usize, double: Option<bool>, style: u8,
+) -> PyResult<String> {
     let mut calls = Vec::with_capacity(auction.len());
     for (s, text) in &auction {
         let call = crate::auction::Call::parse(text)
             .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(format!("unknown call {text:?}")))?;
         calls.push((*s, call));
     }
-    Ok(crate::sidi_bidding::choose_call(hand, &calls, seat & 3, double).name())
+    Ok(crate::sidi_bidding::choose_call(hand, &calls, seat & 3, double, style).name())
 }
 
 /// Coiffeur: the row choice — `coiffeur_select.rs`, held to `krass_jass/coiffeur_select.py`.
@@ -870,13 +868,13 @@ fn rs_coiffeur_block(hand: u64, options: Vec<usize>) -> usize {
 /// log P(the auction | the dealt hands), for every seat but `root` — `sidi_read.rs`. Exposed so
 /// the reading can be tested and inspected without running a search.
 #[pyfunction]
-fn rs_sidi_auction_loglik(dealt: Vec<u64>, auction: Vec<(usize, usize, i32)>, root: usize) -> f64 {
+#[pyo3(signature = (dealt, auction, root, styles=None))]
+fn rs_sidi_auction_loglik(
+    dealt: Vec<u64>, auction: Vec<(usize, usize, i32)>, root: usize, styles: Option<Vec<u8>>,
+) -> f64 {
     let mut hands = [0u64; 4];
     hands.copy_from_slice(&dealt[..4]);
-    let bids: Vec<crate::sidi_read::Bid> = auction
-        .into_iter()
-        .map(|(seat, contract, value)| crate::sidi_read::Bid { seat, contract, value })
-        .collect();
+    let bids = crate::sidi_read::bids_from(auction, styles.as_deref());
     crate::sidi_read::auction_log_likelihood(&hands, &bids, root) as f64
 }
 
@@ -1064,7 +1062,7 @@ pub struct PyGame {
 #[pymethods]
 impl PyGame {
     #[new]
-    #[pyo3(signature = (seed, target_score=1000, weis_enabled=true, weis_manual=false, stoeck_enabled=true, multipliers=None, sidi=false, coiffeur=false, coiffeur_multipliers=None, coiffeur_score_opponents=false, coiffeur_tens=true, coiffeur_extra_rows=None, coiffeur_guschti_45=false, coiffeur_chance_takes_extra=true, coiffeur_chance_multiplier=13, coiffeur_match_stroke=Some(10)))]
+    #[pyo3(signature = (seed, target_score=1000, weis_enabled=true, weis_manual=false, stoeck_enabled=true, multipliers=None, sidi=false, coiffeur=false, coiffeur_multipliers=None, coiffeur_score_opponents=false, coiffeur_tens=true, coiffeur_extra_rows=None, coiffeur_guschti_45=false, coiffeur_chance_takes_extra=true, coiffeur_chance_multiplier=13, coiffeur_match_stroke=Some(10), sidi_bid_styles=None))]
     fn new(
         seed: u64,
         target_score: i32,
@@ -1082,6 +1080,7 @@ impl PyGame {
         coiffeur_chance_takes_extra: bool,
         coiffeur_chance_multiplier: i32,
         coiffeur_match_stroke: Option<i32>,
+        sidi_bid_styles: Option<Vec<u8>>,
     ) -> Self {
         if coiffeur {
             let mut rules = Rules {
@@ -1106,7 +1105,12 @@ impl PyGame {
             }
             return PyGame { inner: crate::game::Game::new(rules, seed) };
         }
-        let base = if sidi { Rules::sidi() } else { Rules::default() };
+        let mut base = if sidi { Rules::sidi() } else { Rules::default() };
+        if let Some(styles) = sidi_bid_styles {
+            for (seat, &style) in styles.iter().take(4).enumerate() {
+                base.sidi_bid_styles[seat] = style;
+            }
+        }
         let mut rules = Rules {
             target_score,
             weis_enabled: weis_enabled && !sidi,

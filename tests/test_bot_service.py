@@ -250,6 +250,8 @@ def test_the_request_carries_no_hidden_cards():
         # Sidi Barrani: the mode, the auction the whole table heard, and the contract's bid
         # and double. None of them names a card.
         "mode", "auction", "bid_value", "doubled",
+        # The bidding style of each seat: a pair says what it plays, and it is a word a seat.
+        "bid_styles",
         # Coiffeur's extra rows: the game the chooser named aloud, as nine contracts — no card.
         "schedule", "misere",
         # The table's discard convention, agreed aloud before the first card — no card.
@@ -363,3 +365,20 @@ def test_the_bot_service_takes_the_tables_discard_convention():
     response = client.post("/play_card", json=payload)
     assert response.status_code == 200
     assert client.post("/play_card", json={**payload, "discard_signal": "loud"}).status_code == 422
+
+
+def test_the_bot_service_bids_in_the_style_the_table_names():
+    """The style travels with the request — the bot is stateless — and is checked, not trusted."""
+    from fastapi.testclient import TestClient
+
+    from bot.service import create_app
+
+    client = TestClient(create_app())
+    hand = "HJ H9 H7 D8 S8 C8 D7 S7 C7".split()
+    ask = lambda styles: client.post(  # noqa: E731
+        "/sidi_call", json={"hand": hand, "auction": [], "seat": 0, "bid_styles": styles}
+    )
+    assert ask([]).json()["call"] == "HEARTS 70"
+    assert ask(["feel", "count", "feel", "count"]).json()["call"] == "HEARTS 40"
+    assert ask(["count", "feel", "count", "feel"]).json()["call"] == "HEARTS 70"
+    assert ask(["feel", "loud", "feel", "count"]).status_code == 422

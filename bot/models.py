@@ -53,6 +53,8 @@ class SidiCallRequest(BaseModel):
     hand: list[str]
     auction: list[AuctionCall] = []
     seat: int = Field(ge=0, le=3)
+    #: The bidding style of each seat ("count" / "feel"), public; empty means everyone counts.
+    bid_styles: list[str] = []
 
 
 class SidiCallResponse(BaseModel):
@@ -124,6 +126,7 @@ class PlayCardRequest(BaseModel):
     #: request.
     mode: str = "schieber"
     auction: list[AuctionCall] = []
+    bid_styles: list[str] = []
     bid_value: int = 0
     doubled: bool = False
     #: Coiffeur's extra rows: the contract each of the nine tricks is played in, as contract

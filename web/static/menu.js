@@ -398,6 +398,7 @@ export function initMenu({
     // Coiffeur ends with the sheet: no target, and its own note in place of the Sidi's.
     form?.querySelectorAll("[data-not-coiffeur]").forEach((n) => { n.hidden = mode === "coiffeur"; });
     form?.querySelectorAll("[data-coiffeur-only]").forEach((n) => { n.hidden = mode !== "coiffeur"; });
+    form?.querySelectorAll("[data-sidi-only]").forEach((n) => { n.hidden = mode !== "sidi"; });
     if (changed && TARGET_FOR[mode]) {
       const target = form.querySelector(`input[name="target"][value="${TARGET_FOR[mode]}"]`);
       if (target) target.checked = true;

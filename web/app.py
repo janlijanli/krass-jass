@@ -175,20 +175,24 @@ TARGET_SCORES = (1000, 2000, 2500)
 MULTIPLIER_RANGE = (1, 2, 3, 4)
 
 
-def build_config(settings: dict | None = None):
+#: The Sidi bidding styles the menu offers (`RulesConfig.sidi_bid_styles`).
+BID_STYLES = ("count", "feel")
+
+
+def build_config(settings: dict | None = None, human_seat: int = 0):
     """Turn settings from the panel into a RulesConfig.
 
     Values are clamped to the offered choices rather than trusted: this arrives from a form,
     and a rules engine driven by unvalidated client input is a rules engine with no rules.
     """
     settings = settings or {}
-    cfg = _build_config(settings)
+    cfg = _build_config(settings, human_seat)
     # The discard convention is the table's, in every mode (`krass_jass/convention.py`).
     signal = settings.get("discard")
     return cfg.variant(discard_signal=signal) if signal in SIGNALS else cfg
 
 
-def _build_config(settings: dict):
+def _build_config(settings: dict, human_seat: int = 0):
     if settings.get("mode") == "coiffeur":
         # Coiffeur ends with the sheet, not at a target, and its multipliers are the rows':
         # dealt at random from the game seed (`docs/rules-config.md`, "Coiffeur"). The extra
@@ -205,7 +209,12 @@ def _build_config(settings: dict):
     if sidi:
         # Sidi Barrani: its own scoring (every contract x1, no Weis, no Stöck) — the panel's
         # multipliers and Weis switch are Schieber settings and do not apply.
-        return SIDI.variant(target_score=target)
+        # The bidding style is a team's: the player's partner — and so the player's own bids, as
+        # the bots read them — and the two opponents. «Aggressiv» ("count") unless chosen.
+        ours = settings.get("bid_partner") if settings.get("bid_partner") in BID_STYLES else "count"
+        theirs = settings.get("bid_opponents") if settings.get("bid_opponents") in BID_STYLES else "count"
+        styles = tuple(ours if (seat - human_seat) % 2 == 0 else theirs for seat in range(NUM_SEATS))
+        return SIDI.variant(target_score=target, sidi_bid_styles=styles)
 
     multipliers = dict(DEFAULT_MULTIPLIERS)
     for contract in Contract:
@@ -257,7 +266,7 @@ def build_bots(human_seat: int, cfg) -> dict[int, Agent]:
 def new_table(human_seat: int = 0, settings: dict | None = None) -> Table:
     game_id = secrets.token_urlsafe(9)
     game = Game(
-        cfg=build_config(settings),
+        cfg=build_config(settings, human_seat),
         seed=secrets.randbits(48),
         game_id=game_id,
     )
@@ -299,6 +308,9 @@ def create_app() -> FastAPI:
                     "weis": cfg.weis_enabled or cfg.sidi or cfg.coiffeur,
                     "coiffeur_rows": list(cfg.coiffeur_extra_rows),
                     "discard": cfg.discard_signal,
+                    # The Sidi bidding style of the player's partner and of the opponents.
+                    "bid_partner": cfg.sidi_bid_styles[(data["seat"] + 2) % NUM_SEATS],
+                    "bid_opponents": cfg.sidi_bid_styles[(data["seat"] + 1) % NUM_SEATS],
                     "multipliers": {
                         c.name.lower(): (
                             DEFAULT_MULTIPLIERS[c] if cfg.mode != "schieber" else cfg.multiplier(c)
@@ -331,6 +343,8 @@ def create_app() -> FastAPI:
         request: Request,
         target: int = Form(2000),
         mode: str = Form("sidi"),
+        bid_partner: str = Form("count"),
+        bid_opponents: str = Form("count"),
         weis: str = Form("on"),
         mult_diamonds: int = Form(1),
         mult_hearts: int = Form(2),
@@ -346,6 +360,8 @@ def create_app() -> FastAPI:
             settings={
                 "mode": mode if mode in ("sidi", "coiffeur") else "schieber",
                 "target": target,
+                "bid_partner": bid_partner,
+                "bid_opponents": bid_opponents,
                 "weis": weis not in ("off", "false", "0", ""),
                 "mult_diamonds": mult_diamonds,
                 "mult_hearts": mult_hearts,
@@ -759,7 +775,8 @@ async def bots_knock(table: Table) -> None:
         if not table.is_bot(actor) or not auction.may_double(actor):
             continue
         knock = await loop.run_in_executor(
-            None, table.bots[actor].sidi_knock, game.hand_of(actor), public, actor
+            None, table.bots[actor].sidi_knock, game.hand_of(actor), public, actor,
+            game.bid_styles,
         )
         if knock:
             await asyncio.sleep(random.uniform(0.3, 0.6))
@@ -801,7 +818,9 @@ async def think(table: Table, actor: int) -> None:
     if game.phase is Phase.BIDDING and game.cfg.sidi:
         hand, auction = game.hand_of(actor), game.public_auction()
         started = loop.time()
-        call = await loop.run_in_executor(None, bot.sidi_call, hand, auction, actor)
+        call = await loop.run_in_executor(
+            None, bot.sidi_call, hand, auction, actor, game.bid_styles
+        )
         await pace(2, loop.time() - started)
         try:
             game.bid(actor, call)
