@@ -356,6 +356,16 @@ the bid as a bonus; if not, the opponents write it. A double doubles the bonus.
 
 One rule for every bid, Match included: bonus = bid × 2 if doubled.
 
+**Bidding styles.** `sidi_bid_styles` — **default `"count"` for all four seats**. Not a rule but a
+table convention: which bidding language each seat's bot speaks, and in which the others read its
+bids. Every call stays legal whatever the style, and the engine never looks at it. `"count"` is the
+counting language — the height says what is held; «Aggressiv» in the menu. `"feel"` is «Gspürsch
+mi, füehlsch mi» (owner, 2026-11-12): small steps over several rounds, the message in which
+contract and how often, parity a faint hint only. It is public — a pair says what it plays — and
+goes to every seat with the auction. The menu offers two choices, the player's partner and the
+opponents; the player's own bids are read in the partner's style. Doubling is the same in both.
+The languages themselves are in `docs/sidi-plan.md`.
+
 **No Weis, no Stöck.** `weis_enabled` and `stoeck_enabled` are off in the preset.
 
 **Game end.** `target_score` **2000**. A round is always played to the end — there is no

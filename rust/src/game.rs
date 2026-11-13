@@ -156,6 +156,8 @@ impl Game {
             Payload::GameStarted {
                 target_score: rules.target_score,
                 multipliers: if rules.coiffeur { Some(game.row_multipliers) } else { None },
+                bid_styles: (rules.sidi && rules.sidi_bid_styles != [0; 4])
+                    .then_some(rules.sidi_bid_styles),
             },
             None,
         );

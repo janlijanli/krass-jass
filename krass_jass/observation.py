@@ -87,6 +87,9 @@ class Observation:
     #: The standing bid the declarers must reach, and whether it was doubled.
     bid_value: int = 0
     doubled: bool = False
+    #: The bidding style each seat speaks, by seat ("count" / "feel"; empty in the Schieber, and
+    #: empty means everyone counts). Public — a pair says what it plays — and no card is in it.
+    bid_styles: tuple = ()
     #: Coiffeur's extra rows only (empty otherwise): the contract each of the nine tricks is
     #: played in (`krass_jass/schedule.py`), -1 for a 3×3 block not yet named and `TUTTI_UNLED`
     #: for a Tutti trick not yet led. Public — the chooser said it aloud — and `contract`
@@ -177,6 +180,7 @@ def build_observation(
     auction: tuple = (),
     bid_value: int = 0,
     doubled: bool = False,
+    bid_styles: tuple = (),
     misere: bool = False,
 ) -> Observation:
     """The only way an agent learns anything. Add fields here and nowhere else.
@@ -204,6 +208,7 @@ def build_observation(
         auction=auction,
         bid_value=bid_value,
         doubled=doubled,
+        bid_styles=bid_styles,
         # -1 for a 3×3 block not yet named: nobody knows it yet, not even its chooser.
         schedule=tuple(
             (TUTTI_UNLED if state.tutti else -1) if c is None else int(c) for c in state.schedule

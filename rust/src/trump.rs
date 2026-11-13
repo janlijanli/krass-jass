@@ -44,7 +44,7 @@ fn find_object<'a>(text: &'a str, key: &str) -> &'a str {
     &text[start..end]
 }
 
-fn number_after(block: &str, key: &str) -> Option<f64> {
+pub(crate) fn number_after(block: &str, key: &str) -> Option<f64> {
     let at = block.find(&format!("\"{key}\""))?;
     let rest = &block[at + key.len() + 2..];
     let colon = rest.find(':')?;

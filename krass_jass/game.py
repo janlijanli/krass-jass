@@ -78,6 +78,9 @@ class Game:
 
     def __post_init__(self) -> None:
         started = {"game_id": self.game_id, "target_score": self.cfg.target_score}
+        if self.cfg.sidi and any(style != "count" for style in self.cfg.sidi_bid_styles):
+            # Public, and part of what a replay needs: the bots bid by it.
+            started["bid_styles"] = list(self.cfg.sidi_bid_styles)
         if self.cfg.coiffeur:
             # The sheet is public from the first card: everyone sees what each row is worth.
             self.sheet = Sheet.for_game(self.cfg)
@@ -231,8 +234,14 @@ class Game:
             auction=self.public_auction(),
             bid_value=self.bid_value,
             doubled=self.doubled,
+            bid_styles=self.bid_styles,
             misere=self.schedule is not None and self.schedule.misere,
         )
+
+    @property
+    def bid_styles(self) -> tuple:
+        """Sidi: the bidding style of each seat — public, as the auction is. Empty otherwise."""
+        return tuple(self.cfg.sidi_bid_styles) if self.cfg.sidi else ()
 
     def public_auction(self) -> tuple:
         """`(seat, call)` for every call so far — all of it was said aloud."""

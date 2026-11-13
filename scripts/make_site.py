@@ -201,6 +201,10 @@ def build_index() -> None:
         for row, label in COIFFEUR_ROWS
     )
     html = html[: rows_loop.start()] + chips + html[rows_loop.end() :]
+    # The Sidi bidding styles: «Aggressiv» for both teams, as on the server.
+    for name in ("bid_partner", "bid_opponents"):
+        html = html.replace(f'{{% if settings.{name} != "feel" %}}checked{{% endif %}}', "checked")
+        html = html.replace(f'{{% if settings.{name} == "feel" %}}checked{{% endif %}}', "")
     html = html.replace("{% if settings.weis %}checked{% endif %}", "checked")
     html = html.replace("{% if not settings.weis %}checked{% endif %}", "")
     # The discard convention, as the server's default: the weakest suit.

@@ -140,7 +140,7 @@ mod tests {
         // Seat 0 holds the hearts Bauer, Nell, ace and king; seat 1 bid hearts 120.
         let mine = hand(&[card(1, 3), card(1, 5), card(1, 0), card(1, 1),
                           card(0, 0), card(2, 0), card(3, 0), card(0, 8), card(2, 8)]);
-        let auction = [Bid { seat: 1, contract: 1, value: 120 }];
+        let auction = [Bid::count(1, 1, 120)];
         let q = Question {
             seat: 0, hand: mine, history: &[], leader: 1, contract: 1, declarer: 1, bid: 120,
             auction: &auction, alpha: 1.0,
@@ -154,7 +154,7 @@ mod tests {
         // Seat 0 holds nothing of note; seat 1 bid hearts 50.
         let mine = hand(&[card(0, 8), card(0, 7), card(0, 6), card(2, 8), card(2, 7),
                           card(2, 6), card(3, 8), card(3, 7), card(3, 6)]);
-        let auction = [Bid { seat: 1, contract: 1, value: 50 }];
+        let auction = [Bid::count(1, 1, 50)];
         let q = Question {
             seat: 0, hand: mine, history: &[], leader: 1, contract: 1, declarer: 1, bid: 50,
             auction: &auction, alpha: 1.0,
@@ -167,7 +167,7 @@ mod tests {
     fn the_estimate_is_reproducible_for_a_seed() {
         let mine = hand(&[card(1, 3), card(0, 0), card(0, 1), card(2, 0), card(2, 1),
                           card(3, 0), card(3, 1), card(0, 8), card(2, 8)]);
-        let auction = [Bid { seat: 3, contract: 2, value: 90 }];
+        let auction = [Bid::count(3, 2, 90)];
         let q = Question {
             seat: 0, hand: mine, history: &[], leader: 3, contract: 2, declarer: 3, bid: 90,
             auction: &auction, alpha: 1.0,

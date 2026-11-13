@@ -35,6 +35,12 @@ in `docs/sidi-plan.md`. The auction lives in `krass_jass/auction.py` and `rust/s
 under the same two-implementation rule as everything else, and so is the bidder
 (`krass_jass/sidi_bidding.py`, `rust/src/sidi_bidding.rs`): the offline build on GitHub Pages plays
 the Sidi with the same bots as the server, doubling on the same estimate.
+The bots speak one of **two bidding styles**, set per seat for the table and public
+(`RulesConfig.sidi_bid_styles`, owner 2026-11-12): `"count"` — the counting language, «Aggressiv» in
+the menu, the default — or `"feel"`, «Gspürsch mi, füehlsch mi», which bids the cheapest step and
+finds the partner over several rounds. Every bid is read in its bidder's style. Built in both
+implementations; **not measured in points yet**. At a mixed table the counting team declares 87% of
+hands — that deficit is intended (owner, 2026-11-12), do not tune it away (`docs/sidi-plan.md`).
 
 **Coiffeur is a third game mode** (`RulesConfig.mode = "coiffeur"`, preset `COIFFEUR`), started
 2026-10-30 on branch `coiffeur`. Seven rows a team plus the extra rows, row multipliers dealt at random from the game seed

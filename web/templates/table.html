@@ -87,6 +87,39 @@
         </div>
       </fieldset>
 
+      <!-- Sidi Barrani: the bidding style of each team's bots. A convention, not a rule; the
+           player's own bids are read in the partner's style. -->
+      <fieldset data-sidi-only>
+        <legend data-i18n="menu.bidStyle">Bidding style</legend>
+        <div class="mult-row">
+          <span class="mult-name" data-i18n="menu.bidPartner">Partner</span>
+          <div class="chips">
+            <label class="chip small">
+              <input type="radio" name="bid_partner" value="count" {% if settings.bid_partner != "feel" %}checked{% endif %}>
+              <span data-i18n="menu.bidCount">Aggressiv</span>
+            </label>
+            <label class="chip small">
+              <input type="radio" name="bid_partner" value="feel" {% if settings.bid_partner == "feel" %}checked{% endif %}>
+              <span data-i18n="menu.bidFeel">Gspürsch mi</span>
+            </label>
+          </div>
+        </div>
+        <div class="mult-row">
+          <span class="mult-name" data-i18n="menu.bidOpponents">Opponents</span>
+          <div class="chips">
+            <label class="chip small">
+              <input type="radio" name="bid_opponents" value="count" {% if settings.bid_opponents != "feel" %}checked{% endif %}>
+              <span data-i18n="menu.bidCount">Aggressiv</span>
+            </label>
+            <label class="chip small">
+              <input type="radio" name="bid_opponents" value="feel" {% if settings.bid_opponents == "feel" %}checked{% endif %}>
+              <span data-i18n="menu.bidFeel">Gspürsch mi</span>
+            </label>
+          </div>
+        </div>
+        <p class="menu-note"><span data-i18n="menu.bidStyleNote">Aggressiv: the height of a bid says what is held. Gspürsch mi, füehlsch mi: small steps over several rounds, to find each other.</span><button type="button" class="link-button" data-open-rules data-i18n="sidi.rules">Rules</button></p>
+      </fieldset>
+
       <fieldset data-schieber-only>
         <legend data-i18n="menu.weis">Weis</legend>
         <div class="chips">

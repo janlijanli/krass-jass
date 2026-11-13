@@ -80,6 +80,14 @@ def create_app() -> FastAPI:
     coiffeur_agent = copy.copy(agent)
     coiffeur_agent.cfg = COIFFEUR
 
+    def bid_styles(styles: list[str]) -> tuple:
+        """The table's bidding styles as sent; anything unknown is a 422, not a guess."""
+        from krass_jass.sidi_bidding import STYLES
+
+        if styles and (len(styles) != 4 or any(style not in STYLES for style in styles)):
+            raise HTTPException(422, f"unknown bidding styles {styles!r}")
+        return tuple(styles)
+
     def for_mode(mode: str):
         return {"sidi": sidi_agent, "coiffeur": coiffeur_agent}.get(mode, agent)
     kind = os.environ.get("AGENT_KIND", "dmcts").lower()
@@ -134,13 +142,17 @@ def create_app() -> FastAPI:
     @app.post("/sidi_call", response_model=SidiCallResponse)
     async def sidi_call(request: SidiCallRequest) -> SidiCallResponse:
         auction = tuple((c.seat, c.call) for c in request.auction)
-        call = sidi_agent.sidi_call(parse_hand(request.hand), auction, request.seat)
+        call = sidi_agent.sidi_call(
+            parse_hand(request.hand), auction, request.seat, bid_styles(request.bid_styles)
+        )
         return SidiCallResponse(call=call)
 
     @app.post("/sidi_knock", response_model=SidiKnockResponse)
     async def sidi_knock(request: SidiCallRequest) -> SidiKnockResponse:
         auction = tuple((c.seat, c.call) for c in request.auction)
-        knock = sidi_agent.sidi_knock(parse_hand(request.hand), auction, request.seat)
+        knock = sidi_agent.sidi_knock(
+            parse_hand(request.hand), auction, request.seat, bid_styles(request.bid_styles)
+        )
         return SidiKnockResponse(knock=knock)
 
     @app.post("/sidi_double", response_model=SidiDoubleResponse)
@@ -189,6 +201,7 @@ def create_app() -> FastAPI:
             auction=tuple((c.seat, c.call) for c in request.auction),
             bid_value=request.bid_value,
             doubled=request.doubled,
+            bid_styles=bid_styles(request.bid_styles),
             schedule=tuple(request.schedule),
             misere=request.misere,
         )

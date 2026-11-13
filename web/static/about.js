@@ -407,7 +407,13 @@ function rulesPanel(L) {
   for (const key of ["rules.lang.odd", "rules.lang.even", "rules.lang.oben", "rules.lang.support"]) {
     list.append(html("li", null, about(L, key)));
   }
-  wrap.append(list, p("rules.lang.trust"), h("rules.bots.h"), p("rules.bots.p"),
+  // The second bidding style, chosen per team in the menu.
+  const feel = html("ul", "rules-list");
+  for (const key of ["rules.feel.step", "rules.feel.fit", "rules.feel.new", "rules.feel.jump"]) {
+    feel.append(html("li", null, about(L, key)));
+  }
+  wrap.append(list, p("rules.lang.trust"), h("rules.feel.h"), p("rules.feel.p"), feel,
+    p("rules.feel.you"), h("rules.bots.h"), p("rules.bots.p"),
     html("p", "warn", about(L, "rules.bots.warn")));
   return wrap;
 }

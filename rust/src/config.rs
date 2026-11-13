@@ -37,6 +37,10 @@ pub struct Rules {
     pub sidi_double_after_lead: bool,
     /// A double during the auction ends it.
     pub sidi_double_ends_auction: bool,
+    /// The bidding style each seat speaks: `sidi_bidding::COUNT` (the default) or `FEEL`. A
+    /// table convention, not a rule — every call stays legal — and public: a pair says what it
+    /// plays. Twin of `RulesConfig.sidi_bid_styles`.
+    pub sidi_bid_styles: [u8; 4],
     /// Coiffeur instead of the Schieber: the sheet, its rows and multipliers, the game end.
     /// `docs/rules-config.md`, "Coiffeur"; `coiffeur.rs`.
     pub coiffeur: bool,
@@ -95,6 +99,7 @@ impl Default for Rules {
             sidi_bids: [40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 157, 257],
             sidi_double_after_lead: true,
             sidi_double_ends_auction: true,
+            sidi_bid_styles: [0; 4],
             coiffeur: false,
             coiffeur_random_multipliers: true,
             coiffeur_multipliers: [4, 2, 3, 1, 5, 6, 0, 7, 8, 9, 10, 11, 12],
