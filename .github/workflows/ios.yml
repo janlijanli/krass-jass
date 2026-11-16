@@ -1,0 +1,57 @@
+# Build the iOS app for the simulator.
+#
+# The Linux job in ci.yml checks the engine's C interface and the Swift view model against the
+# engine's JSON, but only a Mac can compile SwiftUI. This is that compile: the Rust engine as an
+# XCFramework, the project from project.yml, the app for the simulator, unsigned.
+name: ios
+
+on:
+  push:
+    paths:
+      - "ios/**"
+      - "rust/**"
+      - "web/static/i18n.js"
+      - "scripts/make_icon.py"
+      - ".github/workflows/ios.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+      - "rust/**"
+      - "web/static/i18n.js"
+      - "scripts/make_icon.py"
+      - ".github/workflows/ios.yml"
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+      - name: XcodeGen
+        run: brew install xcodegen
+      - name: Engine, icon, strings, project
+        run: ios/scripts/bootstrap.sh
+      - name: Build for the simulator
+        working-directory: ios
+        run: |
+          xcodebuild -version
+          set -o pipefail
+          xcodebuild build \
+            -project KrassJass.xcodeproj \
+            -scheme KrassJass \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet 2>&1 | tee build.log
+      - name: Errors, if any
+        if: failure()
+        working-directory: ios
+        run: grep -E "error:|warning: unre|BUILD FAILED" build.log | sort -u | head -200 || true

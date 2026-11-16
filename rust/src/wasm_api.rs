@@ -7,6 +7,11 @@
 //!
 //! Games live in a registry keyed by handle. wasm is single-threaded, so a thread-local is
 //! all the synchronisation there is to do.
+//!
+//! The iOS app links these same functions natively (`ios/Engine/include/krass_jass_core.h`,
+//! built by `ios/scripts/build-rust.sh`) and makes every call from one thread of its own, for
+//! the same reason. A signature changed here changes in that header in the same commit;
+//! `ios/tests/run-ffi-smoke.sh` plays whole games through it.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
