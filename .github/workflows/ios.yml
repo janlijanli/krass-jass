@@ -54,4 +54,5 @@ jobs:
       - name: Errors, if any
         if: failure()
         working-directory: ios
-        run: grep -E "error:|warning: unre|BUILD FAILED" build.log | sort -u | head -200 || true
+        run: |
+          grep -E "error:|BUILD FAILED" build.log | sort -u | head -200 || true
