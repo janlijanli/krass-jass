@@ -94,14 +94,3 @@ jobs:
         working-directory: ios
         run: |
           grep -E "error:|BUILD FAILED" build.log | sort -u | head -200 || true
-      # The artifact store is not reachable from everywhere the logs are; four thumbnails in
-      # the log itself are. One line each, so the tail of the log is the pictures.
-      - name: Thumbnails
-        if: always()
-        working-directory: ios
-        run: |
-          for name in 1-start 3-schieber-play 5-sidi 7-coiffeur; do
-            [ -f "shots/$name.png" ] || continue
-            sips -Z 640 -s format jpeg -s formatOptions 38 "shots/$name.png" --out "/tmp/$name.jpg" >/dev/null
-            echo "THUMB $name $(base64 -i "/tmp/$name.jpg" | tr -d '\n')"
-          done

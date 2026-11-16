@@ -85,7 +85,9 @@ ios/tests/run-ffi-smoke.sh --check-views   # every view checked against TableSta
 Both need only cargo, a C compiler and python3, so they run in the Linux CI job. The second
 reads the struct declarations out of the Swift source and holds 1,500 real views against them:
 a field Swift calls non-optional that the engine sends as null is caught there, not on a phone.
-`.github/workflows/ios.yml` compiles the app itself on a Mac runner.
+`.github/workflows/ios.yml` compiles the app itself on a Mac runner, launches it in a simulator
+and uploads screenshots of the start screen and each game as the `ios-screenshots` artifact
+(debug builds take `-kj.autostart <mode>` and `-kj.autoplay <n>` for that).
 
 ## Not here yet
 

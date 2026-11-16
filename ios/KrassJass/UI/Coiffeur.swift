@@ -118,7 +118,7 @@ struct CoiffeurSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 1) {
             line(label: Text(""), mult: "×", us: t("team.us"), them: t("team.them"), style: .header)
             ForEach(order, id: \.self) { i in
                 row(i)
@@ -198,7 +198,7 @@ struct CoiffeurSheet: View {
         .font(.system(.footnote, design: .rounded).weight(strong ? .bold : .regular))
         .foregroundColor(style == .header ? Theme.textFaint : .white)
         .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .padding(.vertical, 3)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(background(style))
