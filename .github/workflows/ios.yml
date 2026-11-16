@@ -51,6 +51,44 @@ jobs:
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             -quiet 2>&1 | tee build.log
+      # The app, looked at: the start screen and each game a few moves in, on a simulator. Debug
+      # builds take `-kj.autostart <mode>` and `-kj.autoplay <n>` for exactly this.
+      - name: Screenshots
+        working-directory: ios
+        run: |
+          app="build/Build/Products/Debug-iphonesimulator/KrassJass.app"
+          device=$(xcrun simctl list devices available | grep -E "iPhone [0-9]+( Pro)? \(" | head -1 | grep -oE "[0-9A-F-]{36}")
+          xcrun simctl list devices available | grep -E "iPhone" | head -5
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl install "$device" "$app"
+          mkdir -p shots
+          shot() {
+            name=$1; wait=$2; shift 2
+            xcrun simctl terminate "$device" ch.krassjass.app 2>/dev/null || true
+            xcrun simctl launch "$device" ch.krassjass.app "$@"
+            sleep "$wait"
+            xcrun simctl io "$device" screenshot "shots/$name.png"
+          }
+          shot 1-start 8
+          shot 2-schieber-bidding 12 -kj.autostart schieber
+          shot 3-schieber-play 40 -kj.autostart schieber -kj.autoplay 5
+          shot 4-schieber-scorecard 90 -kj.autostart schieber -kj.autoplay 11
+          shot 5-sidi 20 -kj.autostart sidi
+          shot 6-sidi-play 45 -kj.autostart sidi -kj.autoplay 4
+          shot 7-coiffeur 20 -kj.autostart coiffeur
+          shot 8-coiffeur-play 45 -kj.autostart coiffeur -kj.autoplay 4
+          # Small copies beside the originals: quick to look through.
+          mkdir -p shots/small
+          for f in shots/*.png; do
+            sips -Z 1100 -s format jpeg -s formatOptions 70 "$f" --out "shots/small/$(basename "${f%.png}").jpg" >/dev/null
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-screenshots
+          path: ios/shots
+          if-no-files-found: ignore
       - name: Errors, if any
         if: failure()
         working-directory: ios
