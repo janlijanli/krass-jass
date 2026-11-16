@@ -40,7 +40,22 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(false)
+        #if DEBUG
+        .onAppear(perform: launchArguments)
+        #endif
     }
+
+    #if DEBUG
+    /// `-kj.autostart sidi` skips the start screen; `-kj.autoplay 12` plays the player's first
+    /// twelve decisions. For screenshots in CI; neither exists in a release build.
+    private func launchArguments() {
+        let defaults = UserDefaults.standard
+        controller.demo(moves: defaults.integer(forKey: "kj.autoplay"))
+        if let mode = defaults.string(forKey: "kj.autostart").flatMap(TableState.Mode.init(rawValue:)) {
+            start(mode: mode)
+        }
+    }
+    #endif
 
     /// nil continues the saved game; a mode deals a new one.
     private func start(mode: TableState.Mode?) {

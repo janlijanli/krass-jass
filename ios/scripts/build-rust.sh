@@ -27,7 +27,7 @@ rustup target add "${TARGETS[@]}"
 export IPHONEOS_DEPLOYMENT_TARGET=17.0
 
 for target in "${TARGETS[@]}"; do
-  echo "building $target…"
+  echo "building ${target}"
   (cd rust && cargo rustc --release --lib --target "$target" \
       --no-default-features --features wasm --crate-type staticlib)
 done

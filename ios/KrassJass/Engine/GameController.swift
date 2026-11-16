@@ -338,13 +338,21 @@ final class GameController: ObservableObject {
             guard mine == generation, let handle, let state else { return }
             if state.trickComplete {
                 // Waiting on a tap — unless the player would rather not tap.
-                guard preferences.autoCollect else { return }
-                await pause(1.5)
+                guard preferences.autoCollect || demoMoves > 0 else { return }
+                await pause(demoMoves > 0 ? 0.3 : 1.5)
                 guard mine == generation, self.state?.trickComplete == true else { return }
                 acked += 1
                 await refresh()
                 continue
             }
+            #if DEBUG
+            if demoMoves > 0, let move = Self.demoMove(state, knocking: knock != nil) {
+                demoMoves -= 1
+                await pause(0.25)
+                guard mine == generation, await perform(move) else { return }
+                continue
+            }
+            #endif
             guard let seat = state.toAct, seat != Engine.humanSeat else { return }
             if knock != nil { return }          // the player is being asked whether to knock
             if await botsKnock(state, handle: handle, generation: mine) { continue }
@@ -378,6 +386,49 @@ final class GameController: ObservableObject {
         guard seconds > 0 else { return }
         try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
     }
+
+    // MARK: Demo
+
+    /// Debug builds only: how many of the player's own decisions the app makes by itself
+    /// (`-kj.autoplay 12` on the command line), so a screenshot can be taken mid-game without
+    /// anyone at the screen. Always 0 in a release build.
+    private var demoMoves = 0
+
+    #if DEBUG
+    func demo(moves: Int) { demoMoves = max(0, moves) }
+
+    /// The first thing on offer — a way to get somewhere, not a way to play.
+    private static func demoMove(_ state: TableState, knocking: Bool) -> Move? {
+        let seat = Engine.humanSeat
+        guard state.scorecard == nil, !knocking, state.myTurn else { return nil }
+        switch state.phase {
+        case .playing:
+            return state.legal.first.map { Move(kind: .play, seat: seat, value: $0.index) }
+        case .weis:
+            return Move(kind: .weis, seat: seat, value: 1)
+        case .doubling:
+            return Move(kind: .double, seat: seat, value: 0)
+        case .block:
+            return state.coiffeur?.blocks.first.flatMap(Contract.index(of:)).map {
+                Move(kind: .block, seat: seat, value: $0)
+            }
+        case .bidding:
+            switch state.mode {
+            case .schieber: return Move(kind: .bid, seat: seat, value: 1)
+            case .sidi:
+                let bid = state.legalCalls.first { SidiCall.bid($0) != nil }
+                return (state.auction.count < 2 ? bid : "PASS").flatMap(SidiCall.code).map {
+                    Move(kind: .call, seat: seat, value: $0)
+                }
+            case .coiffeur:
+                // Plain rows only: index 0 is always a legal choice when anything is.
+                return Move(kind: .choose, seat: seat, value: 0)
+            }
+        case .roundOver, .gameOver:
+            return nil
+        }
+    }
+    #endif
 
     // MARK: Sidi — the knock
 
