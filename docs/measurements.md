@@ -1882,6 +1882,40 @@ labelling, by our own bot, cannot see.
 
 ---
 
+## 5y. Do the play-model gains transfer to an opponent that is not a clone? About half
+
+*2026-11-12.* `HOUSE` without the target, 153,600 iterations, the same 800 deals and seed (101) as
+§5x's ceiling run. Script and log in `arena/runs/2026-11-12/`.
+
+**The question.** Beliefs (§5o), the tree policy (§5p) and the convention model (§5w) all rest on the
+play model — on the other seats playing the way our bots do. Every one of them was measured against
+a clone. The cheating agent is the one opponent in the arena that does not play like the model: it
+chooses cards knowing all four hands. **Predicted before the run:** if the gains are clone-specific,
+the cheating agent scores the same against the bot with them switched off as against the shipped bot.
+
+| cheating (sees all hands, no endgame solver) vs | share | deals |
+|---|---|---|
+| the shipped bot (§5x) | 57.86% ± 7.27 | 800 |
+| the bot with `belief_alpha=0 bid_alpha=0 tree_policy=false` | **59.03% ± 7.10** | 800 |
+
+**The prediction was wrong in its strong form.** The three parts together are worth **1.17** against
+the cheating agent — standard error at most ~0.36, computed unpaired because per-deal shares were
+not kept; the deals are the same, so the true one is smaller. Against clones the same parts measured
++1.31, +0.86 and +0.45, about 2.2–2.6 if additive. So roughly **half** of what the play model buys
+survives an opponent it does not describe. Read the clone figures as an upper bound on what a person
+at the table will see, and about half of them as the working estimate until human games exist.
+
+**§5x's "the ceiling has not moved" does not stand as written.** If today's bot without these parts
+loses 59.03%, §3f's 57.35% cannot have been measured against that bot; the two ceiling figures are
+two configurations, as §3f already warned about §4's. The gains moved the gap by about 1.2 points,
+not by nothing.
+
+**Not done.** One seed, one unlike opponent, and the parts switched off together rather than one at
+a time. A second unlike opponent that is *honest* (mixed teams, or the policy network of §5s as a
+seat) would say whether the half that is lost is lost to any stranger or only to one that cheats.
+
+---
+
 ## 6. Open
 
 - **Nothing measured against a human.** Every figure is bots against bots, and two of the largest
@@ -1891,4 +1925,5 @@ labelling, by our own bot, cannot see.
 - The belief network at weight 1 is in a match as this is written (§5q).
 - The tree policy leans +0.39 and +0.31 at equal time (§5p, §5x), neither significant; pooled it
   would take ~3,000 more deals to resolve a third of a point.
-- The cheating-agent gap is ~8 points and did not narrow with the last four gains (§5x).
+- The cheating-agent gap is ~8 points. The play-model parts narrow it by ~1.2, about half of what
+  they measure against clones (§5y); §5x's reading that it did not narrow at all is superseded.
