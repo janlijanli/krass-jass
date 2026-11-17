@@ -31,6 +31,21 @@ open ios/KrassJass.xcodeproj
 Pick a simulator or a phone and run. For a phone, set your team under *Signing & Capabilities*
 (the bundle id is `ch.krassjass.app`; change it in `project.yml` if it is taken).
 
+Onto a phone without opening Xcode, with the team given on the command line so that no one's
+team id lands in `project.yml`:
+
+```bash
+xcodebuild build -project ios/KrassJass.xcodeproj -scheme KrassJass -configuration Debug \
+  -destination 'generic/platform=iOS' -derivedDataPath ios/build-device \
+  DEVELOPMENT_TEAM=<team id> -allowProvisioningUpdates
+xcrun devicectl list devices    # the phone's udid, plugged in and unlocked
+xcrun devicectl device install app --device <udid> \
+  ios/build-device/Build/Products/Debug-iphoneos/KrassJass.app
+```
+
+A free Apple ID signs for seven days and for three app ids at a time; after that the app stops
+launching and has to be installed again.
+
 After changing Rust code, run `ios/scripts/build-rust.sh` again. After adding or removing Swift
 files, run `xcodegen generate` in `ios/` (or `bootstrap.sh`).
 

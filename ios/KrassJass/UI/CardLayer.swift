@@ -6,8 +6,19 @@ struct TableMetrics {
 
     var cardW: CGFloat { min(size.width / 4.6, size.height * 0.17, 132) }
     var cardH: CGFloat { cardW * Theme.cardAspect }
-    /// Trick cards are the hand's cards, a touch smaller.
-    var trickScale: CGFloat { 0.9 }
+    /// How far a trick card sits from the middle, in cards: across for the left and right
+    /// seats, down for the near and far ones. `trickScale` sizes the cross from the same two.
+    static let trickOffset: (across: CGFloat, down: CGFloat) = (0.74, 0.42)
+    /// Trick cards were the hand's cards a touch smaller, which left the middle of the felt
+    /// mostly empty on a phone. They take the room the seats and the hand leave them instead —
+    /// never below the old size, and no more than 1.3x the hand, past which the cross reaches
+    /// the seat labels.
+    var trickScale: CGFloat {
+        let across = (2 * Self.trickOffset.across + 1) * cardW
+        let down = (2 * Self.trickOffset.down + 1) * cardH
+        let room = min((size.width - 36) / across, tableHeight * 0.9 / down)
+        return min(1.3, max(0.9, room))
+    }
     var handCentreY: CGFloat { size.height - cardH * 0.5 - 12 }
     var statusY: CGFloat { size.height - cardH - 12 - cardW * 0.34 - 14 }
     /// The felt above the status line: seats, trick, panels.
@@ -34,11 +45,13 @@ struct TableMetrics {
         let c = trickCentre
         // A card thrown on a table never lands square; the same card always lands the same way.
         let jitter = Double((card.index * 37) % 9) - 4
+        let across = Self.trickOffset.across
+        let down = Self.trickOffset.down
         switch side {
-        case 0: return (CGPoint(x: c.x, y: c.y + h * 0.42), .degrees(-2 + jitter))
-        case 1: return (CGPoint(x: c.x + w * 0.74, y: c.y), .degrees(7 + jitter))
-        case 2: return (CGPoint(x: c.x, y: c.y - h * 0.42), .degrees(2 + jitter))
-        default: return (CGPoint(x: c.x - w * 0.74, y: c.y), .degrees(-7 + jitter))
+        case 0: return (CGPoint(x: c.x, y: c.y + h * down), .degrees(-2 + jitter))
+        case 1: return (CGPoint(x: c.x + w * across, y: c.y), .degrees(7 + jitter))
+        case 2: return (CGPoint(x: c.x, y: c.y - h * down), .degrees(2 + jitter))
+        default: return (CGPoint(x: c.x - w * across, y: c.y), .degrees(-7 + jitter))
         }
     }
 
