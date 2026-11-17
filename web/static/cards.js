@@ -11,6 +11,8 @@
  * decoration, since the trump Jack is the strongest card in the game.
  */
 
+import { DEFS, FIGURE } from "./court-art.js";
+
 const SUIT_GLYPH = { D: "♦", H: "♥", S: "♠", C: "♣" };
 
 /* The suits, drawn rather than typed.
@@ -64,122 +66,37 @@ function pip(x, y, suit, half = 8.5) {
   return suitMark(suit, x, y, half, "pip-mark", y > 70);
 }
 
-/* Court figures, after the Swiss French-suited Jass cards.
+/* The court figures are not drawn here — they are the CC0 art from letele/playing-cards, in
+ * `court-art.js`. `ios/CARD-ART.md` says what was taken and what was left behind.
  *
- * The real ones (AGMüller; jassverzeichnis.ch shows all twelve) are double-headed half-length
- * figures that fill the frame, split by a line across the middle, with a large suit symbol in
- * the frame's top-left corner — in red, blue, gold and pale blue, outlined in black. The King
- * wears a crown, a beard and an ermine collar and holds a sceptre; the Dame a small crown, her
- * hair up, a pale veil, and a red flower; the Bauer a beret with a red feather, a moustache, a
- * laced doublet and a halberd. These are our own drawings of those features — the printed art
- * is not ours to copy — simplified so that at 62px wide in a fanned hand the three still read
- * apart by silhouette: a crown and a beard, a veil and a flower, a hat and a blade.
+ * Their card is 240 x 336 and the figure fills a 164.8 x 260.8 box centred on it. Ours is
+ * 100 x 140 — the same proportions — so it drops in without distortion, pulled in to 89% to
+ * clear our corner index, which sits further in than theirs does. The same number is in
+ * `CardFace.courtInset` on iOS, so both builds show the deck at the same size.
  */
+const COURT_INSET = 0.89;
 
-const INK = "#1b1b1b";
-const SKIN = "#f2d3b3";
-const GOLD = "#e7b53c";
-const RED = "#c7312c";
-const BLUE = "#2f5d9b";
-const PALE = "#b9d5ee";
-const WHITE = "#fbf8f1";
-
-/* The costume colours change from suit to suit, as they do on the printed cards. */
-const COSTUME = {
-  S: { robe: BLUE, sleeve: RED, panel: GOLD },
-  C: { robe: RED, sleeve: BLUE, panel: GOLD },
-  H: { robe: RED, sleeve: GOLD, panel: BLUE },
-  D: { robe: BLUE, sleeve: GOLD, panel: RED },
-};
-
-const o = `stroke="${INK}" stroke-width=".8" stroke-linejoin="round"`;
-
-/* Head at (55, 31): face, then what each figure wears and carries. */
-function head(rank) {
-  const face = `<ellipse cx="55" cy="31.5" rx="6.6" ry="8" fill="${SKIN}" ${o}/>
-    <circle cx="52.6" cy="30.3" r=".75" fill="${INK}"/><circle cx="57.4" cy="30.3" r=".75" fill="${INK}"/>
-    <path d="M55 31 L54.3 34 L55.4 34.2" fill="none" ${o}/>`;
-  if (rank === "K") {
-    return `${face}
-      <path d="M48.8 33.5 Q48.5 42.5 55 44.5 Q61.5 42.5 61.2 33.5 Q58.5 37.5 55 37.8 Q51.5 37.5 48.8 33.5 Z" fill="#9b8f84" ${o}/>
-      <path d="M52.2 36.4 Q55 35.2 57.8 36.4" fill="none" ${o}/>
-      <path d="M47.5 25 L48.5 15.5 L51.5 20 L55 13.5 L58.5 20 L61.5 15.5 L62.5 25 Z" fill="${GOLD}" ${o}/>
-      <rect x="47.5" y="23.2" width="15" height="3.2" fill="${RED}" ${o}/>
-      <circle cx="55" cy="13.6" r="1.2" fill="${RED}" ${o}/>`;
-  }
-  if (rank === "Q") {
-    return `<path d="M47.4 34 Q45.5 20 55 21 Q64.5 20 62.6 34 Q60 25 55 25.5 Q50 25 47.4 34 Z" fill="#8a5a33" ${o}/>
-      <path d="M61.5 26 Q70 34 66 52 L61 52 Q64 38 59 30 Z" fill="${PALE}" ${o}/>
-      ${face}
-      <path d="M52.8 36 Q55 37.2 57.2 36" fill="none" stroke="${RED}" stroke-width=".9"/>
-      <path d="M50.5 22 L51.5 17.5 L53.5 20.2 L55 16.5 L56.5 20.2 L58.5 17.5 L59.5 22 Z" fill="${GOLD}" ${o}/>`;
-  }
-  // Bauer
-  return `${face}
-    <path d="M51.5 36.4 Q55 34.6 58.5 36.4 Q55 35.8 51.5 36.4 Z" fill="#6b4a2e" ${o}/>
-    <path d="M46.5 24.5 Q47 17.5 56 17.5 Q65 17.5 64.5 23.5 Q56 21.5 46.5 24.5 Z" fill="${BLUE}" ${o}/>
-    <path d="M46.3 24.8 Q55 22 64.6 23.8 L64.4 25.4 Q55 23.8 46.5 26.4 Z" fill="${RED}" ${o}/>
-    <path d="M49 19.5 Q42 16 40.5 22.5 Q45 19.5 49.5 21.5 Z" fill="${RED}" ${o}/>`;
-}
-
-/* The body from the shoulders to the dividing line at y = 70, and what the hands hold. */
-function body(rank, suit) {
-  const c = COSTUME[suit];
-  const robe = `<path d="M20 70 L20 54 Q23 44.5 40 43 L70 43 Q84 44.5 85 54 L85 70 Z" fill="${c.robe}" ${o}/>
-    <path d="M20 70 L20 57 Q25 49 36 47.5 L39 70 Z" fill="${c.sleeve}" ${o}/>
-    <path d="M85 70 L85 57 Q80 49 72 47.5 L69 70 Z" fill="${c.sleeve}" ${o}/>`;
-  if (rank === "K") {
-    return `${robe}
-      <path d="M47 43.5 L63 43.5 L64.5 70 L45.5 70 Z" fill="${c.panel}" ${o}/>
-      <path d="M40 43.2 Q55 50.5 70 43.2 L70 47 Q55 54 40 47 Z" fill="${WHITE}" ${o}/>
-      <circle cx="45" cy="47" r=".7" fill="${INK}"/><circle cx="52" cy="49.4" r=".7" fill="${INK}"/>
-      <circle cx="58" cy="49.4" r=".7" fill="${INK}"/><circle cx="65" cy="47" r=".7" fill="${INK}"/>
-      <rect x="72.8" y="27" width="2.4" height="43" fill="${GOLD}" ${o}/>
-      <circle cx="74" cy="25" r="3" fill="${GOLD}" ${o}/>
-      <path d="M74 22 L74 20 M72.6 21 L75.4 21" ${o}/>
-      <ellipse cx="74" cy="56" rx="3.4" ry="2.8" fill="${SKIN}" ${o}/>`;
-  }
-  if (rank === "Q") {
-    return `${robe}
-      <path d="M46 44 L64 44 L66 70 L44 70 Z" fill="${c.panel}" ${o}/>
-      <path d="M46 44 Q55 49 64 44" fill="none" ${o}/>
-      <rect x="44.6" y="62" width="21" height="2.6" fill="${RED}" ${o}/>
-      <path d="M35.5 64 Q36 55 38 46" fill="none" stroke="#3d7a3a" stroke-width="1.1"/>
-      <path d="M36.5 55 Q33 53 32.5 50.5 Q35.5 51.5 36.8 54 Z" fill="#3d7a3a"/>
-      <circle cx="38.2" cy="44.6" r="2.8" fill="${RED}" ${o}/>
-      <circle cx="38.2" cy="44.6" r="1" fill="${GOLD}"/>
-      <ellipse cx="36" cy="58" rx="3.2" ry="2.6" fill="${SKIN}" ${o}/>`;
-  }
-  // Bauer: a laced doublet, and a halberd on the right.
-  return `${robe}
-    <path d="M47 43.5 L63 43.5 L63.5 70 L46.5 70 Z" fill="${c.panel}" ${o}/>
-    <path d="M49 47 L61 55 M61 47 L49 55 M49 55 L61 63 M61 55 L49 63" stroke="${RED}" stroke-width="1"/>
-    <path d="M46 43.2 Q55 47.5 64 43.2" fill="${WHITE}" ${o}/>
-    <rect x="73.3" y="20" width="2" height="50" fill="${GOLD}" ${o}/>
-    <path d="M74.3 12 L76.5 19 L81 17 Q82 23 76 25 L74.3 26 L72.6 25 Q67 23 68 17 L72.2 19 Z" fill="${PALE}" ${o}/>
-    <ellipse cx="74.3" cy="55" rx="3.4" ry="2.8" fill="${SKIN}" ${o}/>`;
-}
-
-function courtHalf(rank, suit) {
-  // The head is drawn at a modest size and then enlarged: on the printed cards it is the
-  // biggest thing in the frame, and it is what the eye finds first in a fanned hand.
-  return `<g>${body(rank, suit)}
-    <g transform="translate(55 33.5) scale(1.3) translate(-55 -31.5)">${head(rank)}</g>
-    ${suitMark(suit, 29, 21, 6, "court-pip")}</g>`;
+/* The symbols go into the page once rather than into every card: a hand with three court cards
+ * is then twelve kilobytes of markup instead of a hundred and forty. */
+let defsPlaced = false;
+function placeDefs() {
+  if (defsPlaced || typeof document === "undefined") return;
+  defsPlaced = true;
+  const host = document.createElement("div");
+  host.id = "court-defs";
+  host.setAttribute("aria-hidden", "true");
+  host.style.cssText = "position:absolute;width:0;height:0;overflow:hidden";
+  host.innerHTML =
+    `<svg xmlns="http://www.w3.org/2000/svg">${DEFS}</svg>`;
+  document.body.append(host);
 }
 
 function courtFace(rank, suit) {
-  // Clipped to the frame, so the figure fills it the way the printed one does.
-  const id = `f${suit}${rank}`;
-  return `
-    <clipPath id="${id}"><rect x="21" y="9" width="62" height="122" rx="3.5"/></clipPath>
-    <rect x="21" y="9" width="62" height="122" rx="3.5" fill="#fff"/>
-    <g clip-path="url(#${id})">
-      ${courtHalf(rank, suit)}
-      <g transform="rotate(180 52 70)">${courtHalf(rank, suit)}</g>
-    </g>
-    <line x1="21" y1="70" x2="83" y2="70" stroke="${INK}" stroke-width=".7"/>
-    <rect x="21" y="9" width="62" height="122" rx="3.5" class="court-frame"/>`;
+  placeDefs();
+  // Without a document — the render harness, a test — the symbols travel with the card.
+  const inline = typeof document === "undefined" ? `<defs>${DEFS}</defs>` : "";
+  const scale = ((100 / 240) * COURT_INSET).toFixed(6);
+  return `${inline}<g transform="translate(50 70) scale(${scale})">${FIGURE[suit + rank]}</g>`;
 }
 
 export function cardFace(code) {
