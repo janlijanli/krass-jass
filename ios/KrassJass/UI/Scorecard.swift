@@ -200,6 +200,8 @@ struct ScorecardOverlay: View {
 struct BoardSheet: View {
     @EnvironmentObject private var controller: GameController
     @Environment(\.dismiss) private var dismiss
+    /// The board is the point of this sheet, so it opens at a size that shows one.
+    @State private var detent: PresentationDetent = .large
 
     var body: some View {
         NavigationStack {
@@ -210,7 +212,11 @@ struct BoardSheet: View {
                             if let schedule = coiffeur.schedule {
                                 ScheduleStrip(schedule: schedule)
                             }
-                            CoiffeurSheet(state: state, coiffeur: coiffeur)
+                            // In the Coiffeur the sheet is the board, so it hangs on the same
+                            // slate the chalk is written on.
+                            SlateBoard {
+                                CoiffeurSheet(state: state, coiffeur: coiffeur)
+                            }
                         } else {
                             rounds(state)
                         }
@@ -231,13 +237,24 @@ struct BoardSheet: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $detent)
         .presentationDragIndicator(.visible)
     }
 
     @ViewBuilder
     private func rounds(_ state: TableState) -> some View {
         let mine = state.seat % 2
+        // The board itself, in chalk. It is written up round by round, so it gets the rounds
+        // and not the totals — see `Tafel.accumulate`.
+        SlateBoard {
+            TafelMarksView(
+                history: [
+                    controller.rounds.map { $0.roundTotal[mine] },
+                    controller.rounds.map { $0.roundTotal[1 - mine] },
+                ],
+                target: state.target
+            )
+        }
         Text(t("tafel.playingTo", ["n": "\(state.target)"]))
             .font(.system(.subheadline, design: .rounded))
             .foregroundColor(Theme.textFaint)
