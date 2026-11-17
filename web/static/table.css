@@ -719,15 +719,11 @@ body {
 /* The suit symbols are paths (cards.js, SUIT_PATH), filled with the suit's ink. */
 .face .idx-pip, .face .pip-mark, .face .court-pip { fill: var(--face-ink); }
 
-.face .court-frame { fill: none; stroke: #1b1b1b; stroke-width: .9; opacity: .55; }
-.face .court-divide { stroke: var(--face-ink); stroke-width: .8; opacity: .25; }
-.face .court-ink { fill: var(--face-ink); }
-.face .court-face { fill: #fff; stroke: var(--face-ink); stroke-width: 1.1; }
-.face .court-robe { fill: var(--face-ink); opacity: .16; stroke: var(--face-ink); stroke-width: 1.1; }
-.face .court-line { fill: none; stroke: var(--face-ink); stroke-width: 1; opacity: .7; }
-
-/* The trump Jack decides most tricks it appears in, so it has to be findable instantly. */
-.card.puur .face .court-frame { stroke: var(--gold); opacity: 1; stroke-width: 2; }
+/* The trump Jack decides most tricks it appears in, so it has to be findable instantly. It
+   used to be marked by the frame around the drawn court figure; the figures are the CC0 art
+   now and have no frame, so the mark is on the card itself — which is also where the iOS app
+   puts it (`CardView.glow`). */
+.card.puur { border-color: var(--gold); box-shadow: var(--shadow-card), 0 0 0 2px var(--gold) inset; }
 
 
 

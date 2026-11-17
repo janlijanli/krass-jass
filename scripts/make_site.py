@@ -88,7 +88,7 @@ def asset_version() -> str:
     # missing fields the page expects, which looks like a code bug rather than a stale file.
     for name in sorted(
         (
-            "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
+            "table.css", "cards.js", "court-art.js", "about.js", "menu.js", "tafel.js",
             "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "splash.js",
             "render.js", "solo.js", "engine.js", "krass_jass_core.wasm",
             "report.html", "report.css", "report.js",
@@ -242,13 +242,15 @@ def build_index() -> None:
     (SITE / "report.html").write_text(report)
 
     for name in (
-        "solo.js", "render.js", "menu.js", "engine.js", "about.js", "walkthrough.js", "report.js", "splash.js",
+        "solo.js", "render.js", "menu.js", "engine.js", "about.js", "walkthrough.js", "report.js",
+        "splash.js", "cards.js",
     ):
         path = SITE / name
         text = path.read_text()
         for dep in (
-            "engine.js", "render.js", "menu.js", "cards.js", "about.js", "tafel.js",
-            "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "splash.js",
+            "engine.js", "render.js", "menu.js", "cards.js", "court-art.js", "about.js",
+            "tafel.js", "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js",
+            "splash.js",
         ):
             text = text.replace(f'"./{dep}"', f'"./{dep}?v={version}"')
         text = text.replace('"measurements.json"', f'"measurements.json?v={version}"')
@@ -272,7 +274,7 @@ def build_service_worker(version: str) -> None:
     its own, and the game does not need it.
     """
     versioned = [
-        "table.css", "cards.js", "about.js", "menu.js", "tafel.js", "i18n.js",
+        "table.css", "cards.js", "court-art.js", "about.js", "menu.js", "tafel.js", "i18n.js",
         "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "splash.js", "render.js", "solo.js", "engine.js",
         "krass_jass_core.wasm", "measurements.json",
     ]
@@ -299,7 +301,7 @@ def copy_assets() -> None:
     it is the single source for every number either build shows a reader.
     """
     for name in (
-        "table.css", "cards.js", "about.js", "menu.js", "tafel.js",
+        "table.css", "cards.js", "court-art.js", "about.js", "menu.js", "tafel.js",
         "i18n.js", "about-i18n.js", "walkthrough.js", "talk.js", "names.js", "splash.js",
         "report.html", "report.css", "report.js",
     ):
