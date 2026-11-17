@@ -6,6 +6,9 @@ struct MenuSheet: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.dismiss) private var dismiss
     @State private var confirmNewGame = false
+    /// The game that was being played when the picker was changed, so that saying no puts the
+    /// picker back rather than leaving the menu describing a game nobody is playing.
+    @State private var modeBefore: TableState.Mode?
 
     private static let targets = [1000, 1500, 2000, 2500]
     private static let contractKeys = ["DIAMONDS", "HEARTS", "SPADES", "CLUBS", "OBENABE", "UNDENUFE"]
@@ -48,9 +51,12 @@ struct MenuSheet: View {
             .toolbarBackground(Theme.chrome, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
-            .confirmationDialog(t("menu.newGameConfirm"), isPresented: $confirmNewGame, titleVisibility: .visible) {
+            // An alert rather than a confirmation dialog: iOS draws the dialog as a compact
+            // sheet that shows the destructive button alone and leaves cancelling to a tap
+            // outside it. Throwing a game away deserves a visible way to say no.
+            .alert(t("menu.newGameConfirm"), isPresented: $confirmNewGame) {
                 Button(t("menu.start"), role: .destructive) { startNewGame() }
-                Button(t("menu.cancel"), role: .cancel) {}
+                Button(t("menu.cancel"), role: .cancel) { keepPlaying() }
             }
         }
         .tint(Theme.gold)
@@ -59,8 +65,20 @@ struct MenuSheet: View {
 
     private func startNewGame() {
         Haptics.confirm()
+        modeBefore = nil
         dismiss()
         Task { await controller.newGame() }
+    }
+
+    /// A game in progress that a new one would throw away.
+    private var gameRunning: Bool { controller.state.map { !$0.isOver } ?? false }
+
+    /// Saying no to the question the picker asked: back to the game actually on the table.
+    private func keepPlaying() {
+        guard let mode = modeBefore else { return }
+        controller.settings.mode = mode
+        controller.settings.target = GameSettings.usualTarget(mode)
+        modeBefore = nil
     }
 
     // MARK: Rules
@@ -92,12 +110,23 @@ struct MenuSheet: View {
     }
 
     /// Changing the game also moves the target to what that game is usually played to.
+    ///
+    /// Every other setting here is for the next game — a multiplier or Weis can wait, and the
+    /// footer says so. The game itself cannot: a Schieber on the table does not become a
+    /// Coiffeur, so leaving the picker on one game while another is being played says something
+    /// false about the table. So this one asks, and a no puts the picker back.
     private var modeBinding: Binding<TableState.Mode> {
         Binding(
             get: { controller.settings.mode },
             set: { mode in
+                guard mode != controller.settings.mode else { return }
+                let previous = controller.settings.mode
                 controller.settings.mode = mode
                 controller.settings.target = GameSettings.usualTarget(mode)
+                if gameRunning {
+                    modeBefore = previous
+                    confirmNewGame = true
+                }
             }
         )
     }
