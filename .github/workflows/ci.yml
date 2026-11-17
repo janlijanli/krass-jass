@@ -22,6 +22,15 @@ jobs:
       - name: Tests
         run: .venv/bin/python -m pytest
 
+      # The iOS app reaches the engine through a C header and a Swift mirror of the view JSON,
+      # both kept in step by hand. No Swift compiles here; this plays games through the header
+      # and holds every view against the Swift declarations (ios/tests/check_views.py). The app
+      # itself is built on a Mac in ios.yml.
+      - name: iOS — C interface and view model
+        run: ios/tests/run-ffi-smoke.sh --check-views
+      - name: iOS — strings are the web UI's
+        run: node ios/scripts/make-strings.mjs && git diff --exit-code ios/KrassJass/Resources/strings.json
+
       # Throughput is the project's real bottleneck and the gate on M5
       # (docs/plan-review.md §1), so it is measured on every run and the number is kept.
       - name: Benchmark

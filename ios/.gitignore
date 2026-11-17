@@ -1,0 +1,12 @@
+# Build products: the engine (scripts/build-rust.sh), the icon (scripts/make_icon.py) and the
+# Xcode project (xcodegen, from project.yml).
+Engine/KrassJassCore.xcframework/
+KrassJass/Resources/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+KrassJass.xcodeproj/
+DerivedData/
+build/
+# xcodebuild -derivedDataPath for a signed build on a phone (ios/README.md).
+build-device/
+xcuserdata/
+*.xcuserstate
+.DS_Store

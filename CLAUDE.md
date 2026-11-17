@@ -60,6 +60,14 @@ A match is a stroke in its own sheet category, worth 10 and never multiplied; th
 2026-11-03, `coiffeur_match_stroke`). Rules and open
 points in `docs/rules-config.md`, the bots and the training runs it needs in `docs/coiffeur-plan.md`.
 
+**An iOS app is started** (`ios/`, 2026-11-16): native SwiftUI over the same Rust crate, linked as a
+static library through the C functions of `wasm_api.rs` — no third implementation of the rules. All
+three modes, the browser build's bots and budget, save/resume by replay. `ios/README.md` has the
+layout and what is not there yet. A signature changed in `wasm_api.rs` changes in
+`ios/Engine/include/krass_jass_core.h` in the same commit, and a field added to `game_view` in
+`ios/KrassJass/Engine/TableState.swift`; `ios/tests/run-ffi-smoke.sh --check-views` (in CI) holds
+both to it. The app itself compiles only on a Mac (`.github/workflows/ios.yml`).
+
 **The search is Rust** (`rust/`, exposed via `krass_jass.native`). Measured: 1.48M DMCTS
 iterations/sec single-core, 6.19M on all cores — 42x the Python search. The tuned 800k
 budget is 0.13s per move. Python remains the engine of record; only the search moved.
