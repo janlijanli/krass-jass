@@ -331,12 +331,14 @@ struct BlockPanel: View {
 /// The nine tricks of the game being played, the one on the table marked.
 struct ScheduleStrip: View {
     let schedule: TableState.Schedule
+    /// The diameter of one trick's disc. Smaller in the top bar than on the board.
+    var size: CGFloat = 20
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: size * 0.15) {
             ForEach(Array(schedule.tricks.enumerated()), id: \.offset) { index, contract in
-                ContractSymbol(contract: contract, size: 12)
-                    .frame(width: 20, height: 20)
+                ContractSymbol(contract: contract, size: size * 0.6)
+                    .frame(width: size, height: size)
                     .background(
                         Circle().fill(index == schedule.at ? Theme.gold.opacity(0.35) : Color.black.opacity(0.2))
                     )

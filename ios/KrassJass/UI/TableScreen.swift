@@ -99,27 +99,42 @@ struct TopBar: View {
     let onBoard: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            Button(action: onBoard) {
-                HStack(spacing: 14) {
-                    score(t("team.us"), state.ourScore, leading: true)
-                    score(t("team.them"), state.theirScore, leading: true)
+        VStack(spacing: 3) {
+            HStack(spacing: 10) {
+                Button(action: onBoard) {
+                    HStack(spacing: 14) {
+                        score(t("team.us"), state.ourScore, leading: true)
+                        score(t("team.them"), state.theirScore, leading: true)
+                    }
                 }
-            }
-            .buttonStyle(.plain)
+                .buttonStyle(.plain)
 
-            Spacer(minLength: 4)
-            ContractBadge(state: state)
-            Spacer(minLength: 4)
+                Spacer(minLength: 4)
+                ContractBadge(state: state)
+                Spacer(minLength: 4)
 
-            Button(action: onMenu) {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(Color.white.opacity(0.1)))
+                Button(action: onMenu) {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 40, height: 40)
+                        .background(Circle().fill(Color.white.opacity(0.1)))
+                }
+                .accessibilityLabel(Text(t("menu.settings")))
             }
-            .accessibilityLabel(Text(t("menu.settings")))
+            // The nine tricks of a Coiffeur game, on a line of their own: inside the badge they
+            // would squeeze the scores out of the row. The line is kept for the whole game, so
+            // the table below does not move when a round is a plain contract in its own row.
+            if state.mode == .coiffeur {
+                ZStack {
+                    if let schedule = state.coiffeur?.schedule {
+                        ScheduleStrip(schedule: schedule, size: 17)
+                            .transition(.opacity)
+                    }
+                }
+                .frame(height: 19)
+                .animation(Motion.panel, value: state.coiffeur?.schedule)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -146,40 +161,97 @@ struct TopBar: View {
 }
 
 /// What the trick on the table is played in: trump or direction, and what it is worth.
+///
+/// In the Coiffeur a round can be more than one contract — a Slalom, a Tutti, a 3x3 — and the
+/// contract then changes trick by trick, so the badge leads with the game's name. Without it the
+/// badge says "Obenabe" on a Slalom's first trick and "Undenufe" on its second, which describes
+/// the trick truthfully and the round not at all. The nine tricks go under the bar (`TopBar`).
+/// Follows `renderContract` in `web/static/table.js`.
 struct ContractBadge: View {
     let state: TableState
 
     var body: some View {
         Group {
             if let contract = state.contract {
-                HStack(spacing: 6) {
+                pill {
+                    gameWord
                     ContractSymbol(contract: contract, size: 17)
-                    Text(L10n.shared.contract(contract))
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                        .foregroundColor(Theme.goldSoft)
-                        .lineLimit(1)
-                    if let detail {
-                        Text(detail)
-                            .font(.system(.caption, design: .rounded).weight(.bold))
-                            .foregroundColor(Theme.cardBlack)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Theme.gold))
+                    // While a schedule runs, the contract changes trick by trick and the
+                    // game's name is the useful half; the pip alone then says what this trick
+                    // is played in. A Chance row with one plain contract keeps both words.
+                    if state.coiffeur?.schedule == nil {
+                        Text(L10n.shared.contract(contract))
+                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            .foregroundColor(Theme.goldSoft)
+                            .lineLimit(1)
                     }
+                    detailTag
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(Theme.gold.opacity(0.16)))
-                .overlay(Capsule().strokeBorder(Theme.gold.opacity(0.4), lineWidth: 1))
                 .transition(.scale(scale: 0.6).combined(with: .opacity))
                 .id(contract)
+            } else if let gameName, state.multiplier != nil {
+                // A Tutti before its first card: the suit led will be trump, so there is no
+                // contract yet — but the game and what it pays are known.
+                pill {
+                    Text(gameName)
+                        .font(.system(.subheadline, design: .rounded).weight(.bold))
+                        .foregroundColor(Theme.gold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    detailTag
+                }
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
             } else {
                 Text(t("round.n", ["n": "\(state.round + 1)"]))
                     .font(.system(.subheadline, design: .rounded))
                     .foregroundColor(Theme.textFaint)
             }
         }
-        .animation(Motion.panel, value: state.contract)
+        .animation(Motion.panel, value: badgeKey)
+    }
+
+    /// The name of the Coiffeur game when the round is more than its contract — the extra row's
+    /// game, the Chance, or both. `nil` for a plain contract in its own row, and in every other
+    /// mode.
+    private var gameName: String? {
+        guard let coiffeur = state.coiffeur, let row = coiffeur.row else { return nil }
+        let chance = row == "CHANCE" ? L10n.shared.row("CHANCE") : nil
+        guard let schedule = coiffeur.schedule else { return chance }
+        let game = L10n.shared.row(CoiffeurWire.gameRow(schedule.name))
+        return chance.map { "\($0) · \(game)" } ?? game
+    }
+
+    private var badgeKey: String { "\(state.contract ?? "")|\(gameName ?? "")" }
+
+    @ViewBuilder
+    private var gameWord: some View {
+        if let gameName {
+            Text(gameName)
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .foregroundColor(Theme.gold)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+    }
+
+    @ViewBuilder
+    private var detailTag: some View {
+        if let detail {
+            Text(detail)
+                .font(.system(.caption, design: .rounded).weight(.bold))
+                .foregroundColor(Theme.cardBlack)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Theme.gold))
+        }
+    }
+
+    private func pill<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        HStack(spacing: 6, content: content)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(Theme.gold.opacity(0.16)))
+            .overlay(Capsule().strokeBorder(Theme.gold.opacity(0.4), lineWidth: 1))
     }
 
     /// ×3 in the Schieber and the Coiffeur; the bid, and whether it is doubled, in the Sidi.
