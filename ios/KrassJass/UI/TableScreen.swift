@@ -6,6 +6,12 @@ struct TableScreen: View {
     @Binding var showMenu: Bool
     @State private var showBoard = false
     @State private var selected: Card?
+    /// Sidi: the seat whose fist is on the table right now, and how far the table has been
+    /// knocked down by it. One run at a time — `knockID` lets a second double cut the first
+    /// one's tidy-up short instead of being wiped by it.
+    @State private var knockSeat: Int?
+    @State private var knockID = 0
+    @State private var jolt: CGFloat = 0
 
     var body: some View {
         ZStack {
@@ -15,7 +21,13 @@ struct TableScreen: View {
                     TopBar(state: state, onMenu: { showMenu = true }, onBoard: { showBoard = true })
                     GeometryReader { geo in
                         playArea(state, metrics: TableMetrics(size: geo.size))
+                            // The whole table drops under each blow. An offset, so nothing
+                            // is laid out again while it shakes.
+                            .offset(y: jolt)
                     }
+                }
+                .onChange(of: controller.pound) { _, pound in
+                    if let pound { knocked(at: pound.seat) }
                 }
                 if state.scorecard != nil {
                     ScorecardOverlay(state: state)
@@ -67,6 +79,17 @@ struct TableScreen: View {
 
             CardLayer(state: state, metrics: metrics, selected: $selected)
 
+            if let seat = knockSeat {
+                KnockEffect(name: seat == state.seat ? t("seat.you") : controller.names[seat]) { index in
+                    Haptics.pound(intensity: Knock.force[index])
+                    withAnimation(.easeOut(duration: 0.05)) { jolt = Knock.drop[index] }
+                    withAnimation(.spring(response: 0.24, dampingFraction: 0.42).delay(0.05)) { jolt = 0 }
+                }
+                .position(knockPlace(side: TableMetrics.side(of: seat, from: state.seat), metrics: metrics))
+                .id(knockID)
+                .zIndex(9)
+            }
+
             // Above the cards, but only ever over the felt: the hand stays in reach. A double
             // after the lead sits at the top, so the card that was led stays in view.
             if !state.trickComplete {
@@ -78,6 +101,38 @@ struct TableScreen: View {
                     )
                     .position(x: metrics.size.width / 2, y: 66 + max(120, metrics.tableHeight - 70) / 2)
             }
+        }
+    }
+
+    /// Where the fist lands: at the seat that threw it, pulled in far enough that the name
+    /// chip under it stays on screen at the side seats.
+    ///
+    /// The side seats take the middle of the felt, as `.pound-1` / `.pound-3` do in the web
+    /// UI. Level with their nameplate it would land on their cards instead of the table, and
+    /// a fist is meant to hit wood — overlapping the trick for a moment is the lesser evil.
+    private func knockPlace(side: Int, metrics: TableMetrics) -> CGPoint {
+        let w = metrics.size.width
+        let inset = min(100, w / 3.6)
+        switch side {
+        case 1: return CGPoint(x: w - inset, y: metrics.trickCentre.y)
+        case 2: return CGPoint(x: w / 2, y: 104)
+        case 3: return CGPoint(x: inset, y: metrics.trickCentre.y)
+        // Your own: high enough that the name chip clears the status line under it.
+        default: return CGPoint(x: w / 2, y: metrics.statusY - 88)
+        }
+    }
+
+    /// Put a fist on the table at that seat, and take it away when it is done. The blows
+    /// themselves — the thump and the jolt — come back from `KnockEffect` as they land, so
+    /// what is felt is on the same clock as what is seen.
+    private func knocked(at seat: Int) {
+        knockID += 1
+        let mine = knockID
+        knockSeat = seat
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(Knock.life))
+            guard knockID == mine else { return }     // a second double got in first
+            knockSeat = nil
         }
     }
 

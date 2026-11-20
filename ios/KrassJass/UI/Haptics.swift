@@ -90,7 +90,21 @@ enum Haptics {
             }
         case .rejected:
             notification.notificationOccurred(.error)
+        case .doubled:
+            // Nothing here on purpose: the two blows have to land *with* the fist, so
+            // `KnockEffect` fires them off the same clock that drives the picture.
+            break
         }
+    }
+
+    /// One blow of a fist on the table. Heavy, and hit twice by `KnockEffect`.
+    ///
+    /// `.heavy` alone is a single short knock; the second is given full intensity so the
+    /// pair reads as a knock that means it, the way it is pounded at a real table.
+    static func pound(intensity: CGFloat) {
+        guard enabled else { return }
+        heavy.impactOccurred(intensity: intensity)
+        heavy.prepare()
     }
 
     /// A short run of taps — cards being dealt, a match being knocked on the table.
