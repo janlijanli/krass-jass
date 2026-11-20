@@ -87,8 +87,11 @@ launch, which lands on the same position bit for bit.
 - The hand is dealt in card by card; scores roll; the contract badge springs in; a game won
   rains confetti.
 - Haptics (`Haptics.swift`) use one vocabulary: a tick for a card lifted, a firm tap for a card
-  played, a soft thud for someone else's card, a ripple for the deal and for a match, the
-  system's error for an illegal card. Off in the settings.
+  played, a soft thud for someone else's card, a ripple for the deal and for a match, two heavy
+  blows for a Sidi double, the system's error for an illegal card. Off in the settings.
+- A Sidi double arrives as a fist pounding the table at that seat (`Knock.swift`), and the two
+  blows are thrown by the timeline that moves the fist — `Knock.blows` is the one clock the
+  picture, the table's jolt and the haptics all read, so they cannot drift apart.
 
 ## Tests
 

@@ -16,6 +16,7 @@ struct MenuSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                startSection
                 gameSection
                 switch controller.settings.mode {
                 case .schieber: schieberSection
@@ -23,19 +24,6 @@ struct MenuSheet: View {
                 case .coiffeur: coiffeurSection
                 }
                 discardSection
-                Section {
-                    Button(t("menu.start")) {
-                        if controller.state != nil, controller.state?.isOver == false {
-                            confirmNewGame = true
-                        } else {
-                            startNewGame()
-                        }
-                    }
-                    .font(.system(.body, design: .rounded).weight(.semibold))
-                    .foregroundColor(Theme.gold)
-                } footer: {
-                    Text(t("app.rulesNext"))
-                }
                 appSection
             }
             .scrollContentBackground(.hidden)
@@ -79,6 +67,33 @@ struct MenuSheet: View {
         controller.settings.mode = mode
         controller.settings.target = GameSettings.usualTarget(mode)
         modeBefore = nil
+    }
+
+    /// Starting over, at the top where it can be reached without scrolling past the rules.
+    ///
+    /// The whole menu is settings for the next game, so this is the one control that acts on
+    /// the table — and the one that throws a game away, hence the question below.
+    private var startSection: some View {
+        Section {
+            Button {
+                if gameRunning {
+                    confirmNewGame = true
+                } else {
+                    startNewGame()
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 15, weight: .bold))
+                    Text(t("menu.start"))
+                    Spacer()
+                }
+                .font(.system(.body, design: .rounded).weight(.semibold))
+                .foregroundColor(Theme.gold)
+            }
+        } footer: {
+            Text(t("app.rulesNext"))
+        }
     }
 
     // MARK: Rules

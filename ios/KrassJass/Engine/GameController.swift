@@ -26,12 +26,26 @@ final class GameController: ObservableObject {
         case roundScored(matchForUs: Bool?)
         case gameOver(won: Bool)
         case rejected
+        /// Sidi: that seat just doubled. The fist and the two thumps are the view's
+        /// (`Knock.swift`), which is why this one carries no haptic of its own.
+        case doubled(seat: Int)
     }
 
     @Published private(set) var state: TableState?
     @Published private(set) var names: [String] = ["", "", "", ""]
     @Published private(set) var advice: [Card] = []
     @Published private(set) var knock: KnockOffer?
+    /// Sidi: the last double, and a count so two in a row are two separate events.
+    ///
+    /// Published in its own right rather than read off `lastEvent`, because a turn can emit
+    /// several events at once and SwiftUI only shows a watcher the last of them — a double
+    /// ending the auction is followed by "your turn", which was quietly swallowing it.
+    @Published private(set) var pound: Pound?
+
+    struct Pound: Equatable {
+        let seat: Int
+        let count: Int
+    }
     /// The rounds scored so far in this game, oldest first — the Jasstafel.
     @Published private(set) var rounds: [TableState.Scorecard] = []
     /// Counts the deals put on screen, so the hand can be dealt in again for each one.
@@ -153,6 +167,7 @@ final class GameController: ObservableObject {
         driving = false
         advice = []
         adviceKey = nil
+        pound = nil
         knock = nil
     }
 
@@ -287,6 +302,7 @@ final class GameController: ObservableObject {
     private func emit(_ event: TableEvent) {
         lastEvent = event
         eventCount += 1
+        if case .doubled(let seat) = event { pound = Pound(seat: seat, count: (pound?.count ?? 0) + 1) }
         Haptics.play(event)
     }
 
@@ -314,10 +330,22 @@ final class GameController: ObservableObject {
                 out.append(.roundScored(matchForUs: match))
             }
         }
+        if let seat = Self.doubler(from: old, to: new) { out.append(.doubled(seat: seat)) }
         let wasMine = old.myTurn && !old.trickComplete
         let isMine = new.myTurn && !new.trickComplete && new.scorecard == nil
         if isMine && !wasMine { out.append(.myTurn) }
         return out
+    }
+
+    /// Which seat doubled between these two views, or nil. The same reading as `newDouble`
+    /// in `web/static/table.js`: a double in the auction is a call with a seat on it, while a
+    /// double after the lead only turns `doubled` true — and then it was whoever was being
+    /// asked. Taken from two views rather than from the engine, so a replayed game on launch
+    /// does not pound the table for every double it rebuilds.
+    private static func doubler(from old: TableState, to new: TableState) -> Int? {
+        guard new.mode == .sidi, new.doubled, !old.doubled else { return nil }
+        if let call = new.auction.first(where: { $0.call == "DOUBLE" }) { return call.seat }
+        return old.phase == .doubling ? old.toAct : nil
     }
 
     // MARK: The turn loop
